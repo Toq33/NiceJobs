@@ -552,7 +552,7 @@ function switchRole(role) {
     state.notifications = [];
     state.conversations = [];
     statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
-    showToast('Browsing as Public Guest. Sign-in required to apply or view candidate CVs.');
+    showToast('Browsing as Public Guest. Log-in required to apply or view candidate CVs.');
     navigateTo('home');
   }
 
@@ -743,13 +743,13 @@ function updateNavigation() {
     `;
     actionsHtml = `
       <button class="btn-nav-search" onclick="document.getElementById('input-search-q')?.focus()" title="Search Opportunities">${svgIcon('search', '', 16)}</button>
-      <button class="btn-secondary nav-guest-signin" onclick="startLoginFlow('candidate')">Sign In</button>
-      <button class="btn-orange nav-guest-getstarted" onclick="startSignupFlow('candidate')">Get Started</button>
+      <button class="btn-secondary nav-guest-signin" onclick="startLoginFlow('candidate')">Log In</button>
+      <button class="btn-orange nav-guest-getstarted" onclick="startSignupFlow('candidate')">Sign Up</button>
     `;
     mobileActionsHtml = `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <button class="btn-secondary" style="justify-content: center; padding: 11px;" onclick="startLoginFlow('candidate'); closeMobileMenu();">Sign In</button>
-        <button class="btn-orange" style="justify-content: center; padding: 11px;" onclick="startSignupFlow('candidate'); closeMobileMenu();">Get Started</button>
+        <button class="btn-secondary" style="justify-content: center; padding: 11px;" onclick="startLoginFlow('candidate'); closeMobileMenu();">Log In</button>
+        <button class="btn-orange" style="justify-content: center; padding: 11px;" onclick="startSignupFlow('candidate'); closeMobileMenu();">Sign Up</button>
       </div>
     `;
   }
@@ -1544,7 +1544,7 @@ async function toggleFollowHotel(hotelId) {
 
 async function renderApplicationsScreen(viewport) {
   if (!state.currentUser) {
-    viewport.innerHTML = `<div style="padding: 60px; text-align: center;">Please <button class="btn-primary" onclick="openAuthModal('signin')">Sign In</button> to view applications.</div>`;
+    viewport.innerHTML = `<div style="padding: 60px; text-align: center;">Please <button class="btn-primary" onclick="openAuthModal('signin')">Log In</button> to view applications.</div>`;
     return;
   }
 
@@ -3626,7 +3626,7 @@ function renderLoginPage(viewport) {
       <div class="auth-page-card">
         <!-- Clean Header -->
         <div class="auth-header" style="text-align: center; margin-bottom: 20px;">
-          <h1 class="auth-title">Sign In</h1>
+          <h1 class="auth-title">Log In</h1>
         </div>
 
         <!-- Role Toggle (Candidate vs Business) -->
@@ -3670,7 +3670,7 @@ function renderLoginPage(viewport) {
             </div>
 
             <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
-              Sign In
+              Log In
             </button>
           </form>
         ` : `
@@ -3759,7 +3759,7 @@ function renderLoginPage(viewport) {
               ` : ''}
 
               <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
-                Sign In
+                Log In
               </button>
             </form>
           `}
@@ -3800,7 +3800,7 @@ async function handleCandidateLogin(event) {
       body: JSON.stringify({ email, password, role: 'jobseeker' })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Candidate sign in failed.');
+    if (!res.ok) throw new Error(data.detail || 'Candidate log in failed.');
 
     state.currentUser = data.user;
     state.currentRole = 'jobseeker';
@@ -3896,7 +3896,7 @@ async function handleBusinessLoginPart2(event) {
         renderLoginPage(document.getElementById('app-viewport'));
         return;
       }
-      throw new Error(data.detail || 'Sign in failed');
+      throw new Error(data.detail || 'Log in failed');
     }
 
     state.currentUser = data.user;
@@ -3960,7 +3960,7 @@ function renderSignupPage(viewport) {
             ${signupState.stage > 1 ? `
               <button type="button" class="auth-back-btn" onclick="prevSignupStage()">← Back</button>
             ` : `
-              <button type="button" class="auth-back-btn" onclick="startLoginFlow('candidate')">← Sign In</button>
+              <button type="button" class="auth-back-btn" onclick="startLoginFlow('candidate')">← Log In</button>
             `}
             <span class="auth-stage-indicator">Candidate Registration</span>
           ` : `
@@ -3970,7 +3970,7 @@ function renderSignupPage(viewport) {
                 ${signupState.biz_route === 'new' ? `New Business Registration` : `Add Team Member`}
               </span>
             ` : `
-              <button type="button" class="auth-back-btn" onclick="startLoginFlow('business')">← Sign In</button>
+              <button type="button" class="auth-back-btn" onclick="startLoginFlow('business')">← Log In</button>
               <span class="auth-stage-indicator">Business Portal</span>
             `}
           `}
@@ -3998,17 +3998,24 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part1" onsubmit="event.preventDefault(); nextSignupStage(2);">
-              <!-- PFP Avatar Selector -->
-              <div class="pfp-selector-wrap">
-                <img src="${signupState.pfp || '/static/images/candidate_rahim.jpg'}" alt="Avatar Preview" class="pfp-preview-img" id="cand-pfp-img">
+              <!-- Profile Picture Upload (No Presets) -->
+              <div class="pfp-upload-wrap">
+                <div class="pfp-avatar-preview-box">
+                  <img src="${signupState.pfp || '/static/images/candidate_rahim.jpg'}" alt="Profile Photo Preview" class="pfp-preview-img" id="cand-pfp-img">
+                </div>
                 <div style="flex: 1;">
-                  <label class="auth-label" style="margin-bottom: 4px;">Profile Photo (PFP)</label>
-                  <div class="pfp-presets-list">
-                    ${PRESET_AVATARS.map(a => `
-                      <div class="pfp-thumb-chip ${signupState.pfp === a ? 'active' : ''}" onclick="selectAvatar('${a}')">
-                        <img src="${a}" alt="preset">
-                      </div>
-                    `).join('')}
+                  <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Picture</label>
+                  <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload your professional photo (JPG, PNG, or WebP)</p>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('cand-pfp-file-input').click()">
+                      ${svgIcon('upload', '', 14)} Upload Picture
+                    </button>
+                    <input type="file" id="cand-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event)">
+                    ${signupState.pfp && signupState.pfp !== '/static/images/candidate_rahim.jpg' ? `
+                      <button type="button" class="btn-icon" title="Reset to default photo" style="width: 30px; height: 30px;" onclick="resetCandidatePfp()">
+                        ${svgIcon('x', '', 14)}
+                      </button>
+                    ` : ''}
                   </div>
                 </div>
               </div>
@@ -4955,7 +4962,7 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <button type="button" class="auth-btn-primary" onclick="startLoginFlow('business')">
-                  Return to Sign In →
+                  Return to Log In →
                 </button>
               </div>
             ` : ''}
@@ -4969,6 +4976,37 @@ function renderSignupPage(viewport) {
 // -------------------------------------------------------------
 // HELPER SUBROUTINES FOR SCHEMAS, ADDERS & AVATARS
 // -------------------------------------------------------------
+
+function handlePfpFileSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (JPG, PNG, or WebP)', 'danger');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Image file size must be under 5MB', 'danger');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    signupState.pfp = dataUrl;
+    const previewImg = document.getElementById('cand-pfp-img');
+    if (previewImg) previewImg.src = dataUrl;
+    showToast(`Profile picture attached: ${file.name}`, 'success');
+    renderSignupPage(document.getElementById('app-viewport'));
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetCandidatePfp() {
+  signupState.pfp = '/static/images/candidate_rahim.jpg';
+  const previewImg = document.getElementById('cand-pfp-img');
+  if (previewImg) previewImg.src = signupState.pfp;
+  showToast('Profile picture reset to default', 'info');
+  renderSignupPage(document.getElementById('app-viewport'));
+}
 
 function selectAvatar(url) {
   signupState.pfp = url;
@@ -5766,7 +5804,7 @@ function switchAuthTab(tab) {
   if (modalTitle && modalSubtitle) {
     if (tab === 'signin') {
       modalTitle.textContent = 'Welcome Back to NiceJobs';
-      modalSubtitle.textContent = 'Sign in to access your Hospitality Desk';
+      modalSubtitle.textContent = 'Log in to access your Hospitality Desk';
     } else if (tab === 'candidate') {
       modalTitle.textContent = 'Join NiceJobs Hospitality';
       modalSubtitle.textContent = 'Create your verified candidate profile & resume desk';
@@ -5990,7 +6028,7 @@ function switchAuthTab(tab) {
           </div>
 
           <div style="text-align: center; margin-top: 6px; font-size: 0.82rem; color: var(--text-muted);">
-            Already have an account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Sign In to Your Account</a> &nbsp;•&nbsp; Are you a hotel employer? <a href="javascript:void(0)" onclick="switchAuthTab('business')" style="color: #fdba74; font-weight: 700; text-decoration: underline;">Register Hotel Organization</a>
+            Already have an account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Log In to Your Account</a> &nbsp;•&nbsp; Are you a hotel employer? <a href="javascript:void(0)" onclick="switchAuthTab('business')" style="color: #fdba74; font-weight: 700; text-decoration: underline;">Register Hotel Organization</a>
           </div>
         </div>
       </form>
@@ -6195,7 +6233,7 @@ function switchAuthTab(tab) {
           </div>
 
           <div style="text-align: center; margin-top: 6px; font-size: 0.82rem; color: var(--text-muted);">
-            Already have a hotel account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Sign In to Recruiter Desk</a> &nbsp;•&nbsp; Looking for hospitality jobs? <a href="javascript:void(0)" onclick="switchAuthTab('candidate')" style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">Create Candidate Profile</a>
+            Already have a hotel account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Log In to Recruiter Desk</a> &nbsp;•&nbsp; Looking for hospitality jobs? <a href="javascript:void(0)" onclick="switchAuthTab('candidate')" style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">Create Candidate Profile</a>
           </div>
         </div>
       </form>
@@ -6297,11 +6335,11 @@ function renderLoginWizard() {
       modalTitle.textContent = 'Welcome Back to NiceJobs';
       modalSubtitle.textContent = 'Select your portal to access personalized hospitality tools';
     } else if (loginWizardState.step === 2) {
-      modalTitle.textContent = isCandidate ? 'Candidate Sign In' : 'Hotel Recruiter Sign In';
+      modalTitle.textContent = isCandidate ? 'Candidate Log In' : 'Hotel Recruiter Log In';
       modalSubtitle.textContent = isCandidate ? 'Enter your mobile cell number or personal email' : 'Enter your hotel contact number or corporate email';
     } else {
       modalTitle.textContent = 'Secure Account Verification';
-      modalSubtitle.textContent = `Sign in to verified ${roleName} desk`;
+      modalSubtitle.textContent = `Log in to verified ${roleName} desk`;
     }
   }
 
@@ -6332,7 +6370,7 @@ function renderLoginWizard() {
     stepBodyHtml = `
       <div class="login-step-content" style="display: flex; flex-direction: column; gap: 14px;">
         <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 2px;">
-          Select how you want to sign in to NiceJobs:
+          Select how you want to log in to NiceJobs:
         </div>
 
         <!-- Candidate Portal Card -->
@@ -6562,7 +6600,7 @@ function renderLoginWizard() {
             <div style="background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center;">
               ${svgIcon('shield', '', 18)}
               <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.35;">
-                <strong style="color: #fdba74;">Hotel Compliance Notice:</strong> Pending business accounts will be directed to the Trust Verification desk upon sign in.
+                <strong style="color: #fdba74;">Hotel Compliance Notice:</strong> Pending business accounts will be directed to the Trust Verification desk upon log in.
               </div>
             </div>
           ` : ''}
@@ -6572,7 +6610,7 @@ function renderLoginWizard() {
               ← Back
             </button>
             <button type="submit" class="btn-primary" id="btn-login-submit" style="flex: 1; justify-content: center; padding: 12px; font-size: 0.95rem; font-weight: 800; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);">
-              Sign In to ${roleName} Desk ${svgIcon('share', '', 14)}
+              Log In to ${roleName} Desk ${svgIcon('share', '', 14)}
             </button>
           </div>
         </form>
@@ -6655,7 +6693,7 @@ async function handleUserLogin(event) {
       })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Sign in failed');
+    if (!res.ok) throw new Error(data.detail || 'Log in failed');
 
     closeModal('modal-auth');
     showToast(data.message || 'Logged in successfully!', 'success');
@@ -7020,7 +7058,7 @@ async function openJobDetailModal(jobId) {
 
 function handleApplyClick(jobId) {
   if (state.currentRole === 'guest' || !state.currentUser) {
-    showToast('Sign in as candidate to apply', 'orange');
+    showToast('Log in as candidate to apply', 'orange');
     openAuthModal('candidate');
     return;
   }

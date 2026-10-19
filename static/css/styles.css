@@ -3833,7 +3833,31 @@ button {
   color: var(--white);
 }
 
-/* PFP Avatar Selector */
+/* PFP Avatar Selector & Upload Box */
+.pfp-upload-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+}
+
+.pfp-upload-wrap:hover {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 107, 0, 0.4);
+}
+
+.pfp-avatar-preview-box {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+}
+
 .pfp-selector-wrap {
   display: flex;
   align-items: center;
@@ -3846,12 +3870,12 @@ button {
 }
 
 .pfp-preview-img {
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--blue-primary);
-  box-shadow: 0 4px 14px rgba(255, 107, 0, 0.4);
+  border: 2px solid var(--orange-primary);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 .pfp-presets-list {
