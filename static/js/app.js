@@ -370,6 +370,7 @@ const signupState = {
   biz_role_choice: 'admin', // Default admin for business
   biz_otp_code: '',
   biz_lastSentOtp: '258330',
+  hotel_terms_accepted: false,
 
   // Route B: Add New User to Existing Business (Parts 1-7)
   join_business_email: 'hr@radissondhaka.com',
@@ -383,7 +384,8 @@ const signupState = {
   join_pfp: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
   join_designation: 'Assistant HR Manager & Recruiter',
   join_otp_code: '',
-  join_lastSentOtp: '258330'
+  join_lastSentOtp: '258330',
+  join_terms_accepted: false
 };
 
 function saveSignupProgress() {
@@ -697,7 +699,7 @@ function updateNavigation() {
     `;
 
     mobileActionsHtml = `
-      <div class="mobile-user-card" onclick="navigateTo('profile')" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);">
+      <div class="mobile-user-card" onclick="navigateTo('profile'); closeMobileMenu();" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);">
         <img src="${state.currentUser.avatar || '/static/images/candidate_rahim.jpg'}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">
         <div>
           <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${state.currentUser.name}</div>
@@ -708,7 +710,7 @@ function updateNavigation() {
         <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="openNotificationsModal(); closeMobileMenu();">
           ${svgIcon('bell', '', 15)} Alerts ${totalUnreadNotifs > 0 ? `(${totalUnreadNotifs})` : ''}
         </button>
-        <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="switchRole('guest')">Sign Out</button>
+        <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="switchRole('guest'); closeMobileMenu();">Sign Out</button>
       </div>
     `;
   } else if (role === 'recruiter') {
@@ -739,7 +741,7 @@ function updateNavigation() {
       </div>
     `;
     mobileActionsHtml = `
-      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest')">Sign Out</button>
+      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest'); closeMobileMenu();">Sign Out</button>
     `;
   } else if (role === 'admin' && state.currentUser && state.currentUser.role === 'admin') {
     linksHtml = `
@@ -755,7 +757,7 @@ function updateNavigation() {
       </div>
     `;
     mobileActionsHtml = `
-      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="adminSignOut()">Sign Out (Admin)</button>
+      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="adminSignOut(); closeMobileMenu();">Sign Out (Admin)</button>
     `;
   } else {
     // Guest
@@ -896,32 +898,38 @@ async function renderHomeScreen(viewport) {
         </p>
 
         <!-- Glass Capsule Search Bar with Autocomplete -->
-        <div class="hero-search-capsule" style="position: relative;">
-          <div class="capsule-field">
+        <div class="hero-search-capsule" id="hero-search-capsule" style="position: relative;">
+          <div class="capsule-field capsule-main-query">
             <span class="field-icon">${svgIcon('search', '', 16)}</span>
-            <input type="text" id="input-search-q" placeholder="Job title, role or keyword" value="${state.search.query}" oninput="handleGuestSearchInput(this.value)" onfocus="handleGuestSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch()" autocomplete="off">
+            <input type="text" id="input-search-q" placeholder="Job title, role or keyword" value="${state.search.query}" oninput="handleGuestSearchInput(this.value)" onfocus="handleGuestSearchFocus(this.value)" onclick="showHeroExtraFields()" onkeydown="if(event.key==='Enter') executeSearch()" autocomplete="off">
+            <button type="button" class="btn-hero-filter-expand" id="btn-hero-filter-expand" onclick="toggleHeroExtraFields()" title="Location & Department Filters">
+              ${svgIcon('sliders', '', 14)}
+            </button>
           </div>
-          <div class="capsule-divider"></div>
-          <div class="capsule-field field-location">
-            <span class="field-icon">${svgIcon('mapPin', '', 15)}</span>
-            <select id="select-search-loc" onchange="executeSearch()">
-              <option value="">Location</option>
-              <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
-              <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
-              <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
-              <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
-            </select>
-          </div>
-          <div class="capsule-divider"></div>
-          <div class="capsule-field">
-            <span class="field-icon">${svgIcon('briefcase', '', 15)}</span>
-            <select id="select-search-dept" onchange="executeSearch()">
-              <option value="">Department</option>
-              ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
-            </select>
+          <div class="hero-capsule-extra-fields ${(state.search.location || state.search.department) ? 'is-expanded' : ''}" id="hero-capsule-extra-fields">
+            <div class="capsule-divider"></div>
+            <div class="capsule-field field-location">
+              <span class="field-icon">${svgIcon('mapPin', '', 15)}</span>
+              <select id="select-search-loc" onchange="executeSearch()">
+                <option value="">Location</option>
+                <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
+                <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
+                <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
+                <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
+              </select>
+            </div>
+            <div class="capsule-divider"></div>
+            <div class="capsule-field">
+              <span class="field-icon">${svgIcon('briefcase', '', 15)}</span>
+              <select id="select-search-dept" onchange="executeSearch()">
+                <option value="">Department</option>
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
+              </select>
+            </div>
           </div>
           <button class="hero-search-btn" onclick="executeSearch()" title="Search Opportunities">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            <span class="hero-btn-label">Search Jobs</span>
           </button>
           <div id="guest-search-dropdown" class="guest-search-dropdown" style="display: none;"></div>
         </div>
@@ -958,10 +966,10 @@ async function renderHomeScreen(viewport) {
         <div class="search-main-row">
           <div class="search-field" style="position: relative;">
             <span class="field-icon">${svgIcon('search', '', 16)}</span>
-            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" oninput="handleCandidateSearchInput(this.value)" onfocus="handleCandidateSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch()">
+            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" oninput="handleCandidateSearchInput(this.value)" onfocus="handleCandidateSearchFocus(this.value)" onclick="showCandidateExtraFields()" onkeydown="if(event.key==='Enter') executeSearch()">
             <div id="candidate-search-dropdown" class="candidate-search-dropdown" style="display: none;"></div>
           </div>
-          <div class="mobile-search-extra-fields" id="candidate-mobile-extra-fields">
+          <div class="mobile-search-extra-fields ${(state.search.location || state.search.department || state.search.designation) ? 'is-expanded' : ''}" id="candidate-mobile-extra-fields">
             <div class="search-field">
               <span class="field-icon">${svgIcon('mapPin', '', 16)}</span>
               <select id="select-search-loc" onchange="executeSearch()">
@@ -1012,7 +1020,7 @@ async function renderHomeScreen(viewport) {
         <div class="section-header" style="align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
           <div>
             <h2 class="section-title" style="margin: 0; font-size: 1.35rem;">
-              ${svgIcon('briefcase', '', 20)} Hospitality Vacancies
+              ${svgIcon('briefcase', '', 20)} Hospitality Job Posts
             </h2>
             <p class="section-subtitle" style="margin: 2px 0 0 0;">
               Showing <strong>${jobs.length}</strong> verified opening${jobs.length === 1 ? '' : 's'} with direct hotel applications
@@ -1033,7 +1041,7 @@ async function renderHomeScreen(viewport) {
           ${jobs.length === 0 ? `
             <div style="background: rgba(255, 255, 255, 0.035); padding: 48px; border-radius: var(--radius-lg); text-align: center; border: 1px dashed rgba(255, 255, 255, 0.1);">
               <div style="margin-bottom: 12px; color: var(--orange-primary);">${svgIcon('hotel', '', 40)}</div>
-              <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 6px;">No vacancies match your criteria</h3>
+              <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 6px;">No job posts match your criteria</h3>
               <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">Try expanding your location or clearing active filters.</p>
               <button class="btn-orange" onclick="clearAllFilters()">Clear All Filters</button>
             </div>
@@ -1166,10 +1174,10 @@ function renderJobCardHTML(job) {
           ${svgIcon('calendar', '', 13)} Deadline: <strong>${job.deadline || 'Open'}</strong> • <strong>${job.applicant_count || 12}</strong> applied
         </span>
         <div class="card-actions">
-          <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isSaved ? 'Bookmarked' : 'Save Vacancy'}" onclick="toggleSaveJob('${job.id}')">
+          <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isSaved ? 'Bookmarked' : 'Save Job Post'}" onclick="toggleSaveJob('${job.id}')">
             ${isSaved ? svgIcon('starFilled', '', 16) : svgIcon('star', '', 16)}
           </button>
-          <button class="btn-icon" title="Share Vacancy" onclick="shareJob('${job.id}', '${encodeURIComponent(job.title)}')">
+          <button class="btn-icon" title="Share Job Post" onclick="shareJob('${job.id}', '${encodeURIComponent(job.title)}')">
             ${svgIcon('share', '', 16)}
           </button>
           <button class="btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;" onclick="openJobDetailModal('${job.id}')">
@@ -1199,7 +1207,7 @@ const GUEST_AUTOCOMPLETE_ITEMS = [
   { label: 'Food & Beverage Service / Captain', query: 'F&B Manager', category: 'F&B Service' },
   { label: 'General Manager / Resident Manager', query: 'General Manager', category: 'Management' },
   { label: 'Guest Relations Executive', query: 'Guest Relations', category: 'Front Office' },
-  { label: 'Hotel Vacancies in Dhaka', location: 'Dhaka', category: 'Location' },
+  { label: 'Hotel Job Posts in Dhaka', location: 'Dhaka', category: 'Location' },
   { label: 'Luxury Beach Resort Jobs in Cox\'s Bazar', location: 'Cox\'s Bazar', category: 'Location' },
   { label: 'Tea Garden & Eco Resorts in Sylhet', location: 'Sylhet', category: 'Location' },
   { label: 'Port City Hotels in Chittagong', location: 'Chittagong', category: 'Location' }
@@ -1321,6 +1329,44 @@ function closeCandidateSearchDropdown() {
   if (dropdown) dropdown.style.display = 'none';
 }
 
+function showHeroExtraFields() {
+  const extraFields = document.getElementById('hero-capsule-extra-fields');
+  const btn = document.getElementById('btn-hero-filter-expand');
+  if (extraFields && !extraFields.classList.contains('is-expanded')) {
+    extraFields.classList.add('is-expanded');
+    btn?.classList.add('is-active');
+  }
+}
+
+function toggleHeroExtraFields() {
+  const extraFields = document.getElementById('hero-capsule-extra-fields');
+  const btn = document.getElementById('btn-hero-filter-expand');
+  if (!extraFields) return;
+  extraFields.classList.toggle('is-expanded');
+  btn?.classList.toggle('is-active', extraFields.classList.contains('is-expanded'));
+}
+
+function handleGuestSearchFocus(val) {
+  showHeroExtraFields();
+  handleGuestSearchInput(val);
+}
+
+function showCandidateExtraFields() {
+  const extraFields = document.getElementById('candidate-mobile-extra-fields');
+  const btn = document.getElementById('btn-toggle-candidate-filters');
+  if (extraFields && !extraFields.classList.contains('is-expanded')) {
+    extraFields.classList.add('is-expanded');
+    if (btn) {
+      btn.innerHTML = `<span>Hide Filters</span> ${svgIcon('chevronUp', '', 14)}`;
+    }
+  }
+}
+
+function handleCandidateSearchFocus(val) {
+  showCandidateExtraFields();
+  handleCandidateSearchInput(val);
+}
+
 function toggleMobileSearchFields() {
   const extraFields = document.getElementById('candidate-mobile-extra-fields');
   const btn = document.getElementById('btn-toggle-candidate-filters');
@@ -1374,7 +1420,7 @@ function clearAllFilters() {
 }
 
 // ==========================================================================
-// Screen 1B: Dedicated Vacancy Detail Page (Deep Linking & Direct Shares)
+// Screen 1B: Dedicated Job Post Detail Page (Deep Linking & Direct Shares)
 // ==========================================================================
 
 async function renderJobDetailScreen(viewport, jobId) {
@@ -1398,9 +1444,9 @@ async function renderJobDetailScreen(viewport, jobId) {
     viewport.innerHTML = `
       <div style="padding: 60px 20px; text-align: center; max-width: 600px; margin: 0 auto;">
         <div style="margin-bottom: 16px; color: var(--text-dim);">${svgIcon('briefcase', '', 48)}</div>
-        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Vacancy Not Found</h2>
-        <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">This vacancy might have closed, expired, or been removed.</p>
-        <button class="btn-primary" onclick="navigateTo('home')">← Browse Open Vacancies</button>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Job Post Not Found</h2>
+        <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">This job post might have closed, expired, or been removed.</p>
+        <button class="btn-primary" onclick="navigateTo('home')">← Browse Open Job Posts</button>
       </div>
     `;
     return;
@@ -1410,7 +1456,7 @@ async function renderJobDetailScreen(viewport, jobId) {
     <div style="max-width: 960px; margin: 0 auto; padding: 24px 16px;">
       <div style="margin-bottom: 20px;">
         <button class="btn-secondary" onclick="navigateTo('home')" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 8px 16px;">
-          ← Back to Vacancies
+          ← Back to Job Posts
         </button>
       </div>
 
@@ -1584,7 +1630,7 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
           <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px;">
             <span style="font-size: 0.8rem; color: var(--text-muted);">${svgIcon('users', '', 14)} ${biz.follower_count || 1200} followers</span>
             <button class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" onclick="navigateTo('hotels', { id: '${biz.id}' })">
-              View Vacancies →
+              View Job Posts →
             </button>
           </div>
         </div>
@@ -1654,7 +1700,7 @@ async function renderHotelDetailScreen(viewport, hotelId) {
           </div>
         </div>
 
-        <!-- Open Vacancies -->
+        <!-- Open Job Posts -->
         <div class="profile-section-card">
           <div class="section-header" style="margin-bottom: 16px;">
             <h2 style="font-size: 1.2rem; font-weight: 800;">Open Positions</h2>
@@ -1663,7 +1709,7 @@ async function renderHotelDetailScreen(viewport, hotelId) {
 
           <div class="jobs-list">
             ${(hotel.open_jobs || []).length === 0 ? `
-              <p style="color: var(--text-muted); font-size: 0.9rem;">No active vacancies currently open.</p>
+              <p style="color: var(--text-muted); font-size: 0.9rem;">No active job posts currently open.</p>
             ` : hotel.open_jobs.map(j => renderJobCardHTML({ ...j, brand_name: hotel.brand_name, logo_url: hotel.logo_url, star_rating: hotel.star_rating })).join('')}
           </div>
         </div>
@@ -1710,7 +1756,7 @@ async function toggleFollowHotel(hotelId) {
   try {
     const res = await fetch(`/api/businesses/${hotelId}/follow?user_id=${state.currentUser.id}`, { method: 'POST' });
     const data = await res.json();
-    showToast(data.is_followed ? 'Hotel followed! You will receive new vacancy alerts.' : 'Unfollowed hotel.');
+    showToast(data.is_followed ? 'Hotel followed! You will receive new job post alerts.' : 'Unfollowed hotel.');
     renderHotelDetailScreen(document.getElementById('app-viewport'), hotelId);
   } catch (err) {
     showToast(err.message, 'danger');
@@ -1740,7 +1786,7 @@ async function renderApplicationsScreen(viewport) {
       <div style="background: var(--bg-surface); padding: 50px; border-radius: var(--radius-xl); text-align: center; border: 1px dashed var(--border-subtle);">
         <div style="margin-bottom: 12px; color: var(--text-dim);">${svgIcon('fileText', '', 44)}</div>
         <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;">No applications yet</h3>
-        <p style="color: var(--text-muted); margin-bottom: 20px;">Explore vacancies and apply to track them here.</p>
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Explore job posts and apply to track them here.</p>
         <button class="btn-orange" onclick="navigateTo('home')">Browse Jobs</button>
       </div>
     ` : `
@@ -1898,7 +1944,7 @@ async function renderProfileScreen(viewport) {
                     </span>
                   </div>
                   <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">
-                    ${isOpen ? '5-Star hotel HR and recruiters can discover your profile for hospitality roles.' : 'Your profile is hidden from active recruiter searches. You can still apply for vacancies manually.'}
+                    ${isOpen ? '5-Star hotel HR and recruiters can discover your profile for hospitality roles.' : 'Your profile is hidden from active recruiter searches. You can still apply for job posts manually.'}
                   </div>
                 </div>
               </div>
@@ -2092,7 +2138,7 @@ async function renderRecruiterDashboard(viewport) {
           <div>
             <div style="font-weight: 700; font-size: 0.95rem; color: #fdba74;">Verification Pending</div>
             <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">
-              Vacancies and messaging unlock once verified by admin.
+              Job posts and messaging unlock once verified by admin.
             </div>
           </div>
         </div>
@@ -3145,7 +3191,7 @@ async function renderAdminScreen(viewport) {
                   <th>Job Title & Department</th>
                   <th>Hotel / Establishment</th>
                   <th>Salary & Type</th>
-                  <th>Vacancies / Applicants</th>
+                  <th>Job Posts / Applicants</th>
                   <th>Status & Highlights</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
@@ -3169,7 +3215,7 @@ async function renderAdminScreen(viewport) {
                     </td>
                     <td>
                       <div style="font-weight: 700; color: #a7f3d0;">${j.live_applicants_count || j.applicant_count || 0} applicants</div>
-                      <div style="font-size: 0.75rem; color: var(--text-dim);">${j.vacancies || 1} vacancy</div>
+                      <div style="font-size: 0.75rem; color: var(--text-dim);">${j.vacancies || 1} post</div>
                     </td>
                     <td>
                       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -5258,7 +5304,7 @@ function renderSignupPage(viewport) {
                 </div>
               </div>
 
-              <form id="form-biz-new-part5" onsubmit="handleNewBusinessFinalSignup(event)">
+              <form id="form-biz-new-part5" onsubmit="handleNewBusinessOtpSubmit(event)">
                 <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                   <input type="text" id="biz-new-otp" maxlength="6" class="auth-otp-input" 
                     placeholder="••••••" value="${signupState.biz_otp_code || signupState.biz_lastSentOtp || '258330'}" autofocus required>
@@ -5269,10 +5315,47 @@ function renderSignupPage(viewport) {
                   <span class="auth-fill-pill">Auto-Fill</span>
                 </div>
 
-                <button type="submit" class="auth-btn-primary" style="margin-top: 14px;">
-                  Verify &amp; Submit Property Registration ✓
-                </button>
+                <div class="auth-nav-row" style="margin-top: 14px;">
+                  <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevBizStage()">
+                    ← Back
+                  </button>
+                  <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                    Verify Code &amp; Review Terms →
+                  </button>
+                </div>
               </form>
+            ` : ''}
+
+            <!-- Terms & Conditions Screen (After Hotel OTP) -->
+            ${signupState.biz_step === 'terms' ? `
+              <div class="auth-header" style="text-align: center;">
+                <div class="auth-icon-circle" style="margin: 0 auto 12px auto; color: var(--orange-primary);">${svgIcon('shield', '', 24)}</div>
+                <h2 class="auth-title">Hotel Partner Terms &amp; Conditions</h2>
+                <p class="auth-subtitle">Review standards and trust policies for verified employers on NiceJobs</p>
+              </div>
+
+              <div class="terms-scroll-panel" style="max-height: 250px; overflow-y: auto; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">1. Legitimate Hospitality Employer Commitment</h4>
+                <p style="margin-bottom: 12px;">By registering <strong>${signupState.brand_name || 'your establishment'}</strong>, you warrant that your establishment operates under valid Bangladesh trade licensing and hospitality permits. Misrepresentation of property status will result in immediate termination.</p>
+
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">2. Accurate Job Postings &amp; Fair Recruitment</h4>
+                <p style="margin-bottom: 12px;">All job posts published on NiceJobs must reflect real, active employment vacancies. You agree to uphold Bangladesh Labor Act guidelines, honest salary/remuneration representations, and ethical interview protocols.</p>
+
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">3. Candidate Privacy &amp; Data Protection</h4>
+                <p style="margin-bottom: 12px;">Candidate CVs, contact details, and credentials accessed through the ATS desk are strictly confidential and must be utilized solely for hiring within your registered property.</p>
+
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">4. Trust Desk Verification</h4>
+                <p style="margin-bottom: 0;">Business accounts undergo mandatory verification before job posting. You must accept these terms to complete registration and initiate the verification process.</p>
+              </div>
+
+              <div class="auth-nav-row" style="display: flex; gap: 12px;">
+                <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineHotelTerms()">
+                  Decline Terms
+                </button>
+                <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptHotelTerms()">
+                  Accept Terms &amp; Submit Registration ✓
+                </button>
+              </div>
             ` : ''}
 
             <!-- PART 6: Pending Verification Message with WhatsApp & Email (Admin assigned by default) -->
@@ -5503,7 +5586,7 @@ function renderSignupPage(viewport) {
                 <p class="auth-subtitle">Verification code sent to +88 ${signupState.join_cell}</p>
               </div>
 
-              <form id="form-biz-join-part6" onsubmit="handleJoinBusinessFinalSignup(event)">
+              <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)">
                 <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                   <input type="text" id="join-otp-code" maxlength="6" class="auth-otp-input" 
                     placeholder="••••••" value="${signupState.join_otp_code || signupState.join_lastSentOtp || '258330'}" autofocus required>
@@ -5514,10 +5597,43 @@ function renderSignupPage(viewport) {
                   <span class="auth-fill-pill">Auto-Fill</span>
                 </div>
 
-                <button type="submit" class="auth-btn-primary" style="margin-top: 14px;">
-                  Verify &amp; Submit Join Request ✓
-                </button>
+                <div class="auth-nav-row" style="margin-top: 14px;">
+                  <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevJoinStage()">
+                    ← Back
+                  </button>
+                  <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                    Verify Code &amp; Review Terms →
+                  </button>
+                </div>
               </form>
+            ` : ''}
+
+            <!-- Terms & Conditions Screen (After Join OTP) -->
+            ${signupState.biz_step === 'terms_join' ? `
+              <div class="auth-header" style="text-align: center;">
+                <div class="auth-icon-circle" style="margin: 0 auto 12px auto; color: #fb923c;">${svgIcon('shield', '', 24)}</div>
+                <h2 class="auth-title">Team Member Terms &amp; Conditions</h2>
+                <p class="auth-subtitle">Review moderator authorization and confidentiality terms</p>
+              </div>
+
+              <div class="terms-scroll-panel" style="max-height: 250px; overflow-y: auto; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">1. Authorization to Represent Property</h4>
+                <p style="margin-bottom: 12px;">You confirm that you are an authorized employee or designated representative of <strong>${signupState.join_matched_business?.brand_name || 'the business'}</strong> requesting moderator workspace access.</p>
+
+                <h4 style="color: var(--white); margin-bottom: 8px; font-size: 0.92rem;">2. Administrative Oversight &amp; Data Security</h4>
+                <p style="margin-bottom: 12px;">Your membership is subject to approval by the Primary Business Administrator. All applicant data and recruitment interactions remain confidential and property of the establishment.</p>
+
+                <h4 style="color: var(--white); margin-bottom: 0;">You must accept these terms to submit your moderator access request to the business administrator.</h4>
+              </div>
+
+              <div class="auth-nav-row" style="display: flex; gap: 12px;">
+                <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineJoinTerms()">
+                  Decline Terms
+                </button>
+                <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptJoinTerms()">
+                  Accept Terms &amp; Submit Request ✓
+                </button>
+              </div>
             ` : ''}
 
             <!-- PART 7: Waiting for Admin Approval Notice -->
@@ -6485,6 +6601,11 @@ async function nextBizStage(targetStep) {
 }
 
 function prevBizStage() {
+  if (signupState.biz_step === 'terms') {
+    signupState.biz_step = 5;
+    renderSignupPage(document.getElementById('app-viewport'));
+    return;
+  }
   if (signupState.biz_step > 1) {
     signupState.biz_step -= 1;
     renderSignupPage(document.getElementById('app-viewport'));
@@ -6502,8 +6623,8 @@ function autoFillBizNewOtp() {
   }
 }
 
-// Route A Final Submit (New Business)
-async function handleNewBusinessFinalSignup(event) {
+// Route A OTP Verification -> Move to Hotel Terms & Conditions
+function handleNewBusinessOtpSubmit(event) {
   event.preventDefault();
   const input = document.getElementById('biz-new-otp');
   const code = (input ? input.value : signupState.biz_lastSentOtp || '').trim();
@@ -6513,7 +6634,24 @@ async function handleNewBusinessFinalSignup(event) {
     return;
   }
   signupState.biz_otp_code = code;
+  signupState.biz_step = 'terms';
+  renderSignupPage(document.getElementById('app-viewport'));
+  showToast('OTP verified! Please review and accept Hotel Partner Terms & Conditions.', 'info');
+}
 
+const handleNewBusinessFinalSignup = handleNewBusinessOtpSubmit;
+
+function declineHotelTerms() {
+  signupState.hotel_terms_accepted = false;
+  showToast('You must accept the Terms & Conditions to register your hotel and publish job posts.', 'warning');
+}
+
+async function acceptHotelTerms() {
+  signupState.hotel_terms_accepted = true;
+  await finalizeNewBusinessRegistration();
+}
+
+async function finalizeNewBusinessRegistration() {
   try {
     const payload = {
       brand_name: signupState.brand_name,
@@ -6534,7 +6672,7 @@ async function handleNewBusinessFinalSignup(event) {
       designation: signupState.rep_designation,
       password: signupState.biz_password,
       role_choice: signupState.biz_role_choice,
-      otp_code: code
+      otp_code: signupState.biz_otp_code
     };
 
     const res = await fetch('/api/auth/register-business', {
@@ -6681,6 +6819,11 @@ async function nextJoinStage(targetStep) {
 }
 
 function prevJoinStage() {
+  if (signupState.biz_step === 'terms_join') {
+    signupState.biz_step = 5;
+    renderSignupPage(document.getElementById('app-viewport'));
+    return;
+  }
   if (signupState.biz_step > 1) {
     signupState.biz_step -= 1;
     renderSignupPage(document.getElementById('app-viewport'));
@@ -6698,8 +6841,8 @@ function autoFillJoinOtp() {
   }
 }
 
-// Route B Final Submit (Add new user -> pending admin approval)
-async function handleJoinBusinessFinalSignup(event) {
+// Route B OTP Verification -> Move to Terms
+function handleJoinBusinessOtpSubmit(event) {
   event.preventDefault();
   const input = document.getElementById('join-otp-code');
   const code = (input ? input.value : signupState.join_lastSentOtp || '').trim();
@@ -6708,7 +6851,25 @@ async function handleJoinBusinessFinalSignup(event) {
     showToast('Please enter the 6-digit OTP code.', 'danger');
     return;
   }
+  signupState.join_otp_code = code;
+  signupState.biz_step = 'terms_join';
+  renderSignupPage(document.getElementById('app-viewport'));
+  showToast('OTP verified! Please review and accept Terms & Conditions.', 'info');
+}
 
+const handleJoinBusinessFinalSignup = handleJoinBusinessOtpSubmit;
+
+function declineJoinTerms() {
+  signupState.join_terms_accepted = false;
+  showToast('You must accept the Terms & Conditions to submit your moderator join request.', 'warning');
+}
+
+async function acceptJoinTerms() {
+  signupState.join_terms_accepted = true;
+  await finalizeJoinBusinessRegistration();
+}
+
+async function finalizeJoinBusinessRegistration() {
   try {
     const payload = {
       business_email: signupState.join_business_email,
@@ -6719,7 +6880,7 @@ async function handleJoinBusinessFinalSignup(event) {
       avatar_url: signupState.join_pfp,
       designation: signupState.join_designation,
       password: signupState.join_user_password,
-      otp_code: code
+      otp_code: signupState.join_otp_code
     };
 
     const res = await fetch('/api/auth/register-business-user', {
@@ -7019,7 +7180,7 @@ function switchAuthTab(tab) {
     body.innerHTML = `
       <form id="form-biz-signup" onsubmit="handleBusinessSignup(event)">
         <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
-          Register your hotel or hospitality establishment. All business accounts undergo verification before vacancy publication.
+          Register your hotel or hospitality establishment. All business accounts undergo verification before job post publication.
         </p>
 
         <div style="display: flex; flex-direction: column; gap: 18px;">
@@ -7206,7 +7367,7 @@ function switchAuthTab(tab) {
               <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Enter 6-digit OTP code to verify affiliation:</div>
               <input type="text" id="biz-otp-val" maxlength="6" placeholder="123456" style="width: 180px; letter-spacing: 8px; text-align: center; font-size: 1.4rem; font-weight: 800; background: var(--bg-input); border: 2px solid var(--orange-primary); padding: 8px; border-radius: var(--radius-md); color: var(--white);">
               <div style="font-size: 0.78rem; color: #fdba74; text-align: center; margin-top: 4px;">
-                ${svgIcon('shield', '', 14)} <strong>Trust Policy:</strong> Account status will be PENDING verification. Vacancy posting is strictly locked until manual Trust Desk approval.
+                ${svgIcon('shield', '', 14)} <strong>Trust Policy:</strong> Account status will be PENDING verification. Job posting is strictly locked until manual Trust Desk approval.
               </div>
               <button type="submit" class="btn-orange" style="width: 100%; justify-content: center; margin-top: 6px; padding: 12px;">
                 Submit for Trust Verification (Pending Status)
@@ -9426,7 +9587,7 @@ function openCreateJobModal() {
 
               <!-- Negotiable Notice -->
               <div id="salary-negotiable-notice" style="display: none; padding: 10px 14px; background: rgba(255, 107, 0, 0.08); border-radius: var(--radius-sm); border: 1px dashed rgba(255, 107, 0, 0.35); font-size: 0.84rem; color: var(--white);">
-                ${svgIcon('info', '', 14)} This vacancy will be marked as <strong>"৳ Negotiable"</strong>. Remuneration will be discussed during interviews based on qualifications and candidate track record.
+                ${svgIcon('info', '', 14)} This job post will be marked as <strong>"৳ Negotiable"</strong>. Remuneration will be discussed during interviews based on qualifications and candidate track record.
               </div>
             </div>
 
@@ -9550,7 +9711,7 @@ function openCreateJobModal() {
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Posting Priority</label>
                 <select name="is_urgent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                   <option value="0">Standard Publication</option>
-                  <option value="1">Urgent Vacancy (Red Badge)</option>
+                  <option value="1">Urgent Job Post (Red Badge)</option>
                 </select>
               </div>
             </div>
@@ -9627,7 +9788,7 @@ async function submitNewJob(event) {
     if (!res.ok) throw new Error(data.detail || 'Posting failed');
 
     closeModal('modal-create-job');
-    showToast('Hospitality vacancy successfully posted and live in the job feed!', 'success');
+    showToast('Hospitality job post successfully posted and live in the job feed!', 'success');
     await loadInitialData();
     renderRecruiterDashboard(document.getElementById('app-viewport'));
   } catch (err) {
@@ -9660,7 +9821,7 @@ function shareJob(jobId, encodedTitle) {
   const url = `${window.location.origin}/#job-details?id=${jobId}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url);
-    showToast(`Vacancy link copied to clipboard: ${decodeURIComponent(encodedTitle)}`, 'success');
+    showToast(`Job post link copied to clipboard: ${decodeURIComponent(encodedTitle)}`, 'success');
   } else {
     showToast(`Share URL: ${url}`);
   }

@@ -747,6 +747,21 @@ button {
   box-shadow: 0 6px 22px var(--orange-glow);
 }
 
+.hero-capsule-extra-fields {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1.8;
+}
+
+.btn-hero-filter-expand {
+  display: none;
+}
+
+.hero-btn-label {
+  display: none;
+}
+
 /* Perspective 3D Hotel Visual */
 .hero-perspective-wrap {
   position: relative;
@@ -4795,8 +4810,8 @@ button {
   }
 }
 
-/* 2. Tablets & Mobile Navigation Transition (<= 900px) */
-@media (max-width: 900px) {
+/* 2. Tablets & Mobile Navigation Transition (<= 1024px) */
+@media (max-width: 1024px) {
   .nav-links {
     display: none !important;
   }
@@ -4892,6 +4907,19 @@ button {
   }
 }
 
+/* Tablet Drawer Alignment (641px to 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .mobile-nav-drawer {
+    left: auto !important;
+    right: 20px !important;
+    width: 380px !important;
+    max-width: calc(100vw - 40px) !important;
+    border-radius: 20px !important;
+    padding: 18px 20px !important;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8) !important;
+  }
+}
+
 /* 3. Small Tablets & Phablets (<= 768px) - Medium UI/UX Scaling */
 @media (max-width: 768px) {
 
@@ -4959,6 +4987,48 @@ button {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 
+  .capsule-main-query {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-hero-filter-expand {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.65);
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 0;
+  }
+
+  .btn-hero-filter-expand:hover,
+  .btn-hero-filter-expand.is-active {
+    background: rgba(255, 107, 0, 0.15);
+    border-color: var(--orange-primary);
+    color: var(--orange-primary);
+  }
+
+  .hero-capsule-extra-fields {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .hero-capsule-extra-fields.is-expanded {
+    display: flex !important;
+  }
+
   .capsule-divider {
     display: none !important;
   }
@@ -4990,6 +5060,12 @@ button {
     font-size: 0.84rem;
     font-weight: 700;
     gap: 6px;
+  }
+
+  .hero-btn-label {
+    display: inline !important;
+    font-size: 0.84rem;
+    font-weight: 700;
   }
 
   /* Candidate Console Medium Sizing */
@@ -5243,35 +5319,35 @@ button {
   /* Medium-Sized Proportional Job Cards */
   .job-card,
   .job-glass-card {
-    padding: 12px 14px !important;
-    border-radius: 12px !important;
-    margin-bottom: 10px !important;
+    padding: 16px 18px !important;
+    border-radius: 14px !important;
+    margin-bottom: 14px !important;
   }
 
   .job-card-header {
     flex-direction: row !important;
     align-items: flex-start !important;
     justify-content: space-between !important;
-    gap: 8px !important;
-    margin-bottom: 6px !important;
+    gap: 12px !important;
+    margin-bottom: 8px !important;
   }
 
   .hotel-info-group {
-    gap: 10px !important;
+    gap: 12px !important;
     align-items: flex-start !important;
   }
 
   .hotel-thumb {
-    width: 38px !important;
-    height: 38px !important;
-    min-width: 38px !important;
-    border-radius: 8px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 10px !important;
   }
 
   .hotel-name {
-    font-size: 0.74rem !important;
-    line-height: 1.2 !important;
-    margin-bottom: 1px !important;
+    font-size: 0.8rem !important;
+    line-height: 1.35 !important;
+    margin-bottom: 3px !important;
   }
 
   .verified-badge svg {
@@ -5285,48 +5361,49 @@ button {
   }
 
   .job-title-link {
-    font-size: 0.98rem !important;
-    line-height: 1.25 !important;
-    margin-top: 1px !important;
+    font-size: 1.02rem !important;
+    line-height: 1.35 !important;
+    margin-top: 2px !important;
+    margin-bottom: 4px !important;
   }
 
   .candidate-salary-card-badge {
-    font-size: 0.78rem !important;
+    font-size: 0.8rem !important;
     font-weight: 700 !important;
-    padding: 3px 8px !important;
+    padding: 4px 10px !important;
     border-radius: 6px !important;
     white-space: nowrap !important;
     box-shadow: none !important;
   }
 
   .candidate-salary-card-badge span {
-    font-size: 0.68rem !important;
+    font-size: 0.7rem !important;
   }
 
   .card-badges {
     display: flex !important;
-    gap: 4px !important;
-    margin-top: 2px !important;
+    gap: 6px !important;
+    margin-top: 4px !important;
   }
 
   .badge-urgent,
   .badge-featured {
-    font-size: 0.64rem !important;
-    padding: 2px 6px !important;
+    font-size: 0.68rem !important;
+    padding: 3px 8px !important;
     border-radius: 4px !important;
   }
 
   .badge-urgent svg,
   .badge-featured svg {
-    width: 10px !important;
-    height: 10px !important;
+    width: 11px !important;
+    height: 11px !important;
   }
 
   .job-meta-row {
     flex-wrap: wrap !important;
-    gap: 4px 8px !important;
-    font-size: 0.72rem !important;
-    margin: 6px 0 8px 0 !important;
+    gap: 6px 10px !important;
+    font-size: 0.78rem !important;
+    margin: 8px 0 10px 0 !important;
   }
 
   .meta-item {
