@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NiceJobs — Hospitality Careers, Connected</title>
+  <meta name="description" content="A specialized hospitality employment platform connecting certified hotel leaders, chefs, front office supervisors, and resort teams with verified 5-star properties in Bangladesh.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>">
+</head>
+<body>
+
+  <!-- Top Demo Bar -->
+  <aside class="demo-bar" aria-label="Demo Persona Switcher">
+    <div class="demo-bar-left">
+      <div class="role-switcher">
+        <button class="role-btn active" id="btn-role-seeker" onclick="switchRole('jobseeker')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Candidate
+        </button>
+        <button class="role-btn" id="btn-role-recruiter" onclick="switchRole('recruiter')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3"/></svg> Hotel Employer
+        </button>
+        <button class="role-btn" id="btn-role-guest" onclick="switchRole('guest')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Guest
+        </button>
+      </div>
+    </div>
+    <div class="demo-bar-right">
+      <span id="role-status-text" style="font-size: 0.78rem; color: #a7f3d0;">Rahim Ahmed</span>
+      <button class="btn-demo-reset" onclick="resetDemoData()" title="Reset data">Reset Data</button>
+    </div>
+  </aside>
+
+  <!-- Site Header & Navigation -->
+  <header class="site-header">
+    <div class="nav-container">
+      <a href="#home" class="brand-logo" onclick="navigateTo('home')">
+        nicejobs<span class="logo-orange">.info</span>
+      </a>
+
+      <!-- Dynamic Nav Links -->
+      <nav aria-label="Main Navigation">
+        <ul class="nav-links" id="main-nav-links">
+          <!-- Populated by JavaScript according to role -->
+        </ul>
+      </nav>
+
+      <!-- Right Nav Actions -->
+      <div class="nav-actions" id="nav-actions-container">
+        <!-- Populated by JavaScript -->
+      </div>
+
+      <!-- Mobile Menu Toggle Button -->
+      <button class="mobile-menu-toggle" id="btn-mobile-menu" onclick="toggleMobileMenu()" aria-label="Toggle navigation" title="Menu">
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+      </button>
+    </div>
+
+    <!-- Mobile Navigation Drawer -->
+    <div class="mobile-nav-drawer" id="mobile-nav-drawer">
+      <ul class="mobile-nav-links" id="mobile-nav-links">
+        <!-- Populated by JavaScript according to role -->
+      </ul>
+      <div class="mobile-nav-actions" id="mobile-nav-actions">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main App Content Container -->
+  <main class="main-wrapper" id="app-viewport">
+    <!-- Screen views dynamically rendered here -->
+  </main>
+
+  <!-- Global Footer with Bottom Admin Portal Button -->
+  <footer class="site-footer" style="background: var(--bg-surface); border-top: 1px solid var(--border-subtle); padding: 24px 20px; margin-top: auto; font-size: 0.85rem; color: var(--text-muted);">
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-weight: 800; font-size: 1.05rem; color: var(--white);">NiceJobs</span>
+        <span style="font-size: 0.78rem; color: var(--text-dim);">© 2026 NiceJobs. Hospitality Careers.</span>
+      </div>
+      <div style="display: flex; gap: 20px; font-size: 0.82rem; font-weight: 600; align-items: center;">
+        <a href="#home" onclick="navigateTo('home')">Jobs</a>
+        <a href="#hotels" onclick="navigateTo('hotels')">Hotels</a>
+        <a href="#blog" onclick="navigateTo('blog')">Blog</a>
+        <a href="#admin-login" id="btn-footer-admin-login" onclick="navigateTo('admin-login')">Admin</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Reusable Modals Container -->
+  <div id="modal-container"></div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
