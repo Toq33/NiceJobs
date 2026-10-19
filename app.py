@@ -616,6 +616,7 @@ class CandidateRegisterPayload(BaseModel):
     name: str
     email: str
     phone: str
+    phone_secondary: Optional[str] = None
     password: str = "Password123!"
     otp_code: str
     # Part 1 fields
@@ -640,6 +641,7 @@ class CandidateRegisterPayload(BaseModel):
     notice_period: Optional[str] = "1 Month"
     visibility: Optional[str] = "eligible_employers"
     open_to_work: Optional[bool] = True
+    job_preferences: Optional[Any] = None
 
 @app.post("/api/auth/register-candidate")
 @app.post("/api/auth/candidate-signup")
@@ -730,6 +732,10 @@ def register_candidate(payload: CandidateRegisterPayload):
         "work_type": payload.work_type or "Full-time",
         "notice_period": payload.notice_period or "1 Month"
     }
+    if isinstance(payload.job_preferences, dict):
+        prefs_data.update(payload.job_preferences)
+    if payload.phone_secondary:
+        prefs_data["phone_secondary"] = payload.phone_secondary
 
     cursor.execute("""
         INSERT INTO employee_profiles (
@@ -1949,12 +1955,20 @@ def send_message(payload: MessageSendPayload):
         now
     ))
 
-    # Update conversation last message
+    # Update conversation last message with friendly snippet
+    snippet = payload.content
+    if snippet.startswith('[IMAGE]'):
+        snippet = "Photo attachment"
+    elif snippet.startswith('[VOICE'):
+        snippet = "Voice message"
+    elif len(snippet) > 80:
+        snippet = snippet[:77] + "..."
+
     cursor.execute("""
         UPDATE conversations 
         SET last_message = ?, last_message_time = ?
         WHERE id = ?
-    """, (payload.content, now, payload.conversation_id))
+    """, (snippet, now, payload.conversation_id))
 
     conn.commit()
     conn.close()

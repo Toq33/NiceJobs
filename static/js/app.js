@@ -291,7 +291,7 @@ const loginState = {
 
 const signupState = {
   role: 'candidate',       // 'candidate' | 'business'
-  stage: 1,                // 1, 2, 3, 4
+  stage: 1,                // 1, 2, 3, 4, 'terms'
 
   // Candidate Fields (Part 1 to 4)
   pfp: '/static/images/candidate_rahim.jpg',
@@ -299,10 +299,18 @@ const signupState = {
   dob: '1998-04-12',
   nid_passport: 'NID-1998269123456',
   phone: '01711234567',
+  phone_secondary: '',     // Secondary phone (primary receives OTP)
   email: 'rahim.ahmed@example.bd',
   bio: 'Passionate hospitality professional dedicated to 5-star service delivery, guest relations, and front office operations excellence.',
   cv_name: 'Rahim_Ahmed_Hospitality_CV.pdf',
   cv_url: '',
+  job_preferences: {
+    department: 'Front Office',
+    desired_role: 'Front Office Supervisor',
+    shift: 'Rotational',
+    expected_salary: '৳55,000',
+    preferred_location: 'Dhaka'
+  },
   education: [
     {
       institution: 'National Hotel & Tourism Training Institute (NHTTI)',
@@ -317,6 +325,7 @@ const signupState = {
     { name: 'Bengali', level: 'Native' },
     { name: 'English', level: 'Professional' }
   ],
+  languagesSearchQuery: '',
   experience: [
     {
       company: 'Radisson Blu Dhaka Water Garden',
@@ -329,6 +338,7 @@ const signupState = {
   confirm_password: 'Password123!',
   otp_code: '',
   lastSentOtp: '258330',
+  terms_accepted: false,
 
   // Business Onboarding State
   biz_route: 'choose',     // 'choose' | 'new' | 'join'
@@ -376,6 +386,22 @@ const signupState = {
   join_lastSentOtp: '258330'
 };
 
+function saveSignupProgress() {
+  try {
+    sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(signupState));
+  } catch (e) {}
+}
+
+function restoreSignupProgress() {
+  try {
+    const saved = sessionStorage.getItem('nicejobs_signup_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(signupState, parsed);
+    }
+  } catch (e) {}
+}
+
 const authFlowState = loginState; // Backwards compatibility
 
 // ==========================================================================
@@ -383,6 +409,7 @@ const authFlowState = loginState; // Backwards compatibility
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
+  restoreSignupProgress();
   const savedAdminSession = sessionStorage.getItem('nicejobs_admin_session');
   if (savedAdminSession) {
     try {
@@ -701,7 +728,6 @@ function updateNavigation() {
     const initials = (state.currentUser.name || 'HR').split(' ').map(n=>n[0]).join('').slice(0,2);
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 8px;">
-        <button class="btn-orange nav-post-btn" onclick="openCreateJobModal()">+ Post Job</button>
         <div class="user-profile-badge">
           <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1.5px solid rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>
           <div class="user-badge-info">
@@ -713,7 +739,6 @@ function updateNavigation() {
       </div>
     `;
     mobileActionsHtml = `
-      <button class="btn-orange" style="width: 100%; justify-content: center; padding: 12px;" onclick="openCreateJobModal(); closeMobileMenu();">+ Post New Vacancy</button>
       <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest')">Sign Out</button>
     `;
   } else if (role === 'admin' && state.currentUser && state.currentUser.role === 'admin') {
@@ -735,8 +760,7 @@ function updateNavigation() {
   } else {
     // Guest
     linksHtml = `
-      <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Home</a></li>
-      <li class="nav-item"><a href="#home" class="">Jobs</a></li>
+      <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
       <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Employers</a></li>
       <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
       <li class="nav-item"><a href="#resources" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
@@ -775,6 +799,12 @@ async function renderApp() {
   if (!viewport) return;
 
   const screen = state.currentScreen;
+
+  if (screen === 'inbox') {
+    document.body.classList.add('screen-inbox');
+  } else {
+    document.body.classList.remove('screen-inbox');
+  }
 
   if (screen === 'home') {
     await renderHomeScreen(viewport);
@@ -926,41 +956,47 @@ async function renderHomeScreen(viewport) {
       <!-- Top Search Bar Container (With Designation beside Department) -->
       <div class="search-container" style="margin-bottom: 12px;">
         <div class="search-main-row">
-          <div class="search-field">
+          <div class="search-field" style="position: relative;">
             <span class="field-icon">${svgIcon('search', '', 16)}</span>
-            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" onkeydown="if(event.key==='Enter') executeSearch()">
+            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" oninput="handleCandidateSearchInput(this.value)" onfocus="handleCandidateSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch()">
+            <div id="candidate-search-dropdown" class="candidate-search-dropdown" style="display: none;"></div>
           </div>
-          <div class="search-field">
-            <span class="field-icon">${svgIcon('mapPin', '', 16)}</span>
-            <select id="select-search-loc" onchange="executeSearch()">
-              <option value="">All Locations in Bangladesh</option>
-              <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
-              <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar & Inani Beach</option>
-              <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet & Sreemangal Resorts</option>
-              <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong & Patenga</option>
-            </select>
+          <div class="mobile-search-extra-fields" id="candidate-mobile-extra-fields">
+            <div class="search-field">
+              <span class="field-icon">${svgIcon('mapPin', '', 16)}</span>
+              <select id="select-search-loc" onchange="executeSearch()">
+                <option value="">All Locations in Bangladesh</option>
+                <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
+                <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar & Inani Beach</option>
+                <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet & Sreemangal Resorts</option>
+                <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong & Patenga</option>
+              </select>
+            </div>
+            <div class="search-field">
+              <span class="field-icon">${svgIcon('briefcase', '', 16)}</span>
+              <select id="select-search-dept" onchange="executeSearch()">
+                <option value="">All Departments</option>
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
+              </select>
+            </div>
+            <div class="search-field">
+              <span class="field-icon">${svgIcon('user', '', 16)}</span>
+              <select id="select-search-desig" onchange="executeSearch()">
+                <option value="">All Designations</option>
+                <option value="General Manager" ${state.search.designation === 'General Manager' ? 'selected' : ''}>General Manager</option>
+                <option value="Manager" ${state.search.designation === 'Manager' ? 'selected' : ''}>Department Manager</option>
+                <option value="Supervisor" ${state.search.designation === 'Supervisor' ? 'selected' : ''}>Supervisor / Lead</option>
+                <option value="Executive" ${state.search.designation === 'Executive' ? 'selected' : ''}>Executive / Officer</option>
+                <option value="Chef" ${state.search.designation === 'Chef' ? 'selected' : ''}>Executive Chef / Commis</option>
+                <option value="Captain" ${state.search.designation === 'Captain' ? 'selected' : ''}>F&B Captain / Server</option>
+                <option value="Attendant" ${state.search.designation === 'Attendant' ? 'selected' : ''}>Housekeeping Attendant</option>
+                <option value="Engineer" ${state.search.designation === 'Engineer' ? 'selected' : ''}>Duty Engineer / Tech</option>
+              </select>
+            </div>
           </div>
-          <div class="search-field">
-            <span class="field-icon">${svgIcon('briefcase', '', 16)}</span>
-            <select id="select-search-dept" onchange="executeSearch()">
-              <option value="">All Departments</option>
-              ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
-            </select>
-          </div>
-          <div class="search-field">
-            <span class="field-icon">${svgIcon('user', '', 16)}</span>
-            <select id="select-search-desig" onchange="executeSearch()">
-              <option value="">All Designations</option>
-              <option value="General Manager" ${state.search.designation === 'General Manager' ? 'selected' : ''}>General Manager</option>
-              <option value="Manager" ${state.search.designation === 'Manager' ? 'selected' : ''}>Department Manager</option>
-              <option value="Supervisor" ${state.search.designation === 'Supervisor' ? 'selected' : ''}>Supervisor / Lead</option>
-              <option value="Executive" ${state.search.designation === 'Executive' ? 'selected' : ''}>Executive / Officer</option>
-              <option value="Chef" ${state.search.designation === 'Chef' ? 'selected' : ''}>Executive Chef / Commis</option>
-              <option value="Captain" ${state.search.designation === 'Captain' ? 'selected' : ''}>F&B Captain / Server</option>
-              <option value="Attendant" ${state.search.designation === 'Attendant' ? 'selected' : ''}>Housekeeping Attendant</option>
-              <option value="Engineer" ${state.search.designation === 'Engineer' ? 'selected' : ''}>Duty Engineer / Tech</option>
-            </select>
-          </div>
+          <button type="button" class="btn-mobile-search-expand" id="btn-toggle-candidate-filters" onclick="toggleMobileSearchFields()">
+            <span>Location &amp; Department Filters</span> ${svgIcon('chevronDown', '', 14)}
+          </button>
           <button class="btn-orange" onclick="executeSearch()" style="padding: 12px 24px; font-weight: 700; white-space: nowrap;">
             ${svgIcon('search', '', 15)} Search Jobs
           </button>
@@ -1220,6 +1256,91 @@ function closeGuestSearchDropdown() {
   const dropdown = document.getElementById('guest-search-dropdown');
   if (dropdown) dropdown.style.display = 'none';
 }
+
+const CANDIDATE_AUTOCOMPLETE_ITEMS = [
+  { label: 'Front Office Supervisor', query: 'Front Office Supervisor', category: 'Role' },
+  { label: 'Executive Chef', query: 'Executive Chef', category: 'Culinary' },
+  { label: 'F&B Captain / Server', query: 'F&B Captain', category: 'F&B Service' },
+  { label: 'Housekeeping Attendant / Lead', query: 'Housekeeping Attendant', category: 'Rooms' },
+  { label: 'Duty Engineer / Maintenance', query: 'Duty Engineer', category: 'Engineering' },
+  { label: 'Opera PMS 5.5 / Cloud Expert', query: 'Opera PMS', category: 'PMS Skill' },
+  { label: 'Radisson Blu Dhaka Water Garden', query: 'Radisson Blu', category: '5-Star Hotel' },
+  { label: 'InterContinental Dhaka', query: 'InterContinental', category: '5-Star Hotel' },
+  { label: 'The Westin Dhaka', query: 'The Westin', category: '5-Star Hotel' },
+  { label: 'Sayeman Beach Resort Cox\'s Bazar', query: 'Sayeman', category: 'Resort' },
+  { label: 'Grand Sultan Tea Resort Sylhet', query: 'Grand Sultan', category: 'Resort' },
+  { label: 'Dhaka Luxury Properties', location: 'Dhaka', category: 'Location' },
+  { label: 'Cox\'s Bazar Beach Resorts', location: "Cox's Bazar", category: 'Location' },
+  { label: 'Sylhet & Sreemangal Resorts', location: 'Sylhet', category: 'Location' },
+  { label: 'Chittagong Business Hotels', location: 'Chittagong', category: 'Location' }
+];
+
+function handleCandidateSearchInput(rawVal) {
+  const dropdown = document.getElementById('candidate-search-dropdown');
+  if (!dropdown) return;
+  const q = (rawVal || '').toLowerCase().trim();
+  const filtered = CANDIDATE_AUTOCOMPLETE_ITEMS.filter(item => {
+    if (!q) return true;
+    return item.label.toLowerCase().includes(q) || (item.query && item.query.toLowerCase().includes(q)) || (item.location && item.location.toLowerCase().includes(q)) || (item.department && item.department.toLowerCase().includes(q));
+  }).slice(0, 6);
+
+  if (filtered.length === 0) {
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  dropdown.innerHTML = filtered.map(item => `
+    <div class="guest-sugg-item" onclick="applyCandidateSuggestion('${(item.query || item.location || '').replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
+      <span style="display: flex; align-items: center; gap: 8px;">
+        ${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}
+        <strong>${item.label}</strong>
+      </span>
+      <span class="guest-sugg-badge">${item.category}</span>
+    </div>
+  `).join('');
+  dropdown.style.display = 'flex';
+}
+
+function applyCandidateSuggestion(val, type = 'query') {
+  if (type === 'location') {
+    state.search.location = val;
+    state.search.query = '';
+  } else {
+    state.search.query = val;
+  }
+  const inputQ = document.getElementById('input-search-q');
+  const selLoc = document.getElementById('select-search-loc');
+  if (inputQ && type === 'query') inputQ.value = val;
+  if (selLoc && type === 'location') selLoc.value = val;
+  closeCandidateSearchDropdown();
+  renderHomeScreen(document.getElementById('app-viewport'));
+}
+
+function closeCandidateSearchDropdown() {
+  const dropdown = document.getElementById('candidate-search-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function toggleMobileSearchFields() {
+  const extraFields = document.getElementById('candidate-mobile-extra-fields');
+  const btn = document.getElementById('btn-toggle-candidate-filters');
+  if (!extraFields) return;
+  extraFields.classList.toggle('is-expanded');
+  const isExpanded = extraFields.classList.contains('is-expanded');
+  if (btn) {
+    btn.innerHTML = `<span>${isExpanded ? 'Hide Filters' : 'Location & Department Filters'}</span> ${svgIcon(isExpanded ? 'chevronUp' : 'chevronDown', '', 14)}`;
+  }
+}
+
+// Global click dismiss for suggestions dropdowns
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#guest-search-dropdown') && !e.target.closest('#hero-search-capsule')) {
+    closeGuestSearchDropdown();
+  }
+  if (!e.target.closest('#candidate-search-dropdown') && !e.target.closest('.search-field')) {
+    closeCandidateSearchDropdown();
+  }
+});
 
 function setDepartmentFilter(dept) {
   state.search.department = state.search.department === dept ? '' : dept;
@@ -1839,7 +1960,7 @@ async function renderProfileScreen(viewport) {
               ${!cv.is_default ? `
                 <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="setDefaultCv('${cv.id}')">Make Default</button>
               ` : ''}
-              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="previewCvDoc('${cv.name}')">Preview</button>
+              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(cv.title || cv.name).replace(/'/g, "\\'")}', '${cv.name.replace(/'/g, "\\'")}')">Preview</button>
               <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: #f87171; display: inline-flex; align-items: center; justify-content: center;" onclick="deleteCv('${cv.id}')" title="Delete CV">${svgIcon('x', '', 14)}</button>
             </div>
           </div>
@@ -1852,19 +1973,27 @@ async function renderProfileScreen(viewport) {
       <div class="main-feed-area">
         <!-- Summary -->
         <div class="profile-section-card">
-          <h2 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 10px; color: var(--white);">Professional Summary</h2>
-          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">${profile.summary}</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Professional Summary</h2>
+            <button class="btn-icon" onclick="openEditSummaryModal()" title="Edit Professional Summary">${svgIcon('edit', '', 14)}</button>
+          </div>
+          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">${profile.summary || 'No professional summary added yet.'}</p>
         </div>
 
         <!-- Experience Timeline -->
         <div class="profile-section-card">
-          <h2 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 16px; color: var(--white);">Hospitality Experience</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Hospitality Experience</h2>
+            <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditExperienceModal()">+ Add / Edit</button>
+          </div>
           <div style="display: flex; flex-direction: column; gap: 16px;">
-            ${(profile.experience || []).map(exp => `
+            ${(profile.experience || []).length === 0 ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem;">No previous hospitality experience listed.</div>
+            ` : (profile.experience || []).map(exp => `
               <div style="border-left: 3px solid var(--blue-primary); padding-left: 16px;">
                 <div style="font-size: 1.05rem; font-weight: 800; color: var(--white);">${exp.role}</div>
                 <div style="font-size: 0.88rem; color: var(--orange-primary); font-weight: 600;">${exp.hotel} • ${exp.period}</div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">${exp.description}</p>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">${exp.description || ''}</p>
               </div>
             `).join('')}
           </div>
@@ -1872,9 +2001,14 @@ async function renderProfileScreen(viewport) {
 
         <!-- Certifications -->
         <div class="profile-section-card">
-          <h2 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 14px; color: var(--white);">Credentials & Accreditations</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Credentials &amp; Accreditations</h2>
+            <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditCredentialsModal()">+ Add / Edit</button>
+          </div>
           <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${(profile.certifications || []).map(c => `
+            ${(profile.certifications || []).length === 0 ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem;">No certificates or accreditations added.</div>
+            ` : (profile.certifications || []).map(c => `
               <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: var(--radius-md);">
                 <div>
                   <div style="font-weight: 700; font-size: 0.9rem; color: var(--white);">${svgIcon('award', '', 14)} ${c.title}</div>
@@ -1888,9 +2022,12 @@ async function renderProfileScreen(viewport) {
       </div>
 
       <aside class="sidebar-area">
-        <!-- PMS & Hospitality Tools -->
+        <!-- Skills -->
         <div class="profile-section-card">
-          <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 10px; color: var(--white);">PMS & Tech Tools</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0;">Skills</h3>
+            <button class="btn-icon" onclick="openEditSkillsModal()" title="Edit Skills">${svgIcon('edit', '', 14)}</button>
+          </div>
           <div class="skills-cloud">
             ${(profile.skills || []).map(s => `<span class="skill-tag">${s}</span>`).join('')}
           </div>
@@ -1898,7 +2035,10 @@ async function renderProfileScreen(viewport) {
 
         <!-- Languages -->
         <div class="profile-section-card">
-          <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 12px; color: var(--white);">Languages</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0;">Languages</h3>
+            <button class="btn-icon" onclick="openEditLanguagesModal()" title="Edit Languages">${svgIcon('edit', '', 14)}</button>
+          </div>
           ${(profile.languages || []).map(l => `
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem;">
               <span style="font-weight: 600; color: var(--white);">${l.name}</span>
@@ -1909,10 +2049,13 @@ async function renderProfileScreen(viewport) {
 
         <!-- Career Preferences -->
         <div class="profile-section-card">
-          <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 10px; color: var(--white);">Job Preferences</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0;">Job Preferences</h3>
+            <button class="btn-icon" onclick="openEditJobPreferencesModal()" title="Edit Career Preferences">${svgIcon('edit', '', 14)}</button>
+          </div>
           <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
             <div>${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> ${profile.preferences?.expected_salary || 'Negotiable'}</div>
-            <div>${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> ${(profile.preferences?.locations || []).join(', ')}</div>
+            <div>${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> ${(profile.preferences?.locations || []).join(', ') || 'Dhaka'}</div>
             <div>${svgIcon('clock', '', 15)} <strong>Notice Period:</strong> ${profile.preferences?.notice_period || 'Immediate'}</div>
           </div>
         </div>
@@ -1960,9 +2103,9 @@ async function renderRecruiterDashboard(viewport) {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
       <div>
         <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">${biz.brand_name}</h1>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Manage vacancies, applications, and interview pipelines.</p>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Manage job posts, applications, and interview pipelines.</p>
       </div>
-      <button class="btn-orange" onclick="openCreateJobModal()">+ Post Vacancy</button>
+      <button class="btn-orange" onclick="openCreateJobModal()">+ Post Job</button>
     </div>
 
     <!-- Header Metrics -->
@@ -1985,10 +2128,10 @@ async function renderRecruiterDashboard(viewport) {
       </div>
     </div>
 
-    <!-- Active Vacancies Table -->
+    <!-- Active Job Posts Table -->
     <div class="profile-section-card" style="margin-bottom: 24px;">
       <div class="section-header" style="margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white);">Vacancies</h2>
+        <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white);">Job Posts</h2>
         <a href="#ats" class="btn-secondary" style="font-size: 0.78rem;">View All →</a>
       </div>
 
@@ -2051,7 +2194,7 @@ async function renderATSBoard(viewport) {
         <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">Applicant Tracking</h1>
         <p style="color: var(--text-muted); font-size: 0.9rem;">Review resumes, advance candidates, and manage interview pipelines.</p>
       </div>
-      <button class="btn-orange" onclick="openCreateJobModal()">+ Post Vacancy</button>
+      <button class="btn-orange" onclick="openCreateJobModal()">+ Post Job</button>
     </div>
 
     <div class="profile-section-card">
@@ -2145,103 +2288,153 @@ async function renderInboxScreen(viewport) {
   }
 
   viewport.innerHTML = `
-    <div style="margin-bottom: 20px;">
-      <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">Messages</h1>
-      <p style="color: var(--text-muted); font-size: 0.9rem;">Direct communication with candidates and employers.</p>
-    </div>
-
-    <!-- Fixed, Responsive Flexbox Shell -->
-    <div class="inbox-shell">
-      <!-- Left Panel: Conversation Threads -->
-      <div class="inbox-sidebar-panel">
-        <div class="inbox-search-header">
-          <input type="text" class="inbox-search-input" placeholder="Search conversations...">
-        </div>
-
-        <div class="thread-list-scroll">
-          ${convs.length === 0 ? `
-            <div style="padding: 24px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">No active conversations.</div>
-          ` : convs.map(c => `
-            <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')">
-              <div class="thread-avatar-wrap">
-                <img src="${isRecruiter ? (c.candidate_avatar || '/static/images/candidate_rahim.jpg') : (c.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="thread-avatar-img">
-                <span class="thread-role-badge">${isRecruiter ? svgIcon('user', '', 14) : svgIcon('hotel', '', 14)}</span>
-              </div>
-              <div class="thread-meta-body">
-                <div class="thread-headline-row">
-                  <span class="thread-sender-name">${isRecruiter ? c.candidate_name : c.brand_name}</span>
-                  <span class="thread-time-label">${c.last_message_time ? c.last_message_time.split(' ')[1] : ''}</span>
-                </div>
-                <div class="thread-job-tag">${svgIcon('briefcase', '', 13)} ${c.job_title}</div>
-                <div class="thread-snippet">${c.last_message || 'Start conversation...'}</div>
-              </div>
-            </div>
-          `).join('')}
+    <div class="inbox-page-wrapper">
+      <div class="inbox-header-compact">
+        <div>
+          <h1 class="inbox-title-compact">Messages &amp; Communications Desk</h1>
+          <p class="inbox-sub-compact">Direct communication between candidate and hotel employer desk.</p>
         </div>
       </div>
 
-      <!-- Right Panel: Active Chat Stream -->
-      <div class="inbox-chat-panel">
-        ${activeConv ? `
-          <!-- Context Bar with Job Link & CV Action -->
-          <div class="chat-context-bar">
-            <div class="chat-recipient-meta">
-              <img src="${isRecruiter ? (activeConv.candidate_avatar || '/static/images/candidate_rahim.jpg') : (activeConv.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="chat-recipient-avatar">
-              <div>
-                <div class="chat-recipient-name">${isRecruiter ? activeConv.candidate_name : activeConv.brand_name}</div>
-                <div class="chat-job-context-pill">
-                  ${svgIcon('briefcase', '', 14)} <strong>${activeConv.job_title}</strong>
-                  ${activeConv.application_status ? `<span class="badge-featured" style="margin-left: 8px; text-transform: capitalize;">${activeConv.application_status}</span>` : ''}
+      <!-- Fixed, Screen-Fitting Flexbox Shell (Zero Outside Scroll) -->
+      <div class="inbox-shell">
+        <!-- Left Panel: Conversation Threads -->
+        <div class="inbox-sidebar-panel">
+          <div class="inbox-search-header">
+            <input type="text" id="inbox-search-input" class="inbox-search-input" placeholder="Search conversations..." oninput="filterInboxThreads(this.value)">
+          </div>
+
+          <div class="thread-list-scroll" id="thread-list-scroll">
+            ${convs.length === 0 ? `
+              <div style="padding: 24px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">No active conversations.</div>
+            ` : convs.map(c => `
+              <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? c.candidate_name : c.brand_name).toLowerCase()}" data-job="${escapeHtml(c.job_title).toLowerCase()}">
+                <div class="thread-avatar-wrap">
+                  <img src="${isRecruiter ? (c.candidate_avatar || '/static/images/candidate_rahim.jpg') : (c.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="thread-avatar-img">
+                  <span class="thread-role-badge">${isRecruiter ? svgIcon('user', '', 14) : svgIcon('hotel', '', 14)}</span>
+                </div>
+                <div class="thread-meta-body">
+                  <div class="thread-headline-row">
+                    <span class="thread-sender-name">${isRecruiter ? c.candidate_name : c.brand_name}</span>
+                    <span class="thread-time-label">${c.last_message_time ? c.last_message_time.split(' ')[1] : ''}</span>
+                  </div>
+                  <div class="thread-job-tag">${svgIcon('briefcase', '', 13)} ${c.job_title}</div>
+                  <div class="thread-snippet">${c.last_message || 'Start conversation...'}</div>
                 </div>
               </div>
-            </div>
-            <div class="chat-actions-group">
-              <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="openJobDetailModal('${activeConv.job_id}')">
-                Job Details
-              </button>
-              ${isRecruiter ? `
-                <button class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="viewSubmittedApplicationCv('${activeConv.application_id || 'app_rahim_radisson'}')">
-                  ${svgIcon('fileText', '', 14)} View CV
-                </button>
-              ` : ''}
-            </div>
+            `).join('')}
           </div>
+        </div>
 
-          ${isRecruiter ? `
-          <!-- Quick Hospitality Reply Templates (Recruiter Only) -->
-          <div class="chat-templates-shelf">
-            <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Templates:</span>
-            <button class="template-chip" onclick="insertMessageTemplate('interview')">${svgIcon('calendar', '', 14)} Schedule Interview</button>
-            <button class="template-chip" onclick="insertMessageTemplate('opera')">${svgIcon('fileText', '', 14)} Request Documents</button>
-            <button class="template-chip" onclick="insertMessageTemplate('offer')">${svgIcon('award', '', 14)} Send Offer</button>
-          </div>
-          ` : ''}
-
-          <!-- Messages Stream -->
-          <div class="chat-stream-scroll" id="chat-stream-scroll">
-            ${messages.map(msg => {
-              const isMine = (isRecruiter && msg.sender_role === 'business') || (!isRecruiter && msg.sender_role === 'user');
-              return `
-                <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}">
-                  <span class="bubble-author-title">${msg.sender_name}</span>
-                  <div class="bubble-text-box">${msg.content}</div>
-                  <span class="bubble-timestamp">${msg.timestamp}</span>
+        <!-- Right Panel: Active Chat Stream -->
+        <div class="inbox-chat-panel">
+          ${activeConv ? `
+            <!-- Context Bar with Job Link & CV Action -->
+            <div class="chat-context-bar">
+              <div class="chat-recipient-meta">
+                <img src="${isRecruiter ? (activeConv.candidate_avatar || '/static/images/candidate_rahim.jpg') : (activeConv.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="chat-recipient-avatar">
+                <div>
+                  <div class="chat-recipient-name">${isRecruiter ? activeConv.candidate_name : activeConv.brand_name}</div>
+                  <div class="chat-job-context-pill">
+                    ${svgIcon('briefcase', '', 14)} <strong>${activeConv.job_title}</strong>
+                    ${activeConv.application_status ? `<span class="badge-featured" style="margin-left: 8px; text-transform: capitalize;">${activeConv.application_status}</span>` : ''}
+                  </div>
                 </div>
-              `;
-            }).join('')}
-          </div>
+              </div>
+              <div class="chat-actions-group">
+                <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="openJobDetailModal('${activeConv.job_id}')">
+                  Job Details
+                </button>
+                ${isRecruiter ? `
+                  <button class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="viewSubmittedApplicationCv('${activeConv.application_id || 'app_rahim_radisson'}')">
+                    ${svgIcon('fileText', '', 14)} View CV
+                  </button>
+                ` : `
+                  <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="previewCandidateCvModal('Rahim Ahmed Hospitality Resume', 'Rahim_Ahmed_Hospitality_CV.pdf')">
+                    ${svgIcon('fileText', '', 14)} Preview CV
+                  </button>
+                `}
+              </div>
+            </div>
 
-          <!-- Input Bar -->
-          <div class="chat-composer-row">
-            <button class="btn-icon" style="color: var(--orange-primary);" onclick="showToast('Attach resume or portfolio file')" title="Attach Document">${svgIcon('paperclip', '', 16)}</button>
-            <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
-            <button class="btn-primary" onclick="sendChatMessage()">Send ${svgIcon('share', '', 14)}</button>
-          </div>
-        ` : `
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem;">
-            Select a conversation to start messaging.
-          </div>
-        `}
+            ${isRecruiter ? `
+            <!-- Quick Hospitality Reply Templates (Recruiter Only) -->
+            <div class="chat-templates-shelf">
+              <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Templates:</span>
+              <button class="template-chip" onclick="insertMessageTemplate('interview')">${svgIcon('calendar', '', 14)} Schedule Interview</button>
+              <button class="template-chip" onclick="insertMessageTemplate('opera')">${svgIcon('fileText', '', 14)} Request Documents</button>
+              <button class="template-chip" onclick="insertMessageTemplate('offer')">${svgIcon('award', '', 14)} Send Offer</button>
+            </div>
+            ` : ''}
+
+            <!-- Messages Stream (Only this scrolls) -->
+            <div class="chat-stream-scroll" id="chat-stream-scroll">
+              ${messages.map(msg => {
+                const isMine = (isRecruiter && msg.sender_role === 'business') || (!isRecruiter && msg.sender_role === 'user');
+                let messageBodyHtml = '';
+                if (msg.content.startsWith('[IMAGE]:')) {
+                  const imgUrl = msg.content.substring(8).trim();
+                  messageBodyHtml = `
+                    <div class="bubble-image-wrap" onclick="viewChatImageModal('${imgUrl.replace(/'/g, "\\'")}')" title="Click to view full photo">
+                      <img src="${imgUrl}" alt="Photo attachment">
+                    </div>
+                  `;
+                } else if (msg.content.startsWith('[VOICE]:')) {
+                  const parts = msg.content.split(':');
+                  const duration = parts[1] || '0:05';
+                  const audioData = parts.slice(2).join(':');
+                  messageBodyHtml = `
+                    <div class="bubble-voice-box">
+                      <button type="button" class="voice-play-btn" onclick="togglePlayVoiceMessage(this, '${audioData.replace(/'/g, "\\'")}')" title="Play Voice Note">
+                        ${svgIcon('play', '', 14)}
+                      </button>
+                      <div class="voice-wave-bars">
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                        <div class="voice-wave-bar"></div>
+                      </div>
+                      <span class="voice-duration">${duration}</span>
+                    </div>
+                  `;
+                } else {
+                  messageBodyHtml = `<div class="bubble-text-box">${escapeHtml(msg.content)}</div>`;
+                }
+
+                return `
+                  <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}">
+                    <span class="bubble-author-title">${msg.sender_name}</span>
+                    ${messageBodyHtml}
+                    <span class="bubble-timestamp">${msg.timestamp}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- Input Bar with Image & Voice options for Candidate & Recruiter -->
+            <div class="chat-composer-row" id="chat-composer-row">
+              <input type="file" id="chat-image-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handleChatImageUpload(event)">
+              <button type="button" class="btn-icon" style="color: var(--orange-primary);" onclick="document.getElementById('chat-image-file-input').click()" title="Send Photo / Image">
+                ${svgIcon('camera', '', 18)}
+              </button>
+              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+              <button type="button" class="btn-icon" id="btn-chat-mic" style="color: #ef4444;" onclick="startVoiceMessageRecording()" title="Record Voice Note">
+                ${svgIcon('mic', '', 18)}
+              </button>
+              <button type="button" class="btn-primary" onclick="sendChatMessage()" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px;">
+                Send ${svgIcon('share', '', 14)}
+              </button>
+            </div>
+          ` : `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem;">
+              Select a conversation to start messaging.
+            </div>
+          `}
+        </div>
       </div>
     </div>
   `;
@@ -2265,6 +2458,20 @@ async function renderInboxScreen(viewport) {
       }
     }
   }
+}
+
+function filterInboxThreads(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#thread-list-scroll .thread-row');
+  rows.forEach(r => {
+    const s = r.getAttribute('data-sender') || '';
+    const j = r.getAttribute('data-job') || '';
+    if (!q || s.includes(q) || j.includes(q)) {
+      r.style.display = 'flex';
+    } else {
+      r.style.display = 'none';
+    }
+  });
 }
 
 async function selectConversation(convId) {
@@ -2307,7 +2514,7 @@ async function sendChatMessage() {
     conversation_id: state.activeConvId,
     sender_id: state.currentUser?.id || 'user_rahim',
     sender_role: isRecruiter ? 'business' : 'user',
-    sender_name: isRecruiter ? 'Fatima Khan (Radisson HR)' : 'Rahim Ahmed',
+    sender_name: isRecruiter ? 'Fatima Khan (Radisson HR)' : (state.currentUser?.name || 'Rahim Ahmed'),
     content: content
   };
 
@@ -2322,6 +2529,178 @@ async function sendChatMessage() {
   } catch (err) {
     showToast('Failed to send message: ' + err.message, 'danger');
   }
+}
+
+// Image and Voice message recording handlers
+async function handleChatImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  let dataUrl;
+  if (file.size >= 1024 * 1024) {
+    dataUrl = await compressImageFile(file, 1400, 0.90);
+  } else {
+    dataUrl = await readFileAsDataURL(file);
+  }
+  sendChatDirectMessage(`[IMAGE]:${dataUrl}`);
+}
+
+let chatVoiceTimer = null;
+let chatVoiceSeconds = 0;
+let chatVoiceMediaRecorder = null;
+let chatVoiceAudioChunks = [];
+
+async function startVoiceMessageRecording() {
+  const row = document.getElementById('chat-composer-row');
+  if (!row) return;
+
+  chatVoiceSeconds = 0;
+  chatVoiceAudioChunks = [];
+
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+      if (stream) {
+        chatVoiceMediaRecorder = new MediaRecorder(stream);
+        chatVoiceMediaRecorder.ondataavailable = e => { if (e.data.size > 0) chatVoiceAudioChunks.push(e.data); };
+        chatVoiceMediaRecorder.start();
+      }
+    }
+  } catch (e) {}
+
+  row.innerHTML = `
+    <div class="recording-active-bar" style="width: 100%;">
+      <div class="recording-dot-pulse"></div>
+      <span style="color: #ef4444; font-weight: 700; font-size: 0.85rem;" id="recording-time-display">00:00</span>
+      <span style="font-size: 0.76rem; color: rgba(255, 255, 255, 0.7);">Recording voice message...</span>
+      <div style="flex: 1;"></div>
+      <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelVoiceRecording()">Cancel</button>
+      <button type="button" class="btn-orange" style="padding: 4px 12px; font-size: 0.75rem;" onclick="finishVoiceRecording()">Send Voice Note</button>
+    </div>
+  `;
+
+  chatVoiceTimer = setInterval(() => {
+    chatVoiceSeconds++;
+    const mins = String(Math.floor(chatVoiceSeconds / 60)).padStart(2, '0');
+    const secs = String(chatVoiceSeconds % 60).padStart(2, '0');
+    const disp = document.getElementById('recording-time-display');
+    if (disp) disp.innerText = `${mins}:${secs}`;
+  }, 1000);
+}
+
+function cancelVoiceRecording() {
+  if (chatVoiceTimer) clearInterval(chatVoiceTimer);
+  if (chatVoiceMediaRecorder && chatVoiceMediaRecorder.state !== 'inactive') {
+    try { chatVoiceMediaRecorder.stop(); } catch(e) {}
+  }
+  renderInboxScreen(document.getElementById('app-viewport'));
+}
+
+async function finishVoiceRecording() {
+  if (chatVoiceTimer) clearInterval(chatVoiceTimer);
+  const durSec = Math.max(1, chatVoiceSeconds);
+  const mins = Math.floor(durSec / 60);
+  const secs = String(durSec % 60).padStart(2, '0');
+  const durStr = `${mins}:${secs}`;
+
+  let audioPayload = 'voice_note_clip';
+  if (chatVoiceMediaRecorder && chatVoiceMediaRecorder.state !== 'inactive') {
+    try {
+      chatVoiceMediaRecorder.onstop = () => {
+        const blob = new Blob(chatVoiceAudioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          sendChatDirectMessage(`[VOICE]:${durStr}:${reader.result || audioPayload}`);
+        };
+        reader.readAsDataURL(blob);
+      };
+      chatVoiceMediaRecorder.stop();
+      return;
+    } catch(e) {}
+  }
+  sendChatDirectMessage(`[VOICE]:${durStr}:${audioPayload}`);
+}
+
+async function sendChatDirectMessage(content) {
+  if (!state.activeConvId) return;
+  const isRecruiter = state.currentRole === 'recruiter';
+  const payload = {
+    conversation_id: state.activeConvId,
+    sender_id: state.currentUser?.id || 'user_rahim',
+    sender_role: isRecruiter ? 'business' : 'user',
+    sender_name: isRecruiter ? 'Fatima Khan (Radisson HR)' : (state.currentUser?.name || 'Rahim Ahmed'),
+    content: content
+  };
+
+  try {
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    renderInboxScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast('Failed to send message: ' + err.message, 'danger');
+  }
+}
+
+function togglePlayVoiceMessage(btn, audioData) {
+  const waveBars = btn.parentElement.querySelectorAll('.voice-wave-bar');
+  const isPlaying = btn.classList.contains('is-playing');
+
+  if (isPlaying) {
+    btn.classList.remove('is-playing');
+    btn.innerHTML = svgIcon('play', '', 14);
+    waveBars.forEach(bar => bar.classList.remove('playing'));
+    if (window._currentVoiceAudio) {
+      window._currentVoiceAudio.pause();
+      window._currentVoiceAudio = null;
+    }
+  } else {
+    document.querySelectorAll('.voice-play-btn.is-playing').forEach(b => {
+      b.classList.remove('is-playing');
+      b.innerHTML = svgIcon('play', '', 14);
+      b.parentElement.querySelectorAll('.voice-wave-bar').forEach(bar => bar.classList.remove('playing'));
+    });
+    if (window._currentVoiceAudio) {
+      window._currentVoiceAudio.pause();
+    }
+
+    btn.classList.add('is-playing');
+    btn.innerHTML = svgIcon('pause', '', 14);
+    waveBars.forEach(bar => bar.classList.add('playing'));
+
+    if (audioData && audioData.startsWith('data:audio')) {
+      const audio = new Audio(audioData);
+      window._currentVoiceAudio = audio;
+      audio.onended = () => {
+        btn.classList.remove('is-playing');
+        btn.innerHTML = svgIcon('play', '', 14);
+        waveBars.forEach(bar => bar.classList.remove('playing'));
+      };
+      audio.play().catch(() => {});
+    } else {
+      setTimeout(() => {
+        btn.classList.remove('is-playing');
+        btn.innerHTML = svgIcon('play', '', 14);
+        waveBars.forEach(bar => bar.classList.remove('playing'));
+      }, 4000);
+    }
+  }
+}
+
+function viewChatImageModal(imageUrl) {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-chat-image" onclick="closeModal('modal-chat-image')">
+      <div class="modal-dialog" style="max-width: 800px; background: transparent; box-shadow: none; border: none; text-align: center;" onclick="event.stopPropagation()">
+        <div style="position: relative; display: inline-block;">
+          <button class="modal-close" style="position: absolute; top: -14px; right: -14px; background: rgba(0,0,0,0.8); z-index: 10;" onclick="closeModal('modal-chat-image')" aria-label="Close">${svgIcon('x', '', 18)}</button>
+          <img src="${imageUrl}" alt="Attachment preview" style="max-width: 100%; max-height: 80vh; border-radius: 12px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); border: 2px solid rgba(255,255,255,0.2);">
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // ==========================================================================
@@ -4034,21 +4413,23 @@ function renderSignupPage(viewport) {
           `}
         </div>
 
-        <!-- Role Toggle (Candidate vs Hotel / Business) -->
-        <div class="auth-segmented-tabs" style="margin-bottom: 20px;">
-          <button type="button" class="auth-segment-btn ${isCandidate ? 'active' : ''}" onclick="setSignupRole('candidate')">
-            ${svgIcon('candidate', '', 14)} Candidate
-          </button>
-          <button type="button" class="auth-segment-btn ${!isCandidate ? 'active' : ''}" onclick="setSignupRole('business')">
-            ${svgIcon('hotel', '', 14)} Hotel / Business
-          </button>
-        </div>
+        <!-- Role Toggle (Candidate vs Hotel / Business) - Only shown on Stage 1 / Initial Route Choice -->
+        ${(signupState.stage === 1 && (!signupState.biz_route || signupState.biz_route === 'choose')) ? `
+          <div class="auth-segmented-tabs" style="margin-bottom: 20px;">
+            <button type="button" class="auth-segment-btn ${isCandidate ? 'active' : ''}" onclick="setSignupRole('candidate')">
+              ${svgIcon('candidate', '', 14)} Candidate
+            </button>
+            <button type="button" class="auth-segment-btn ${!isCandidate ? 'active' : ''}" onclick="setSignupRole('business')">
+              ${svgIcon('hotel', '', 14)} Hotel / Business
+            </button>
+          </div>
+        ` : ''}
 
         <!-- ============================================== -->
         <!-- CANDIDATE SIGNUP FLOW                          -->
         <!-- ============================================== -->
         ${isCandidate ? `
-          <!-- Profile, Name, DOB, NID/Passport (opt), Cell (+88), Email -->
+          <!-- Name, DOB, NID/Passport (opt), Cell (+88), Secondary Phone (+88 opt), Email -->
           ${signupState.stage === 1 ? `
             <div class="auth-header">
               <h2 class="auth-title">Candidate Details</h2>
@@ -4056,28 +4437,6 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part1" onsubmit="event.preventDefault(); nextSignupStage(2);">
-              <!-- Profile Picture Upload (No Presets) -->
-              <div class="pfp-upload-wrap">
-                <div class="pfp-avatar-preview-box">
-                  <img src="${signupState.pfp || '/static/images/candidate_rahim.jpg'}" alt="Profile Photo Preview" class="pfp-preview-img" id="cand-pfp-img">
-                </div>
-                <div style="flex: 1;">
-                  <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Picture</label>
-                  <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload your professional photo (JPG, PNG, or WebP)</p>
-                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                    <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('cand-pfp-file-input').click()">
-                      ${svgIcon('upload', '', 14)} Upload Picture
-                    </button>
-                    <input type="file" id="cand-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event)">
-                    ${signupState.pfp && signupState.pfp !== '/static/images/candidate_rahim.jpg' ? `
-                      <button type="button" class="btn-icon" title="Reset to default photo" style="width: 30px; height: 30px;" onclick="resetCandidatePfp()">
-                        ${svgIcon('x', '', 14)}
-                      </button>
-                    ` : ''}
-                  </div>
-                </div>
-              </div>
-
               <!-- Name -->
               <div class="auth-field">
                 <label class="auth-label">Full Name</label>
@@ -4118,7 +4477,25 @@ function renderSignupPage(viewport) {
                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
                     value="${signupState.phone || ''}">
                 </div>
-                <span class="auth-field-hint">Enter your 11-digit mobile number starting with 01 (fixed +88 prefix)</span>
+                <span class="auth-field-hint">Enter your 11-digit mobile number starting with 01 (Primary number receives OTP verification)</span>
+              </div>
+
+              <!-- Secondary Phone Number (+88 fixed prefix, 11 digits, optional) -->
+              <div class="auth-field">
+                <label class="auth-label">Secondary Mobile Number (Optional)</label>
+                <div class="phone-input-wrapper">
+                  <span class="phone-prefix-fixed">+88</span>
+                  <input type="tel" 
+                    id="cand-phone-secondary" 
+                    class="phone-number-field" 
+                    placeholder="01811234567" 
+                    maxlength="11" 
+                    minlength="11" 
+                    inputmode="numeric" 
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
+                    value="${signupState.phone_secondary || ''}">
+                </div>
+                <span class="auth-field-hint">Alternative contact number for hotel HR (Optional)</span>
               </div>
 
               <!-- Email -->
@@ -4135,14 +4512,39 @@ function renderSignupPage(viewport) {
             </form>
           ` : ''}
 
-          <!-- Bio, Main CV upload, Education (+), Skills, Language, Previous Experience (+) -->
+          <!-- PFP upload, Bio, Drag&Drop CV, Job Preferences, Education (+), Skills, Language, Previous Experience (+) -->
           ${signupState.stage === 2 ? `
             <div class="auth-header">
               <h2 class="auth-title">Hospitality Background</h2>
-              <p class="auth-subtitle">Bio, CV, Education, Skills &amp; Experience</p>
+              <p class="auth-subtitle">Photo, Bio, CV, Preferences, Skills &amp; Experience</p>
             </div>
 
             <form id="form-cand-part2" onsubmit="event.preventDefault(); nextSignupStage(3);">
+              <!-- Profile Picture Upload (Moved to Part 2 before Bio with Zoom/Drag setting) -->
+              <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
+                <div class="pfp-avatar-preview-box">
+                  <img src="${signupState.pfp || '/static/images/candidate_rahim.jpg'}" alt="Profile Photo Preview" class="pfp-preview-img" id="cand-pfp-part2-img">
+                </div>
+                <div style="flex: 1;">
+                  <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Picture</label>
+                  <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload your professional photo (Only compressed if &ge; 1MB to preserve quality)</p>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('cand-pfp-file-input').click()">
+                      ${svgIcon('upload', '', 14)} Upload Picture
+                    </button>
+                    <input type="file" id="cand-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event)">
+                    ${signupState.pfp && signupState.pfp !== '/static/images/candidate_rahim.jpg' ? `
+                      <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.pfp)">
+                        ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
+                      </button>
+                      <button type="button" class="btn-icon" id="cand-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeCandidatePfp()">
+                        ${svgIcon('x', '', 14)}
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+
               <!-- Bio -->
               <div class="auth-field">
                 <label class="auth-label">Professional Bio</label>
@@ -4150,23 +4552,71 @@ function renderSignupPage(viewport) {
                   placeholder="Tell hotel employers about your hospitality background and guest service standards...">${signupState.bio || ''}</textarea>
               </div>
 
-              <!-- Main CV Upload -->
+              <!-- Main CV Upload (Drag and Drop + Device Browse) -->
               <div class="auth-field">
                 <label class="auth-label">Main CV Upload</label>
-                <div class="cv-upload-box" onclick="document.getElementById('cand-cv-file').click()">
-                  <div class="cv-upload-icon">${svgIcon('fileText', '', 32)}</div>
-                  <strong style="color: var(--white); font-size: 0.9rem;">${signupState.cv_name || 'Upload your primary Hospitality CV'}</strong>
-                  <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 3px;">PDF, DOCX up to 10MB</div>
+                <div class="cv-dropzone" id="cand-cv-dropzone" onclick="document.getElementById('cand-cv-file').click()">
+                  <div class="cv-dropzone-inner">
+                    <div style="color: var(--orange-primary);">${svgIcon('upload', '', 28)}</div>
+                    <strong style="color: var(--white); font-size: 0.92rem; margin-top: 6px;">${signupState.cv_name || 'Upload your primary Hospitality CV'}</strong>
+                    <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+                      Drag &amp; drop your CV here, or <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">PDF, DOCX, DOC up to 10MB</div>
+                  </div>
                   <input type="file" id="cand-cv-file" style="display: none;" accept=".pdf,.docx,.doc" onchange="handleCvFileSelected(event)">
                 </div>
                 ${signupState.cv_name ? `
-                  <div class="cv-uploaded-badge">
+                  <div class="cv-uploaded-badge" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between;">
                     <span>✓ CV Attached: <strong>${signupState.cv_name}</strong></span>
+                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}')">Preview CV</button>
                   </div>
                 ` : ''}
               </div>
 
-              <!-- EDUCATION: Option to add (+ button), all BD degrees list, institute name, degree, GPA -->
+              <!-- Job Preferences -->
+              <div class="auth-field">
+                <label class="auth-label">Career &amp; Job Preferences</label>
+                <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 8px;">
+                  <div>
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Target Department</label>
+                    <select id="cand-pref-dept" class="auth-input">
+                      ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${(signupState.job_preferences?.department || 'Front Office') === d ? 'selected' : ''}>${d}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Desired Role / Title</label>
+                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="e.g. Front Office Supervisor" value="${signupState.job_preferences?.desired_role || 'Front Office Supervisor'}">
+                  </div>
+                </div>
+                <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                  <div>
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Shift</label>
+                    <select id="cand-pref-shift" class="auth-input">
+                      <option value="Rotational" ${(signupState.job_preferences?.shift || 'Rotational') === 'Rotational' ? 'selected' : ''}>Rotational</option>
+                      <option value="Morning" ${signupState.job_preferences?.shift === 'Morning' ? 'selected' : ''}>Morning</option>
+                      <option value="Evening" ${signupState.job_preferences?.shift === 'Evening' ? 'selected' : ''}>Evening</option>
+                      <option value="Night" ${signupState.job_preferences?.shift === 'Night' ? 'selected' : ''}>Night</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Expected Salary</label>
+                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="e.g. ৳55,000" value="${signupState.job_preferences?.expected_salary || '৳55,000'}">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Location</label>
+                    <select id="cand-pref-location" class="auth-input">
+                      <option value="Dhaka" ${(signupState.job_preferences?.preferred_location || 'Dhaka') === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
+                      <option value="Cox's Bazar" ${signupState.job_preferences?.preferred_location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
+                      <option value="Sylhet" ${signupState.job_preferences?.preferred_location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
+                      <option value="Chittagong" ${signupState.job_preferences?.preferred_location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
+                      <option value="Anywhere in BD" ${signupState.job_preferences?.preferred_location === 'Anywhere in BD' ? 'selected' : ''}>Anywhere in BD</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- EDUCATION: Multi-entry with Bangladesh certificates & degrees -->
               <div class="auth-field">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                   <label class="auth-label" style="margin: 0;">Education (Bangladesh Certificates &amp; Degrees)</label>
@@ -4211,17 +4661,28 @@ function renderSignupPage(viewport) {
                 </button>
               </div>
 
-              <!-- SKILLS: Schema system related to hotel, resort and businesses + small search + custom skill add -->
-              <div class="auth-field">
-                <label class="auth-label">Hospitality &amp; Business Skills (Schema System)</label>
+              <!-- SKILLS: Search inside, selected moves up, direct DOM update (no reload), add custom skill -->
+              <div class="auth-field" id="skills-section-container">
+                <label class="auth-label">Skills</label>
                 <div class="schema-box-wrapper">
-                  <!-- Small Search inside -->
+                  <!-- Search inside skills -->
                   <input type="text" class="schema-search-input" id="skills-search" 
                     placeholder="Search hotel, resort, and operations skills..." 
                     value="${signupState.skillsSearchQuery || ''}" 
                     oninput="filterSkillsSchema(this.value)">
 
-                  <!-- Available schema pills pool -->
+                  <!-- Selected Skills tags (Hidden when empty) -->
+                  <div class="schema-selected-tags" id="skills-selected-tags-container" style="${signupState.skills.length > 0 ? 'display: flex;' : 'display: none;'}">
+                    <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Skills (${signupState.skills.length}):</span>
+                    ${signupState.skills.map(s => `
+                      <span class="schema-tag-badge">
+                        ${s}
+                        <button type="button" class="schema-tag-remove" onclick="removeSkill('${s.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
+                      </span>
+                    `).join('')}
+                  </div>
+
+                  <!-- Available pills pool -->
                   <div class="schema-pills-pool" id="skills-pills-pool">
                     ${HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool).filter(s => {
                       if (!signupState.skillsSearchQuery) return true;
@@ -4229,58 +4690,81 @@ function renderSignupPage(viewport) {
                     }).map(s => {
                       const isSelected = signupState.skills.includes(s);
                       return `
-                        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleSkillSelection('${s}')">
+                        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')">
                           ${isSelected ? '✓ ' : '+ '}${s}
                         </span>
                       `;
                     }).join('')}
                   </div>
 
-                  <!-- Add New Custom Skill if not present in schema -->
-                  ${signupState.skillsSearchQuery && !HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool).some(s => s.toLowerCase() === signupState.skillsSearchQuery.toLowerCase()) ? `
-                    <div class="schema-add-chip" onclick="addCustomSkill('${signupState.skillsSearchQuery}')">
-                      + Add "${signupState.skillsSearchQuery}" as a new skill &amp; save
-                    </div>
-                  ` : ''}
-
-                  <!-- Selected Skills tags -->
-                  <div class="schema-selected-tags">
-                    <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Skills (${signupState.skills.length}):</span>
-                    ${signupState.skills.map(s => `
-                      <span class="schema-tag-badge">
-                        ${s}
-                        <button type="button" class="schema-tag-remove" onclick="removeSkill('${s}')">${svgIcon('x', '', 12)}</button>
-                      </span>
-                    `).join('')}
+                  <!-- Add New Custom Skill if not present -->
+                  <div id="skills-custom-add-container" style="${signupState.skillsSearchQuery && !HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool).some(s => s.toLowerCase() === signupState.skillsSearchQuery.toLowerCase()) ? 'display: block;' : 'display: none;'}">
+                    ${signupState.skillsSearchQuery ? `
+                      <div class="schema-add-chip" onclick="addCustomSkill('${signupState.skillsSearchQuery.replace(/'/g, "\\'")}')">
+                        + Add "${signupState.skillsSearchQuery}" as a new skill &amp; save
+                      </div>
+                    ` : ''}
                   </div>
                 </div>
               </div>
 
-              <!-- LANGUAGES: Schema selecting system -->
-              <div class="auth-field">
-                <label class="auth-label">Languages (Schema System)</label>
-                <div class="schema-pills-pool" style="margin-bottom: 8px;">
-                  ${[
-                    { name: "Bengali", level: "Native" },
-                    { name: "English", level: "Professional" },
-                    { name: "English", level: "Fluent" },
-                    { name: "Arabic", level: "Conversational" },
-                    { name: "Hindi / Urdu", level: "Conversational" },
-                    { name: "Mandarin Chinese", level: "Basic" },
-                    { name: "French", level: "Basic" },
-                    { name: "German", level: "Basic" }
-                  ].map(lang => {
-                    const isSelected = signupState.languages.some(l => l.name === lang.name && l.level === lang.level);
-                    return `
-                      <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleLanguage('${lang.name}', '${lang.level}')">
-                        ${isSelected ? '✓ ' : '+ '}${lang.name} (${lang.level})
+              <!-- LANGUAGES: Search inside, selected moves up, direct DOM update, add custom language -->
+              <div class="auth-field" id="languages-section-container">
+                <label class="auth-label">Languages</label>
+                <div class="schema-box-wrapper">
+                  <!-- Search inside languages -->
+                  <input type="text" class="schema-search-input" id="languages-search" 
+                    placeholder="Search languages..." 
+                    value="${signupState.languagesSearchQuery || ''}" 
+                    oninput="filterLanguagesSchema(this.value)">
+
+                  <!-- Selected Languages tags (Hidden when empty) -->
+                  <div class="schema-selected-tags" id="languages-selected-tags-container" style="${signupState.languages.length > 0 ? 'display: flex;' : 'display: none;'}">
+                    <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Languages (${signupState.languages.length}):</span>
+                    ${signupState.languages.map(l => `
+                      <span class="schema-tag-badge">
+                        ${l.name} (${l.level})
+                        <button type="button" class="schema-tag-remove" onclick="removeLanguage('${l.name.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
                       </span>
-                    `;
-                  }).join('')}
+                    `).join('')}
+                  </div>
+
+                  <!-- Available languages pills pool -->
+                  <div class="schema-pills-pool" id="languages-pills-pool">
+                    ${[
+                      { name: "Bengali", level: "Native" },
+                      { name: "English", level: "Professional" },
+                      { name: "English", level: "Fluent" },
+                      { name: "Arabic", level: "Conversational" },
+                      { name: "Hindi / Urdu", level: "Conversational" },
+                      { name: "Mandarin Chinese", level: "Basic" },
+                      { name: "French", level: "Basic" },
+                      { name: "German", level: "Basic" }
+                    ].filter(lang => {
+                      if (!signupState.languagesSearchQuery) return true;
+                      return lang.name.toLowerCase().includes(signupState.languagesSearchQuery.toLowerCase());
+                    }).map(lang => {
+                      const isSelected = signupState.languages.some(l => l.name === lang.name && l.level === lang.level);
+                      return `
+                        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleLanguage('${lang.name.replace(/'/g, "\\'")}', '${lang.level}')">
+                          ${isSelected ? '✓ ' : '+ '}${lang.name} (${lang.level})
+                        </span>
+                      `;
+                    }).join('')}
+                  </div>
+
+                  <!-- Add Custom Language if searched -->
+                  <div id="languages-custom-add-container" style="${signupState.languagesSearchQuery ? 'display: block;' : 'display: none;'}">
+                    ${signupState.languagesSearchQuery ? `
+                      <div class="schema-add-chip" onclick="addCustomLanguage('${signupState.languagesSearchQuery.replace(/'/g, "\\'")}')">
+                        + Add "${signupState.languagesSearchQuery}" (Fluent) &amp; save
+                      </div>
+                    ` : ''}
+                  </div>
                 </div>
               </div>
 
-              <!-- PREVIOUS EXPERIENCE: institutes name, role, years on service, skills that acquired (+ button) -->
+              <!-- PREVIOUS EXPERIENCE -->
               <div class="auth-field">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                   <label class="auth-label" style="margin: 0;">Previous Hospitality Experience</label>
@@ -4406,13 +4890,44 @@ function renderSignupPage(viewport) {
               </div>
 
               <button type="submit" class="auth-btn-primary" style="margin-top: 14px;">
-                Complete Registration &amp; Activate Account ✓
+                Verify Code &amp; Review Terms →
               </button>
             </form>
 
             <div class="auth-otp-footer">
               <span>Didn't receive code?</span>
               <button type="button" class="auth-text-link" onclick="resendCandidateOtp()">Resend Code</button>
+            </div>
+          ` : ''}
+
+          <!-- Terms & Conditions Screen (After OTP) -->
+          ${signupState.stage === 'terms' ? `
+            <div class="auth-header">
+              <div class="auth-icon-circle" style="margin: 0 auto 12px auto; color: var(--orange-primary);">${svgIcon('fileText', '', 26)}</div>
+              <h2 class="auth-title">Terms &amp; Conditions</h2>
+              <p class="auth-subtitle">NiceJobs Candidate Code of Conduct &amp; Verification Agreement</p>
+            </div>
+            <div class="terms-scroll-panel" style="max-height: 260px; overflow-y: auto; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">1. Accurate Candidate Representations</h4>
+              <p style="margin-bottom: 12px;">All information provided regarding past hospitality work experience, academic qualifications, National ID/Passport data, and hospitality software capabilities (Opera PMS, Fidelio, Micros POS) must be accurate and truthful.</p>
+              
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">2. Direct 5-Star Hotel HR Engagement</h4>
+              <p style="margin-bottom: 12px;">Candidate profiles and CVs are shared strictly with verified hotel properties and HR recruiting directors. NiceJobs does not sell candidate data to third-party commercial marketing entities.</p>
+              
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">3. Messaging &amp; Interview Protocol</h4>
+              <p style="margin-bottom: 12px;">Direct candidate-employer messaging must adhere to professional hospitality standards. Harassment, misrepresentation, or abuse of messaging channels will result in immediate termination of account access.</p>
+
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">4. Acceptance Requirement</h4>
+              <p style="margin-bottom: 0;">You must accept these terms to activate your candidate profile and participate in hotel talent matching. Declining will prevent access to the platform.</p>
+            </div>
+
+            <div class="auth-nav-row" style="gap: 12px;">
+              <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineCandidateTerms()">
+                Decline Terms
+              </button>
+              <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptCandidateTerms()">
+                Accept &amp; Continue →
+              </button>
             </div>
           ` : ''}
         ` : `
@@ -5137,15 +5652,9 @@ function removeExperienceEntry(idx) {
   }
 }
 
-// Skills schema helpers
 function filterSkillsSchema(q) {
   signupState.skillsSearchQuery = q;
-  renderSignupPage(document.getElementById('app-viewport'));
-  const input = document.getElementById('skills-search');
-  if (input) {
-    input.focus();
-    input.setSelectionRange(q.length, q.length);
-  }
+  updateSkillsDOM();
 }
 
 function toggleSkillSelection(skill) {
@@ -5155,17 +5664,21 @@ function toggleSkillSelection(skill) {
   } else {
     signupState.skills.push(skill);
   }
-  renderSignupPage(document.getElementById('app-viewport'));
+  updateSkillsDOM();
+  saveSignupProgress();
 }
 
 function addCustomSkill(skill) {
   const trimmed = skill.trim();
   if (trimmed && !signupState.skills.includes(trimmed)) {
-    signupState.customSkillsPool.push(trimmed);
+    if (!signupState.customSkillsPool.includes(trimmed)) signupState.customSkillsPool.push(trimmed);
     signupState.skills.push(trimmed);
     signupState.skillsSearchQuery = '';
-    showToast(`Skill "${trimmed}" saved to schema!`, 'success');
-    renderSignupPage(document.getElementById('app-viewport'));
+    const input = document.getElementById('skills-search');
+    if (input) input.value = '';
+    showToast(`Skill "${trimmed}" saved!`, 'success');
+    updateSkillsDOM();
+    saveSignupProgress();
   }
 }
 
@@ -5173,8 +5686,131 @@ function removeSkill(skill) {
   const idx = signupState.skills.indexOf(skill);
   if (idx >= 0) {
     signupState.skills.splice(idx, 1);
-    renderSignupPage(document.getElementById('app-viewport'));
   }
+  updateSkillsDOM();
+  saveSignupProgress();
+}
+
+function updateSkillsDOM() {
+  const q = (signupState.skillsSearchQuery || '').toLowerCase().trim();
+  const pool = HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool || []).filter(s => {
+    if (!q) return true;
+    return s.toLowerCase().includes(q);
+  });
+  const hasSelected = (signupState.skills || []).length > 0;
+
+  const selectedContainer = document.getElementById('skills-selected-tags-container');
+  if (selectedContainer) {
+    if (hasSelected) {
+      selectedContainer.style.display = 'flex';
+      selectedContainer.innerHTML = `
+        <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Skills (${signupState.skills.length}):</span>
+        ${signupState.skills.map(s => `
+          <span class="schema-tag-badge">
+            ${s}
+            <button type="button" class="schema-tag-remove" onclick="removeSkill('${s.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
+          </span>
+        `).join('')}
+      `;
+    } else {
+      selectedContainer.style.display = 'none';
+      selectedContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('skills-pills-pool');
+  if (pillsPool) {
+    pillsPool.innerHTML = pool.map(s => {
+      const isSelected = signupState.skills.includes(s);
+      return `
+        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')">
+          ${isSelected ? '✓ ' : '+ '}${s}
+        </span>
+      `;
+    }).join('');
+  }
+
+  const customAdd = document.getElementById('skills-custom-add-container');
+  if (customAdd) {
+    if (q && !HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool || []).some(s => s.toLowerCase() === q)) {
+      customAdd.style.display = 'block';
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomSkill('${q.replace(/'/g, "\\'")}')">
+          + Add "${q}" as a new skill &amp; save
+        </div>
+      `;
+    } else {
+      customAdd.style.display = 'none';
+      customAdd.innerHTML = '';
+    }
+  }
+}
+
+function updateLanguagesDOM() {
+  const q = (signupState.languagesSearchQuery || '').toLowerCase().trim();
+  const allLangs = [
+    { name: "Bengali", level: "Native" },
+    { name: "English", level: "Professional" },
+    { name: "English", level: "Fluent" },
+    { name: "Arabic", level: "Conversational" },
+    { name: "Hindi / Urdu", level: "Conversational" },
+    { name: "Mandarin Chinese", level: "Basic" },
+    { name: "French", level: "Basic" },
+    { name: "German", level: "Basic" }
+  ];
+  const pool = allLangs.filter(l => !q || l.name.toLowerCase().includes(q));
+  const hasSelected = (signupState.languages || []).length > 0;
+
+  const selectedContainer = document.getElementById('languages-selected-tags-container');
+  if (selectedContainer) {
+    if (hasSelected) {
+      selectedContainer.style.display = 'flex';
+      selectedContainer.innerHTML = `
+        <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Languages (${signupState.languages.length}):</span>
+        ${signupState.languages.map(l => `
+          <span class="schema-tag-badge">
+            ${l.name} (${l.level})
+            <button type="button" class="schema-tag-remove" onclick="removeLanguage('${l.name.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
+          </span>
+        `).join('')}
+      `;
+    } else {
+      selectedContainer.style.display = 'none';
+      selectedContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('languages-pills-pool');
+  if (pillsPool) {
+    pillsPool.innerHTML = pool.map(lang => {
+      const isSelected = signupState.languages.some(l => l.name === lang.name && l.level === lang.level);
+      return `
+        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleLanguage('${lang.name.replace(/'/g, "\\'")}', '${lang.level}')">
+          ${isSelected ? '✓ ' : '+ '}${lang.name} (${lang.level})
+        </span>
+      `;
+    }).join('');
+  }
+
+  const customAdd = document.getElementById('languages-custom-add-container');
+  if (customAdd) {
+    if (q && !allLangs.some(l => l.name.toLowerCase() === q)) {
+      customAdd.style.display = 'block';
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomLanguage('${q.replace(/'/g, "\\'")}')">
+          + Add "${q}" (Fluent) &amp; save
+        </div>
+      `;
+    } else {
+      customAdd.style.display = 'none';
+      customAdd.innerHTML = '';
+    }
+  }
+}
+
+function filterLanguagesSchema(q) {
+  signupState.languagesSearchQuery = q;
+  updateLanguagesDOM();
 }
 
 function toggleLanguage(name, level) {
@@ -5188,7 +5824,239 @@ function toggleLanguage(name, level) {
   } else {
     signupState.languages.push({ name, level });
   }
+  updateLanguagesDOM();
+  saveSignupProgress();
+}
+
+function addCustomLanguage(lang) {
+  const trimmed = lang.trim();
+  if (trimmed && !signupState.languages.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
+    signupState.languages.push({ name: trimmed, level: 'Fluent' });
+    signupState.languagesSearchQuery = '';
+    const input = document.getElementById('languages-search');
+    if (input) input.value = '';
+    showToast(`Language "${trimmed}" added!`, 'success');
+    updateLanguagesDOM();
+    saveSignupProgress();
+  }
+}
+
+function removeLanguage(name) {
+  const existingIdx = signupState.languages.findIndex(l => l.name === name);
+  if (existingIdx >= 0) {
+    signupState.languages.splice(existingIdx, 1);
+  }
+  updateLanguagesDOM();
+  saveSignupProgress();
+}
+
+// -------------------------------------------------------------
+// Image Helpers (Compression & PFP Drag & Zoom Cropper)
+// -------------------------------------------------------------
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function compressImageFile(file, maxDimension = 1600, quality = 0.92) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+let pfpCropState = {
+  imgSrc: '',
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  isDragging: false,
+  startX: 0,
+  startY: 0
+};
+
+function openPfpSettingModal(imageSrc) {
+  pfpCropState.imgSrc = imageSrc;
+  pfpCropState.scale = 1;
+  pfpCropState.offsetX = 0;
+  pfpCropState.offsetY = 0;
+
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-pfp-crop" onclick="closeModal('modal-pfp-crop')">
+      <div class="modal-dialog" style="max-width: 480px; text-align: center;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Position Profile Photo</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Drag to frame your face and use the slider to zoom</div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-pfp-crop')" aria-label="Close">${svgIcon('x', '', 18)}</button>
+        </div>
+
+        <div class="modal-body" style="padding: 24px 20px;">
+          <div id="pfp-crop-viewport" onpointerdown="startPfpDrag(event)">
+            <img id="pfp-crop-img" src="${imageSrc}" alt="Candidate face crop preview" style="transform: translate(-50%, -50%) translate(0px, 0px) scale(1);" draggable="false">
+          </div>
+
+          <div style="margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 12px;">
+            <span style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">Zoom:</span>
+            <input type="range" id="pfp-crop-zoom" min="1" max="3" step="0.05" value="1" oninput="handlePfpZoomChange(this.value)" style="width: 200px; accent-color: var(--orange-primary);">
+            <button type="button" class="btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;" onclick="resetPfpCropPosition()">Reset</button>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-pfp-crop')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="applyPfpCroppedImage()">Apply &amp; Set Photo ✓</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  window.addEventListener('pointermove', onPfpPointerMove);
+  window.addEventListener('pointerup', onPfpPointerUp);
+}
+
+function startPfpDrag(e) {
+  pfpCropState.isDragging = true;
+  pfpCropState.startX = e.clientX - pfpCropState.offsetX;
+  pfpCropState.startY = e.clientY - pfpCropState.offsetY;
+}
+
+function onPfpPointerMove(e) {
+  if (!pfpCropState.isDragging) return;
+  pfpCropState.offsetX = e.clientX - pfpCropState.startX;
+  pfpCropState.offsetY = e.clientY - pfpCropState.startY;
+  updatePfpCropTransform();
+}
+
+function onPfpPointerUp() {
+  pfpCropState.isDragging = false;
+}
+
+function handlePfpZoomChange(val) {
+  pfpCropState.scale = parseFloat(val);
+  updatePfpCropTransform();
+}
+
+function resetPfpCropPosition() {
+  pfpCropState.scale = 1;
+  pfpCropState.offsetX = 0;
+  pfpCropState.offsetY = 0;
+  const slider = document.getElementById('pfp-crop-zoom');
+  if (slider) slider.value = 1;
+  updatePfpCropTransform();
+}
+
+function updatePfpCropTransform() {
+  const img = document.getElementById('pfp-crop-img');
+  if (!img) return;
+  img.style.transform = `translate(-50%, -50%) translate(${pfpCropState.offsetX}px, ${pfpCropState.offsetY}px) scale(${pfpCropState.scale})`;
+}
+
+function applyPfpCroppedImage() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    ctx.clearRect(0, 0, 320, 320);
+
+    const vpSize = 240;
+    const factor = 320 / vpSize;
+    ctx.save();
+    ctx.translate(160 + pfpCropState.offsetX * factor, 160 + pfpCropState.offsetY * factor);
+    ctx.scale(pfpCropState.scale * factor, pfpCropState.scale * factor);
+
+    const aspect = img.width / img.height;
+    let renderW = vpSize;
+    let renderH = vpSize;
+    if (aspect > 1) {
+      renderH = vpSize;
+      renderW = vpSize * aspect;
+    } else {
+      renderW = vpSize;
+      renderH = vpSize / aspect;
+    }
+
+    ctx.drawImage(img, -renderW / 2, -renderH / 2, renderW, renderH);
+    ctx.restore();
+
+    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.94);
+    signupState.pfp = croppedDataUrl;
+
+    const previewImg = document.getElementById('cand-pfp-part2-img');
+    if (previewImg) previewImg.src = croppedDataUrl;
+
+    closeModal('modal-pfp-crop');
+    showToast('Profile photo adjusted and saved!', 'success');
+    saveSignupProgress();
+  };
+  img.src = pfpCropState.imgSrc;
+}
+
+function removeCandidatePfp() {
+  signupState.pfp = '/static/images/candidate_rahim.jpg';
+  const img = document.getElementById('cand-pfp-part2-img');
+  if (img) img.src = signupState.pfp;
+  const remBtn = document.getElementById('cand-pfp-remove-btn');
+  if (remBtn) remBtn.style.display = 'none';
+  saveSignupProgress();
+  showToast('Profile photo removed.');
+}
+
+async function handlePfpFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  let dataUrl;
+  if (file.size >= 1024 * 1024) {
+    dataUrl = await compressImageFile(file, 1600, 0.92);
+  } else {
+    dataUrl = await readFileAsDataURL(file);
+  }
+  openPfpSettingModal(dataUrl);
+}
+
+function handleCvFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  signupState.cv_name = file.name;
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
+  showToast(`CV attached: ${file.name}`, 'success');
 }
 
 // Features schema helpers
@@ -5265,11 +6133,17 @@ async function nextSignupStage(targetStage) {
     const dob = document.getElementById('cand-dob')?.value || '';
     const nid = (document.getElementById('cand-nid')?.value || '').trim();
     const phoneRaw = document.getElementById('cand-phone')?.value || '';
+    const phoneSecRaw = document.getElementById('cand-phone-secondary')?.value || '';
     const email = (document.getElementById('cand-email')?.value || '').trim();
 
     const cleanPhone = phoneRaw.replace(/[^0-9]/g, '');
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('01')) {
       showToast('Phone number must be exactly 11 digits starting with 01 (no more, no less)', 'danger');
+      return;
+    }
+    const cleanPhoneSec = phoneSecRaw.replace(/[^0-9]/g, '');
+    if (cleanPhoneSec && (cleanPhoneSec.length !== 11 || !cleanPhoneSec.startsWith('01'))) {
+      showToast('Secondary phone number must be exactly 11 digits starting with 01 if provided', 'danger');
       return;
     }
     if (!name) {
@@ -5285,12 +6159,28 @@ async function nextSignupStage(targetStage) {
     signupState.dob = dob;
     signupState.nid_passport = nid;
     signupState.phone = cleanPhone;
+    signupState.phone_secondary = cleanPhoneSec;
     signupState.email = email;
   }
 
   if (current === 2) {
     const bio = document.getElementById('cand-bio')?.value || '';
     signupState.bio = bio;
+
+    // Collect job preferences
+    const prefDept = document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office';
+    const prefRole = (document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || 'Front Desk Associate';
+    const prefShift = document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
+    const prefSalary = (document.getElementById('pref-salary')?.value || '').trim() || signupState.job_preferences?.expected_salary || 'Negotiable';
+    const prefLoc = (document.getElementById('pref-loc')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Dhaka';
+
+    signupState.job_preferences = {
+      department: prefDept,
+      desired_role: prefRole,
+      shift: prefShift,
+      expected_salary: prefSalary,
+      preferred_location: prefLoc
+    };
 
     // Collect dynamic education rows
     const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
@@ -5354,12 +6244,20 @@ async function nextSignupStage(targetStage) {
   }
 
   signupState.stage = targetStage;
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function prevSignupStage() {
+  if (signupState.stage === 'terms') {
+    signupState.stage = 4;
+    saveSignupProgress();
+    renderSignupPage(document.getElementById('app-viewport'));
+    return;
+  }
   if (signupState.stage > 1) {
     signupState.stage -= 1;
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   } else {
     startLoginFlow('candidate');
@@ -5396,7 +6294,7 @@ async function resendCandidateOtp() {
   }
 }
 
-// Candidate Final Submit
+// Candidate OTP Verification -> Move to Terms
 async function handleCandidateFinalSignup(event) {
   event.preventDefault();
   const input = document.getElementById('cand-otp-code');
@@ -5407,14 +6305,32 @@ async function handleCandidateFinalSignup(event) {
     return;
   }
   signupState.otp_code = code;
+  signupState.stage = 'terms';
+  saveSignupProgress();
+  showToast('OTP verified! Please review and accept Terms & Conditions.', 'info');
+  renderSignupPage(document.getElementById('app-viewport'));
+}
 
+function declineCandidateTerms() {
+  signupState.terms_accepted = false;
+  showToast('You must accept the Terms & Conditions to activate your candidate profile and participate in hotel talent matching.', 'warning');
+}
+
+async function acceptCandidateTerms() {
+  signupState.terms_accepted = true;
+  saveSignupProgress();
+  await finalizeCandidateRegistration();
+}
+
+async function finalizeCandidateRegistration() {
   try {
     const payload = {
       name: signupState.name,
       email: signupState.email,
       phone: signupState.phone,
+      phone_secondary: signupState.phone_secondary || null,
       password: signupState.password || 'Password123!',
-      otp_code: code,
+      otp_code: signupState.otp_code || signupState.lastSentOtp || '258330',
       dob: signupState.dob,
       nid_passport: signupState.nid_passport,
       avatar_url: signupState.pfp,
@@ -5424,8 +6340,9 @@ async function handleCandidateFinalSignup(event) {
       skills: signupState.skills,
       languages: signupState.languages,
       experience: signupState.experience,
-      current_position: signupState.experience[0]?.role || 'Front Desk Associate',
-      department: 'Front Office'
+      job_preferences: signupState.job_preferences,
+      current_position: signupState.job_preferences?.desired_role || signupState.experience[0]?.role || 'Front Desk Associate',
+      department: signupState.job_preferences?.department || 'Front Office'
     };
 
     const res = await fetch('/api/auth/register-candidate', {
@@ -5446,6 +6363,10 @@ async function handleCandidateFinalSignup(event) {
       avatar: payload.avatar_url
     };
     state.currentRole = 'jobseeker';
+
+    try {
+      sessionStorage.removeItem('nicejobs_signup_state');
+    } catch (e) {}
 
     showToast(data.message || 'Candidate account activated successfully!', 'success');
     await loadInitialData();
@@ -7558,9 +8479,538 @@ async function deleteCv(cvId) {
   }
 }
 
+// ==========================================================================
+// Individual Profile Edit Modals & Candidate CV Preview
+// ==========================================================================
+
+async function saveProfileField(patchObj) {
+  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        ...patchObj
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to update profile');
+    showToast('Profile updated successfully!', 'success');
+    await loadInitialData();
+    renderProfileScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+// Preview Candidate CV Modal
+function previewCandidateCvModal(cvTitle, cvName) {
+  const profile = state.profile || {};
+  const name = profile.name || state.currentUser?.name || 'Rahim Ahmed';
+  const headline = profile.headline || 'Front Office Supervisor & Guest Relations Specialist';
+  const email = profile.email || 'rahim.ahmed@example.bd';
+  const phone = profile.phone || '01711234567';
+  const location = profile.location || 'Dhaka, Bangladesh';
+  const summary = profile.summary || 'Dedicated 5-star hospitality professional with proven excellence in Front Office, VIP Concierge, and Opera PMS operations.';
+  const experience = profile.experience || [];
+  const skills = profile.skills || [];
+  const languages = profile.languages || [];
+  const certifications = profile.certifications || [];
+
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-candidate-cv-preview">
+      <div class="modal-dialog" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+          <div>
+            <h2 class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+              ${svgIcon('fileText', 'var(--orange-primary)', 20)}
+              ${cvTitle || cvName || 'Hospitality Resume'}
+            </h2>
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+              Document: ${cvName || 'Resume.pdf'} • Formatted for 5-Star Hotel HR Verification
+            </div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-candidate-cv-preview')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+
+        <div class="modal-body" style="overflow-y: auto; padding: 24px; background: #070d1e;">
+          <!-- Paper Resume Simulation -->
+          <div style="background: #ffffff; color: #1e293b; border-radius: 8px; padding: 32px 36px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-family: 'Inter', -apple-system, sans-serif;">
+            
+            <!-- Resume Header -->
+            <div style="border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h1 style="font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 0 0 4px 0; letter-spacing: -0.5px;">${name}</h1>
+                <div style="font-size: 0.95rem; font-weight: 600; color: #2563eb;">${headline}</div>
+              </div>
+              <div style="text-align: right; font-size: 0.78rem; color: #64748b; line-height: 1.5;">
+                <div>${email}</div>
+                <div>+88 ${phone}</div>
+                <div>${location}</div>
+              </div>
+            </div>
+
+            <!-- Professional Summary -->
+            <div style="margin-bottom: 18px;">
+              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Professional Summary</h3>
+              <p style="font-size: 0.84rem; line-height: 1.6; color: #334155; margin: 0;">${summary}</p>
+            </div>
+
+            <!-- Experience -->
+            <div style="margin-bottom: 18px;">
+              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px;">Hospitality Experience</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                ${experience.length === 0 ? '<div style="font-size: 0.82rem; color: #64748b;">No experience listed.</div>' : experience.map(e => `
+                  <div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                      <span style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">${e.role}</span>
+                      <span style="font-size: 0.78rem; font-weight: 600; color: #64748b;">${e.period}</span>
+                    </div>
+                    <div style="font-size: 0.82rem; font-weight: 600; color: #f97316; margin-bottom: 4px;">${e.hotel}</div>
+                    <p style="font-size: 0.8rem; color: #475569; margin: 0; line-height: 1.5;">${e.description || ''}</p>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Skills -->
+            <div style="margin-bottom: 18px;">
+              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Key Hospitality Skills</h3>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                ${skills.length === 0 ? '<div style="font-size: 0.82rem; color: #64748b;">No skills listed.</div>' : skills.map(s => `
+                  <span style="background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px;">${s}</span>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Certifications & Languages Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div>
+                <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Accreditations</h3>
+                <div style="font-size: 0.78rem; color: #334155; line-height: 1.6;">
+                  ${certifications.length === 0 ? '<div style="color: #64748b;">None listed.</div>' : certifications.map(c => `<div><strong>${c.title}</strong> - ${c.issuer} (${c.year})</div>`).join('')}
+                </div>
+              </div>
+              <div>
+                <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Languages</h3>
+                <div style="font-size: 0.78rem; color: #334155; line-height: 1.6;">
+                  ${languages.length === 0 ? '<div style="color: #64748b;">None listed.</div>' : languages.map(l => `<div><strong>${l.name}</strong>: ${l.level}</div>`).join('')}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+            ${svgIcon('shield', '#10b981', 14)} Verified NiceJobs Candidate Profile
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-candidate-cv-preview')">Close Preview</button>
+            <button type="button" class="btn-orange" onclick="showToast('Downloading verified CV copy...', 'info'); closeModal('modal-candidate-cv-preview');">${svgIcon('download', '', 14)} Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function previewCvDoc(cvName) {
-  showToast(`Previewing ${cvName}`);
-  viewSubmittedApplicationCv('app_rahim_radisson');
+  previewCandidateCvModal('Hospitality CV Preview', cvName);
+}
+
+// 1. Edit Summary Modal
+function openEditSummaryModal() {
+  const currentSummary = state.profile?.summary || '';
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-summary">
+      <div class="modal-dialog" style="max-width: 560px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Professional Summary</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-summary')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <form onsubmit="handleSaveSummaryModal(event)">
+          <div class="modal-body">
+            <div>
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Summary</label>
+              <textarea id="edit-summary-text" rows="5" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.6;">${currentSummary}</textarea>
+              <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 6px;">Highlight your 5-star hospitality experience, departments, guest relations, or leadership background.</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-summary')">Cancel</button>
+            <button type="submit" class="btn-orange">Save Summary</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleSaveSummaryModal(e) {
+  e.preventDefault();
+  const summary = (document.getElementById('edit-summary-text')?.value || '').trim();
+  closeModal('modal-edit-summary');
+  await saveProfileField({ summary });
+}
+
+// 2. Edit Experience Modal
+let editExperienceList = [];
+
+function openEditExperienceModal() {
+  editExperienceList = JSON.parse(JSON.stringify(state.profile?.experience || []));
+  renderExperienceModalDOM();
+}
+
+function renderExperienceModalDOM() {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-experience">
+      <div class="modal-dialog" style="max-width: 650px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Hospitality Experience</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-experience')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <div id="experience-entries-list" style="display: flex; flex-direction: column; gap: 14px;">
+            ${editExperienceList.map((exp, idx) => `
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; position: relative;">
+                <button type="button" onclick="removeExpEntry(${idx})" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #f87171; cursor: pointer;" title="Remove Entry">${svgIcon('x', '', 14)}</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                  <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Role / Position</label>
+                    <input type="text" value="${exp.role || ''}" onchange="updateExpEntry(${idx}, 'role', this.value)" placeholder="e.g. Front Desk Associate" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Hotel / Property</label>
+                    <input type="text" value="${exp.hotel || ''}" onchange="updateExpEntry(${idx}, 'hotel', this.value)" placeholder="e.g. Radisson Blu Dhaka" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  </div>
+                </div>
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Period</label>
+                  <input type="text" value="${exp.period || ''}" onchange="updateExpEntry(${idx}, 'period', this.value)" placeholder="e.g. 2023 - Present (2 Years)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Key Responsibilities &amp; Tools</label>
+                  <textarea rows="2" onchange="updateExpEntry(${idx}, 'description', this.value)" placeholder="Opera PMS, VIP guest relations, check-in operations..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.82rem; line-height: 1.4;">${exp.description || ''}</textarea>
+                </div>
+              </div>
+            `).join('')}
+            ${editExperienceList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No experience added yet. Click below to add.</div>' : ''}
+          </div>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addExpEntry()">+ Add Another Experience</button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-experience')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="saveExperienceChanges()">Save Experience</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addExpEntry() {
+  editExperienceList.push({ role: '', hotel: '', period: '', description: '' });
+  renderExperienceModalDOM();
+}
+
+function removeExpEntry(idx) {
+  editExperienceList.splice(idx, 1);
+  renderExperienceModalDOM();
+}
+
+function updateExpEntry(idx, field, val) {
+  if (editExperienceList[idx]) editExperienceList[idx][field] = val;
+}
+
+async function saveExperienceChanges() {
+  const filtered = editExperienceList.filter(e => e.role && e.hotel);
+  closeModal('modal-edit-experience');
+  await saveProfileField({ experience: filtered });
+}
+
+// 3. Edit Credentials Modal
+let editCredentialsList = [];
+
+function openEditCredentialsModal() {
+  editCredentialsList = JSON.parse(JSON.stringify(state.profile?.certifications || []));
+  renderCredentialsModalDOM();
+}
+
+function renderCredentialsModalDOM() {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-credentials">
+      <div class="modal-dialog" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Credentials &amp; Accreditations</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-credentials')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <div id="credentials-entries-list" style="display: flex; flex-direction: column; gap: 12px;">
+            ${editCredentialsList.map((c, idx) => `
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; position: relative;">
+                <button type="button" onclick="removeCredEntry(${idx})" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #f87171; cursor: pointer;" title="Remove">${svgIcon('x', '', 14)}</button>
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Certification Title</label>
+                  <input type="text" value="${c.title || ''}" onchange="updateCredEntry(${idx}, 'title', this.value)" placeholder="e.g. Certified Hospitality Supervisor (CHS)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                </div>
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+                  <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Issuing Organization</label>
+                    <input type="text" value="${c.issuer || ''}" onchange="updateCredEntry(${idx}, 'issuer', this.value)" placeholder="e.g. AHLEI" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Year</label>
+                    <input type="text" value="${c.year || ''}" onchange="updateCredEntry(${idx}, 'year', this.value)" placeholder="e.g. 2023" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+            ${editCredentialsList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No credentials added yet. Click below to add.</div>' : ''}
+          </div>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addCredEntry()">+ Add Another Credential</button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-credentials')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="saveCredentialsChanges()">Save Credentials</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addCredEntry() {
+  editCredentialsList.push({ title: '', issuer: '', year: '' });
+  renderCredentialsModalDOM();
+}
+
+function removeCredEntry(idx) {
+  editCredentialsList.splice(idx, 1);
+  renderCredentialsModalDOM();
+}
+
+function updateCredEntry(idx, field, val) {
+  if (editCredentialsList[idx]) editCredentialsList[idx][field] = val;
+}
+
+async function saveCredentialsChanges() {
+  const filtered = editCredentialsList.filter(c => c.title);
+  closeModal('modal-edit-credentials');
+  await saveProfileField({ certifications: filtered });
+}
+
+// 4. Edit Skills Modal
+let editSkillsList = [];
+
+function openEditSkillsModal() {
+  editSkillsList = [...(state.profile?.skills || [])];
+  renderEditSkillsModalDOM();
+}
+
+function renderEditSkillsModalDOM() {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-skills">
+      <div class="modal-dialog" style="max-width: 580px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Skills</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-skills')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 14px;">
+            <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Current Skills</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-subtle); padding: 10px; border-radius: var(--radius-md);">
+              ${editSkillsList.map((skill, idx) => `
+                <span class="schema-chip-selected" style="padding: 4px 10px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+                  ${skill}
+                  <button type="button" onclick="removeEditSkill(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0;">✕</button>
+                </span>
+              `).join('')}
+              ${editSkillsList.length === 0 ? '<span style="color: var(--text-dim); font-size: 0.82rem;">No skills selected yet.</span>' : ''}
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Add a Skill</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="add-skill-input" placeholder="e.g. Opera Cloud, HACCP, VIP Concierge" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addNewEditSkill(); }" style="flex: 1; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              <button type="button" class="btn-secondary" onclick="addNewEditSkill()">Add</button>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 6px;">Quick Suggestions:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              ${['Opera PMS', 'Micros POS', 'Fidelio', 'Guest Relations', 'Concierge VIP', 'Night Audit', 'Food Safety', 'HACCP', 'Banquet Management', 'Revenue Management']
+                .filter(s => !editSkillsList.includes(s))
+                .slice(0, 6)
+                .map(s => `
+                  <button type="button" onclick="quickAddEditSkill('${s}')" class="btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;">+ ${s}</button>
+                `).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-skills')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="saveSkillsChanges()">Save Skills</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function removeEditSkill(idx) {
+  editSkillsList.splice(idx, 1);
+  renderEditSkillsModalDOM();
+}
+
+function addNewEditSkill() {
+  const input = document.getElementById('add-skill-input');
+  const val = (input?.value || '').trim();
+  if (val && !editSkillsList.includes(val)) {
+    editSkillsList.push(val);
+    renderEditSkillsModalDOM();
+  }
+}
+
+function quickAddEditSkill(val) {
+  if (!editSkillsList.includes(val)) {
+    editSkillsList.push(val);
+    renderEditSkillsModalDOM();
+  }
+}
+
+async function saveSkillsChanges() {
+  closeModal('modal-edit-skills');
+  await saveProfileField({ skills: editSkillsList });
+}
+
+// 5. Edit Languages Modal
+let editLanguagesList = [];
+
+function openEditLanguagesModal() {
+  editLanguagesList = JSON.parse(JSON.stringify(state.profile?.languages || []));
+  renderEditLanguagesModalDOM();
+}
+
+function renderEditLanguagesModalDOM() {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-languages">
+      <div class="modal-dialog" style="max-width: 580px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Languages</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-languages')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <div id="languages-entries-list" style="display: flex; flex-direction: column; gap: 10px;">
+            ${editLanguagesList.map((lang, idx) => `
+              <div style="display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px;">
+                <input type="text" value="${lang.name || ''}" onchange="updateLangEntry(${idx}, 'name', this.value)" placeholder="Language (e.g. English)" style="flex: 2; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                <select onchange="updateLangEntry(${idx}, 'level', this.value)" style="flex: 2; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  <option value="Native" ${lang.level === 'Native' ? 'selected' : ''}>Native</option>
+                  <option value="Fluent" ${lang.level === 'Fluent' ? 'selected' : ''}>Fluent</option>
+                  <option value="Professional" ${lang.level === 'Professional' ? 'selected' : ''}>Professional</option>
+                  <option value="Intermediate" ${lang.level === 'Intermediate' ? 'selected' : ''}>Intermediate</option>
+                  <option value="Basic" ${lang.level === 'Basic' ? 'selected' : ''}>Basic</option>
+                </select>
+                <button type="button" onclick="removeLangEntry(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 4px;" title="Remove">${svgIcon('x', '', 16)}</button>
+              </div>
+            `).join('')}
+            ${editLanguagesList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No languages added yet. Click below to add.</div>' : ''}
+          </div>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addLangEntry()">+ Add Another Language</button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-languages')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="saveLanguagesChanges()">Save Languages</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addLangEntry() {
+  editLanguagesList.push({ name: '', level: 'Professional' });
+  renderEditLanguagesModalDOM();
+}
+
+function removeLangEntry(idx) {
+  editLanguagesList.splice(idx, 1);
+  renderEditLanguagesModalDOM();
+}
+
+function updateLangEntry(idx, field, val) {
+  if (editLanguagesList[idx]) editLanguagesList[idx][field] = val;
+}
+
+async function saveLanguagesChanges() {
+  const filtered = editLanguagesList.filter(l => l.name);
+  closeModal('modal-edit-languages');
+  await saveProfileField({ languages: filtered });
+}
+
+// 6. Edit Job Preferences Modal
+function openEditJobPreferencesModal() {
+  const prefs = state.profile?.preferences || {};
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-preferences">
+      <div class="modal-dialog" style="max-width: 540px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Job Preferences</h2>
+          <button class="modal-close" onclick="closeModal('modal-edit-preferences')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <form onsubmit="handleSavePreferencesModal(event)">
+          <div class="modal-body">
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Expected Monthly Salary</label>
+              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="e.g. ৳50,000 or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Target Locations (comma-separated)</label>
+              <input type="text" id="edit-pref-loc" value="${(prefs.locations || ['Dhaka']).join(', ')}" placeholder="Dhaka, Cox's Bazar, Chittagong" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Notice Period</label>
+              <select id="edit-pref-notice" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                <option value="Immediate" ${prefs.notice_period === 'Immediate' ? 'selected' : ''}>Immediate</option>
+                <option value="15 Days" ${prefs.notice_period === '15 Days' ? 'selected' : ''}>15 Days</option>
+                <option value="1 Month" ${prefs.notice_period === '1 Month' ? 'selected' : ''}>1 Month</option>
+                <option value="2 Months" ${prefs.notice_period === '2 Months' ? 'selected' : ''}>2 Months</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-preferences')">Cancel</button>
+            <button type="submit" class="btn-orange">Save Preferences</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleSavePreferencesModal(e) {
+  e.preventDefault();
+  const salary = (document.getElementById('edit-pref-salary')?.value || '').trim();
+  const locRaw = (document.getElementById('edit-pref-loc')?.value || '').trim();
+  const locs = locRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const notice = document.getElementById('edit-pref-notice')?.value || 'Immediate';
+
+  closeModal('modal-edit-preferences');
+  await saveProfileField({
+    preferences: {
+      expected_salary: salary,
+      locations: locs,
+      notice_period: notice
+    }
+  });
 }
 
 // Edit Profile Modal
@@ -7918,7 +9368,7 @@ function openCreateJobModal() {
         <div class="modal-header">
           <div>
             <div style="font-size: 0.8rem; color: var(--blue-primary); font-weight: 700;">${hotelName}</div>
-            <h2 class="modal-title">Post a Vacancy</h2>
+            <h2 class="modal-title">Post a Job</h2>
           </div>
           <button class="modal-close" onclick="closeModal('modal-create-job')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
@@ -8105,7 +9555,7 @@ function openCreateJobModal() {
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-create-job')">Cancel</button>
-            <button type="submit" class="btn-orange">Post Vacancy →</button>
+            <button type="submit" class="btn-orange">Post Job →</button>
           </div>
         </form>
       </div>
