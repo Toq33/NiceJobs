@@ -1,0 +1,727 @@
+NiceJobs
+
+Product Scope & Connected Workflow
+
+A Bangladesh-first hospitality employment platform
+
+Document purpose
+
+Current product direction
+
+Define what NiceJobs includes and how its parts connect.
+
+A specialized hospitality job portal for job seekers, hotels, resorts, and hospitality recruiters.
+
+First deliverable
+
+A clean, clickable UI/UX prototype before production development.
+
+Initial market
+
+Bangladesh first, with international expansion designed for later.
+
+Product principle
+
+Trustworthy vacancies, simple applications, privacy-conscious profiles, and efficient employer hiring.
+
+Working product name: NiceJobs
+
+This document describes the proposed product scope and workflows. Features marked as later-phase are not required for the first prototype or MVP.
+
+1. Product overview
+
+NiceJobs connects hospitality professionals with verified hotels and hospitality businesses. It combines focused job discovery, structured employee profiles, employer pages, vacancy publishing, applications, and recruiter communication.
+
+User group
+
+Main goal
+
+Core capabilities
+
+Employee / job seeker
+
+Find relevant work and manage a career profile.
+
+Search/filter jobs, maintain profile/CV, apply, save jobs, track applications, message recruiters.
+
+Hotel / business
+
+Attract and hire suitable candidates.
+
+This is account has no real person as  owner of the account, the recruiters have authority to access, post ,edit info, chat as Business/hotel
+
+Recruiter / hiring team
+
+Manage the Hotel/Business User ID
+
+Can control posts and everything that a Hotel/business user have to do
+
+NiceJobs administrator
+
+Keep the platform safe and reliable.
+
+Verify businesses, moderate jobs/reports, manage accounts and ads, review audit records.
+
+2. Product scope and priorities
+
+Priority
+
+Included features
+
+Prototype / MVP core
+
+Homepage, job search and filters, job details, employee signup/profile, business signup/profile, job posting, application flow, application tracking, basic inbox, admin verification/moderation concepts.
+
+Important supporting features
+
+Save/share jobs, follow hotels, notifications, mobile-responsive layouts, profile visibility controls, recruiter team permissions, clear empty/error/success states.
+
+Later phases
+
+Professional connections and community feed, salary insights, career fairs, advanced analytics, automated ad billing, AI matching, international localization and region-specific compliance.
+
+3. Navigation and information architecture
+
+Public / employee navigation
+
+Employer navigation
+
+Admin navigation
+
+Home; Find Jobs; Employers/Hotels/Resort; Job Details; Login/Sign Up; Employee Profile; Saved Jobs; Applications; Inbox; Settings.
+
+Dashboard; Organization Profile; Properties/Locations; Jobs; Applicants; Inbox; Team & Roles; Verification; Settings.
+
+Overview; Business Verification; Job Moderation; User Reports; User/Business Management; Ads; Audit Logs; Privacy Requests.
+
+Navigation changes based on account type and permissions. Public visitors can browse public job listings and hotel pages, but must sign in to apply, save jobs, or message. Only authorized business members can publish official business/job posts.
+
+4. Homepage and job discovery
+
+The homepage prioritizes job search rather than social content. Desktop can include two clearly labeled sponsored side placements; these collapse into feed placements or disappear on mobile.
+
+Header: NiceJobs logo, Find Jobs, Employers/Hotels/Resort, resources (optional), Login, and Join.
+
+Search: (will work like normal serach) Advanced Search :job title/keyword, location, position/department, salary range,.
+
+Advanced filters: experience level, employment type, hotel/property type, on-site/hybrid/remote where relevant, benefits, accommodation/meals, visa sponsorship where relevant, date posted, and deadline.
+
+Job feed: hotel logo/name, title, location, salary/pay period, employment type, experience, posted date, deadline, and job status.
+
+Job-card actions: Apply, Share, and Save. Apply is primary; Share opens the native share options or a copy-link action, share to facebook, Instagram, linkedin,
+
+Supporting sections: featured employers, recent jobs, urgent hiring, internships/entry-level, job alerts, and career resources.
+
+Ads: clearly labeled Sponsored; no sale of applicant personal data and no paid access to verification badges.
+
+5. Employee account and profile
+
+5.1 Account creation
+
+Collect full name, one primary phone number, one primary email, and authentication details.
+
+Verify phone and email before enabling key account functions.
+
+Enforce one account per normalized phone and email using server-side/database uniqueness rules, not only frontend validation.
+
+Provide secure recovery and verified contact-change processes; handle duplicate-account appeals without revealing whether a specific email/phone is registered.
+
+Do not require a national ID number at basic registration. If identity checks become necessary, collect only what is justified, restrict access, encrypt it, set retention rules, and never show it publicly.
+
+5.2 Profile sections
+
+Section
+
+Fields / behavior
+
+Profile header
+
+Name, photo, professional headline, current/target position, city/country, profile completion.
+
+Career summary
+
+Short introduction, goals, preferred roles/departments.
+
+Experience
+
+Employer/property, job title, department, dates, responsibilities, achievements.
+
+Education
+
+Institution, qualification, dates, relevant coursework.
+
+Skills and tools
+
+Hospitality skills, PMS/POS/revenue tools, proficiency where useful.
+
+Certifications and languages
+
+Credential name, issuer, date/expiry if relevant; language and proficiency.
+
+Preferences
+
+Target roles, preferred locations, salary expectation and currency/pay period, work type, availability.
+
+CV/documents
+
+Upload/replace CV, preview/download controls, visibility and access rules.
+
+Visibility and status
+
+Public, registered users, eligible employers, or private; optional Open to Work setting.
+
+References/portfolio
+
+Optional achievements, projects, awards, portfolio links, and references with consent.
+
+Employee account journey: Sign up → verify contact → create profile → upload CV → set job preferences/visibility → search → save or apply → track status → communicate with recruiter.
+
+6. Business / hotel organization model
+
+Separate the organization from the people who manage it. One hotel group may own multiple brands and properties; each organization may have multiple authorized members. A person can have one employee account and separately hold a role in one or more organizations.
+
+6.1 Organization information
+
+Legal business name and public-facing hotel/brand name; parent company or group where applicable.
+
+Property type (hotel, resort, restaurant, cruise, catering, or other hospitality employer), address, city, country, map location, website, official business email, logo, cover image, and description.
+
+Optional details: hotel category/star rating with source, facilities, property size, departments, staff benefits, accommodation/meals, training, and career development.
+
+Verification evidence and review status are private administrative data. The public badge must describe the scope of verification and must not imply every employer claim is guaranteed.
+
+6.2 Organization roles
+
+Role
+
+Permissions
+
+Owner
+
+Full organization control, manage admins, billing, ownership transfer.
+
+Admin
+
+Manage organization profile, properties, team membership and permissions.
+
+HR manager
+
+Create vacancies, manage applications and candidate communication.
+
+Recruiter
+
+Manage assigned vacancies/applicants and communicate with candidates.
+
+Hiring manager
+
+Review assigned candidates, submit internal feedback, participate in decisions.
+
+Content manager
+
+Publish approved official updates; job-post permission can be granted separately.
+
+Every action must be checked on the backend against the user's active organization membership and role. Remove access promptly when a member leaves the organization. There must be one role active at anytime to continue the daily and normal process.
+
+7. Business / hotel profile
+
+Overview: description, location, website, type, verified status, and parent group where applicable.
+
+Open jobs: active vacancies, filters, deadlines, and direct application links.
+
+Workplace and culture: team photos, facilities, values, benefits, training, and employee development.
+
+Departments and properties: front office, housekeeping, F&B, culinary, sales, HR, finance, engineering, and other relevant departments.
+
+Updates: official employer announcements and hiring campaigns from authorized business members.
+
+Follow hotel: employees can follow the organization and opt into relevant job notifications.
+
+Contact details: official contact channels and public location; never expose recruiters' private contact details by default.
+
+8. Job posting and vacancy lifecycle
+
+8.1 Job fields
+
+Field group
+
+Required / recommended data
+
+Identity
+
+Job title, department, hiring organization/property, vacancy count, job description.
+
+Work conditions
+
+City/location, on-site/hybrid/remote, employment type, shift/schedule where relevant.
+
+Compensation
+
+Salary min/max, currency, pay period, benefits/service charge where applicable; clearly label undisclosed salary.
+
+Requirements
+
+Experience, education, skills, certifications, languages, responsibilities.
+
+Practical details
+
+Deadline, expected start date, accommodation/meals, visa sponsorship where applicable, screening questions.
+
+Publishing controls
+
+Draft/published/paused/closed status, created by, approval/moderation state, timestamps.
+
+8.2 Job lifecycle
+
+Draft → Preview → Publish → Active → (Pause or Edit) → Closed/Expired. Only authorized organization members can create or edit jobs. The system records who changed a vacancy and when. Closed or expired vacancies stop accepting applications and are clearly labeled.
+
+8.3 Job-card actions
+
+Apply: if logged out, prompt sign-in and return the user to the job after authentication. If signed in, show the application form, selected CV, screening answers, consent/confirmation, and submit.
+
+Share: share a public job URL or copy it; never include private applicant data in the shared link.
+
+Save: store the job in the employee's saved list. Remove expired jobs from active search or mark them closed.
+
+9. Applications and applicant tracking
+
+Status
+
+Meaning / next step
+
+Submitted
+
+Application saved and timestamped; confirmation sent to employee.
+
+Under review
+
+Recruiter is reviewing the CV/profile.
+
+Shortlisted
+
+Candidate selected for further consideration.
+
+Interview invited / scheduled
+
+Interview details and calendar information shared.
+
+Offer
+
+Employer records an offer or next-step status; avoid implying legal acceptance unless implemented.
+
+Hired
+
+Recruiter records a successful outcome.
+
+Rejected
+
+Employer closes the application and may send a respectful notification.
+
+Withdrawn
+
+Employee withdraws; record event and update recruiter view.
+
+Job closed / expired
+
+Vacancy no longer accepts new applications; existing applications remain available to authorized recruiters.
+
+Every status change should be timestamped and attributed to an authorized actor. The employee sees the appropriate status and messages; private internal recruiter notes are never shown to the employee. Employers should have vacancy-specific candidate lists, filters, CV access controls, and an application event history.
+
+10. Messaging and notifications
+
+Employee inbox
+
+Employer inbox
+
+Conversations with authorized recruiters; application/job context; interview invitations; unread count; attachments; archive; block/report controls.
+
+Conversations grouped by vacancy/candidate; candidate profile and application status; interview scheduling; templates; internal notes separated from candidate-visible messages; team assignment.
+
+Messaging rules: users must be authenticated; employer senders must have active organization permissions; access is restricted to conversation participants and authorized support roles; implement spam limits, report/block controls, secure attachment handling, and audit events for sensitive actions.
+
+Notifications can be in-app and email initially. Notify users about application submission/status changes, new recruiter messages, interview invitations, saved-search job alerts, and followed-hotel vacancies. Let users manage optional notification preferences.
+
+11. Admin, safety, privacy and trust
+
+Business verification: review organization evidence and representative affiliation; provide pending/approved/rejected states and an appeal route.
+
+Job moderation: review reports, suspicious or duplicate listings, misleading compensation, impersonation, and recruitment-fee scams.
+
+User safety: report/block, rate limits, account suspension/appeal, and clear moderation records.
+
+Privacy: collect minimum necessary data, explain purpose, restrict CV/document access, support account/data deletion requests, define retention periods, and keep private information out of public profiles and URLs.
+
+Security: secure password handling or established authentication, least privilege, server-side authorization, encryption in transit and at rest where supported, backups, monitoring, and audit logs.
+
+Legal readiness: obtain appropriate Bangladesh legal/privacy advice before launch, especially for personal data, employment practices, cross-border expansion, and identity verification.
+
+12. Advertising and monetization
+
+The initial prototype can show ad placeholders without implementing billing. Potential revenue options after validating the marketplace include paid featured jobs, employer subscriptions, clearly labeled hospitality-industry ads, and recruitment events.
+
+Desktop: two side-ad slots only if the main job feed remains readable; sticky behavior must not obstruct content.
+
+Mobile: remove sidebars or place sponsored cards in the feed with clear labeling.
+
+Ad targeting should use appropriate contextual or consented preferences; never sell CVs, NID details, phone numbers, or private messages.
+
+Verification status cannot be purchased. Sponsored placement must not be presented as proof of employer legitimacy.
+
+13. How the system components connect
+
+Component
+
+Connects to
+
+Key rule
+
+User identity
+
+Employee profile, organization memberships, inbox, settings
+
+One account identity; roles and profiles are separate.
+
+Organization
+
+Properties, memberships, verification, jobs, employer profile
+
+A business can have multiple locations and multiple authorized users.
+
+Job
+
+Organization/property, recruiter, applications, saved jobs, alerts
+
+Only authorized business members can publish/edit.
+
+Application
+
+Employee, job, status history, messages/interviews
+
+One application record per employee/job unless re-application rules explicitly allow otherwise.
+
+Conversation/message
+
+Participants, organization membership, optional job/application
+
+Only participants and authorized roles can access.
+
+Notification
+
+User, triggering event, preferences
+
+Avoid leaking private application or contact details in notification previews.
+
+Advertisement
+
+Campaign, placement, targeting settings, billing (later)
+
+Sponsored content is labeled and isolated from verification logic.
+
+Admin/moderation
+
+Users, businesses, jobs, reports, audit logs
+
+Sensitive actions are permission-controlled and logged.
+
+14. Suggested technical architecture (later development)
+
+For the prototype, use Figma and sample data. When implementing the product, a modular monolith is sufficient; avoid microservices at the start.
+
+Layer
+
+Initial option
+
+Responsibility
+
+Frontend
+
+Next.js + TypeScript + a consistent component system
+
+Responsive pages, forms, dashboards, client-side interactions.
+
+Backend/API
+
+Django + Django REST Framework, or FastAPI
+
+Authentication, permissions, business rules, applications, messaging APIs.
+
+Database
+
+PostgreSQL
+
+Users, profiles, organizations, memberships, jobs, applications, conversations, notifications.
+
+File storage
+
+Private object storage
+
+CVs and verification documents with controlled access and expiring download links.
+
+Search
+
+PostgreSQL full-text search and indexed filters initially
+
+Keyword, location, department, salary and experience filters.
+
+Messaging/alerts
+
+Database-backed messaging plus email/in-app notifications
+
+Conversation history, unread state and event notifications.
+
+Operations
+
+Managed deployment, backups, logging, monitoring
+
+Reliability, recovery and security visibility.
+
+The frontend must not be trusted to enforce permissions. The backend checks every action. Use database constraints and transactions to protect unique identifiers, application creation, organization membership, and status changes.
+
+15. Proposed core data model
+
+Entity
+
+Purpose / relationships
+
+users
+
+Authentication identity and account status; unique normalized email/phone identifiers after verification.
+
+employee_profiles
+
+Employee-specific profile linked to users.
+
+experience / education / skills / certifications
+
+Structured career data linked to employee profile.
+
+businesses
+
+Organization/group record and public profile.
+
+business_properties
+
+Individual hotel or location linked to a business/parent group.
+
+business_memberships
+
+User-to-organization link, role, status, and permissions.
+
+business_verifications
+
+Private evidence, reviewer, status, timestamps, and outcome.
+
+jobs
+
+Vacancy data, organization/property, author, status, deadline.
+
+applications
+
+Employee-to-job application, selected CV, screening answers, current status.
+
+application_events
+
+Status history, actor, timestamp, optional reason.
+
+conversations / messages
+
+Participants, optional job/application context, message content and timestamps.
+
+saved_jobs / followed_businesses
+
+Employee preferences and subscriptions.
+
+notifications
+
+Recipient, event, read state, channel and delivery status.
+
+advertisements
+
+Campaign, placement, dates, status and billing references later.
+
+reports / moderation_actions / audit_logs
+
+Trust and safety records, decisions, and sensitive action history.
+
+16. UI/UX prototype screen list
+
+Screen
+
+Main elements
+
+Prototype interaction
+
+Homepage
+
+Header, search, featured jobs/hotels, ads
+
+Search opens results; job card opens details.
+
+Search results
+
+Filters, sorting, job cards
+
+Filters alter sample results; save/share actions respond.
+
+Job details
+
+Description, salary, employer, requirements, Apply
+
+Apply opens sign-in or application flow.
+
+Employee signup
+
+Account fields, contact verification states
+
+Validate sample inputs and move between steps.
+
+Employee profile
+
+Career summary, experience, skills, CV, preferences
+
+Edit profile and visibility toggles.
+
+Application form / confirmation
+
+CV selection, questions, review
+
+Submit creates a simulated application and confirmation.
+
+My applications
+
+Vacancy, date, status, messages
+
+Open application detail and status timeline.
+
+Hotel profile
+
+Overview, jobs, locations, benefits, verification
+
+Follow hotel and open vacancies.
+
+Business signup/verification
+
+Organization details, representative, verification status
+
+Submit demo and show pending state.
+
+Recruiter dashboard
+
+Jobs, applicant counts, shortcuts
+
+Open job and candidate list.
+
+Create/edit job
+
+Structured vacancy form and preview
+
+Save draft or simulate publishing.
+
+Applicant tracking
+
+Candidate list, filters, statuses
+
+Change status and show simulated notification.
+
+Inbox
+
+Conversation list and message view
+
+Open thread, send sample message.
+
+Admin concept
+
+Verification queue, reports, moderation
+
+Approve/reject a demo item with confirmation.
+
+17. Two-week prototype plan
+
+Timing
+
+Work
+
+Deliverable
+
+Days 1–2
+
+Confirm requirements, review competitors, interview job seekers/recruiters, select sample content.
+
+Approved scope and user journeys.
+
+Days 3–4
+
+Map navigation, create low-fidelity wireframes and responsive layout rules.
+
+Wireframes for core screens.
+
+Days 5–7
+
+Apply visual identity, design components, desktop and mobile screens.
+
+High-fidelity UI screens.
+
+Days 8–10
+
+Connect screens and simulate core workflows in Figma.
+
+Clickable employee and recruiter flows.
+
+Days 11–12
+
+Test with a small set of users; observe tasks and fix friction.
+
+Usability findings and revisions.
+
+Days 13–14
+
+Organize design files, annotate behavior, prioritize development backlog.
+
+Prototype handoff package and MVP backlog.
+
+18. Prototype acceptance criteria
+
+A job seeker can find a vacancy using keyword/location/department filters and understand salary and requirements.
+
+A signed-in employee can complete a simulated application and see it in My Applications.
+
+An employee can view/edit profile sections and understand who can see their profile/CV.
+
+A recruiter can create a simulated job, review applicants, update a status, and see the workflow reflected in the dashboard.
+
+A hotel can show multiple authorized team members and a clear verification state.
+
+The user can open a conversation from a job/application context and understand who they are messaging.
+
+The core experience works on desktop and mobile, with empty/error/success states.
+
+The prototype clearly labels simulated actions and does not imply real accounts, messages, or applications were created.
+
+19. Out of scope for the first prototype
+
+Production authentication, real OTP/email delivery, and real CV storage.
+
+Live messaging infrastructure and real notifications.
+
+Real payment processing, ad billing, or subscription enforcement.
+
+AI candidate scoring, advanced salary analytics, and large-scale recommendation systems.
+
+Full LinkedIn-like social feed, public endorsements, and complex connection graphs.
+
+International legal/tax/localization support beyond the initial Bangladesh-first design.
+
+20. Immediate next steps
+
+Use NiceJobs as the working brand and create a small design system: colors, type, spacing, buttons, inputs, cards, badges, and navigation.
+
+Confirm the first job departments and realistic sample vacancies with local hospitality users.
+
+Wireframe homepage, search results, job details, employee profile, employer profile, create-job form, applicant list, and inbox first.
+
+Connect the employee and recruiter journeys before designing advanced features.
+
+Test the prototype with job seekers and hotel recruiters; revise based on observed friction.
+
+Only after prototype approval, finalize database rules and begin production development.
+
+NiceJobs — Hospitality Careers, Connected.

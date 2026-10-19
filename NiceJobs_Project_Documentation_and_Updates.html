@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>NiceJobs Project Documentation and Updates</title>
+<style>
+body {
+    font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+    line-height: 1.6;
+    color: #1e293b;
+    margin: 40px;
+}
+h1 {
+    color: #1e40af;
+    border-bottom: 2px solid #2563eb;
+    padding-bottom: 8px;
+    font-size: 22pt;
+    margin-top: 10pt;
+}
+h2 {
+    color: #1e3a8a;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 6px;
+    margin-top: 22pt;
+    font-size: 15pt;
+}
+h3 {
+    color: #0369a1;
+    margin-top: 16pt;
+    font-size: 12pt;
+}
+h4 {
+    color: #0f766e;
+    margin-top: 12pt;
+    font-size: 11pt;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+}
+th, td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 10pt;
+}
+th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: bold;
+}
+tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+code {
+    background-color: #f1f5f9;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+    color: #be185d;
+}
+pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 14px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+blockquote {
+    border-left: 4px solid #2563eb;
+    background-color: #eff6ff;
+    padding: 10px 16px;
+    margin: 16px 0;
+    color: #1e40af;
+    font-style: italic;
+}
+li {
+    margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<h1>NiceJobs — Hospitality Employment Platform</h1>
+<h2>Complete Technical Architecture, Workflow Specifications & Chronological Update Log</h2>
+<blockquote><b>Note for Future AI Assistants:</b> This document contains the definitive record of the NiceJobs codebase architecture, system components, user instructions, and all workflow iterations. When starting a new conversation, consult this document first to maintain total continuity and adhere strictly to the user's requirements.</blockquote>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>1. Executive Summary & Product Vision</h2>
+<p><b>NiceJobs</b> (<code>NiceJobs Hospitality</code>) is a dedicated employment and recruitment web platform tailored specifically for the 5-star hotel, luxury resort, fine dining, and hospitality sector in Bangladesh.</p>
+<p>Unlike generic job portals, NiceJobs integrates:</p>
+<ul>
+<li>Specialized hospitality job discovery with industry-specific attributes (rotational shifts, service charge pool inclusion, duty meals, staff accommodation, department categorizations).</li>
+<li>Structured candidate profiles highlighting PMS (Property Management Systems like Opera 5.5/Cloud), Micros POS, culinary certifications, guest relations excellence, and multiple tailored CV uploads.</li>
+<li>Dual-pathway business onboarding for establishments:</li>
+</ul>
+<p>- <b>New Business Registration (Route A):</b> Property branding, segmented address across all 64 Bangladesh districts, searchable hotel/resort types schema, guest amenities schema, and automatic designation of the founding representative as the <b>Business Administrator</b>.</p>
+<p>- <b>Team Member Onboarding (Route B):</b> Joining an existing registered property with notification dispatched to the Business Admin for approval.</p>
+<ul>
+<li>Dual-part Business Sign-In where representatives authenticate on behalf of a verified establishment and are granted <b>Administrator authority by default</b>.</li>
+<li>Full-cycle Applicant Tracking System (ATS) with interview scheduling, candidate pipeline stages, and private recruiter notes.</li>
+<li>Platform Administrator Console with root oversight of users, business verifications, job moderation, and live metrics.</li>
+</ul>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>2. Technology Stack & Codebase Structure</h2>
+<pre>
+NiceJobs/
+├── app.py                                   # FastAPI backend (61 REST API endpoints)
+├── database.py                              # SQLite schema, migrations, helper DB methods, seed data
+├── nicejobs.db                              # SQLite 3 runtime database
+├── extracted_prompt.txt                     # Original system scope and product prompt
+├── NiceJobs_Product_Scope_and_Workflows.docx# Original client requirements doc
+├── PROJECT_WORKFLOW_AND_UPDATES.md          # THIS MASTER DOCUMENT
+├── NiceJobs_Project_Documentation.doc       # Word-compatible offline documentation
+└── static/
+    ├── index.html                           # Single-Page Application (SPA) HTML shell &amp; demo switcher
+    ├── css/
+    │   └── styles.css                       # Complete Vanilla CSS design system &amp; responsive styling
+    ├── js/
+    │   └── app.js                           # Frontend client application (state, routing, 17 screens)
+    └── images/                              # High-resolution hospitality assets and avatars
+        ├── candidate_rahim.jpg
+        ├── hero_lobby.jpg
+        ├── hero_hospitality_banner_*.jpg
+        ├── hospitality_professional_man_*.jpg
+        └── resort_beach.jpg
+</pre>
+<h3>Core Technologies</h3>
+<ol>
+<li><b>Backend</b>: Python 3.10+ with <b>FastAPI</b> (<code>Uvicorn</code> ASGI server) and standard library <code>sqlite3</code>, <code>pydantic</code>, <code>hashlib</code>, <code>uuid</code>.</li>
+<li><b>Database</b>: SQLite 3 with WAL mode, JSON-serialized list/dict columns for schemas, and foreign key relations.</li>
+<li><b>Frontend</b>: Pure Vanilla HTML5 and Modern JavaScript (ES6+), Vanilla CSS3 with CSS variables (no TailwindCSS or heavy dependencies).</li>
+<li><b>State Management</b>: Reactive in-memory state objects (<code>state</code>, <code>loginState</code>, <code>signupState</code>, <code>adminState</code>) driving dynamic DOM rendering in <code>#app-viewport</code>.</li>
+</ul>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>3. Design System & Theme Styling</h2>
+<p>The visual identity follows a modern, dark luxury aesthetic designed to evoke premium 5-star hospitality:</p>
+<table>
+<tr><th>Design Token</th><th>Value</th><th>Purpose / Usage</th></tr>
+<tr><td><b>Primary Theme Color</b></td><td><code>#2563eb</code> / <code>#3b82f6</code> (Vibrant Blue)</td><td>Primary branding, buttons, active tabs, links</td></tr>
+<tr><td><b>Secondary Accent Color</b></td><td><code>#f97316</code> / <code>#fb923c</code> (Warm Orange)</td><td>Urgent badges, CTAs, highlight actions, warnings</td></tr>
+<tr><td><b>Tertiary Accent Color</b></td><td><code>#10b981</code> / <code>#34d399</code> (Emerald Green)</td><td>Verified badges, approval notices, success states</td></tr>
+<tr><td><b>Dark Base Background</b></td><td><code>#0b1120</code> (Midnight Navy)</td><td>Global body background</td></tr>
+<tr><td><b>Card / Surface Surface</b></td><td><code>#111827</code> / <code>#1e293b</code> (Rich Slate)</td><td>Content containers, modal dialogs, data tables</td></tr>
+<tr><td><b>Subtle Borders</b></td><td><code>rgba(255, 255, 255, 0.08)</code></td><td>Glassmorphism card borders, divider lines</td></tr>
+<tr><td><b>Typography</b></td><td><code>Plus Jakarta Sans</code>, <code>Inter</code>, sans-serif</td><td>Modern editorial typography loaded from Google Fonts</td></tr>
+</table>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>4. System Roles & Access Control</h2>
+<ol>
+<li><b>Candidate / Job Seeker (<code>role: 'jobseeker'</code>)</b>:</li>
+</ul>
+<p>- Persona: Rahim Ahmed (Front Office Supervisor).</p>
+<p>- Capabilities: Browse jobs, apply with tailored CVs, track application milestones, message recruiters, save jobs, manage profile.</p>
+<ol>
+<li><b>Hotel Employer / Recruiter (<code>role: 'recruiter'</code>)</b>:</li>
+</ul>
+<p>- Persona: Fatima Khan (Director of Human Resources, Radisson Blu Dhaka Water Garden).</p>
+<p>- Capabilities: Access Recruiter Dashboard, view active vacancies, review applicants in ATS, schedule interviews, chat with candidates.</p>
+<p>- <b>Administrator Status</b>: The person signing in on behalf of the business is <b>Business Administrator by default</b> (<code>is_business_admin = true</code>, <code>membership_role = 'admin'</code>).</p>
+<ol>
+<li><b>Platform Administrator (<code>role: 'admin'</code>)</b>:</li>
+</ul>
+<p>- Persona: Tariqul Islam (Trust & Safety Lead).</p>
+<p>- Capabilities: Full root oversight via <code>/admin</code> console, approve/reject business trade licenses, moderate job posts, manage users, review pending requests, 1-click demo reset.</p>
+<ol>
+<li><b>Guest Visitor (<code>role: 'guest'</code>)</b>:</li>
+</ul>
+<p>- Browsing mode for unauthenticated users. Can explore public job listings and hotel directory. Prompted to sign in when attempting to view candidate CVs or apply.</p>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>5. Complete Authentication & Onboarding Workflows</h2>
+<h3>A. Dual-Mode Single-Screen Login (<code>#login</code>)</h3>
+<ul>
+<li><b>Segmented Toggle</b>: <code>[ Candidate ]</code> vs <code>[ Hotel Employer ]</code>.</li>
+<li><b>Candidate Login</b>: Personal Email + Password.</li>
+<li><b>Business Login (2-Part Verification)</b>:</li>
+</ul>
+<p>- <b>Part 1 (Establishment Verification)</b>: User enters official business email (e.g. <code>hr@radissondhaka.com</code>). Backend verifies whether the hotel is listed in the directory.</p>
+<p>- *If unlisted*: Shows notice card: *"This business doesn't have an account"* with a direct CTA button to register the property.</p>
+<p>- *If listed*: Transitions to Part 2 with matched hotel header card.</p>
+<p>- <b>Part 2 (Representative Verification)</b>: User enters personal work email on behalf of the hotel (e.g. <code>fatima.khan@radissondhaka.com</code>) + Password (with eye toggle).</p>
+<p>- *If not listed as team member*: Shows notice card: *"This user is not listed in this business account"* with CTA to join team.</p>
+<p>- *If listed*: Authenticates successfully, automatically grants <b>Business Administrator</b> status (<code>is_business_admin: true</code>), and opens the Recruiter Workspace.</p>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h3>B. Candidate Registration Flow (<code>#signup</code>, 4 Stages)</h3>
+<ol>
+<li><b>Stage 1: Personal Details & Contact</b></li>
+</ul>
+<p>- Preset Profile Photo (PFP) avatar selector.</p>
+<p>- Full Name.</p>
+<p>- Date of Birth (DOB).</p>
+<p>- NID / Passport (Optional).</p>
+<p>- Mobile Cell Phone with <b>fixed <code>+88</code> prefix</b> (enforcing exactly 11 digits <code>01...</code>).</p>
+<p>- Personal Email.</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 2: Hospitality Background & Skills</b></li>
+</ul>
+<p>- Professional Bio / Summary textarea.</p>
+<p>- Main CV File Upload.</p>
+<p>- Education multi-entry card (Institute name, degree/certificate, GPA).</p>
+<p>- <b>Hospitality Skills Schema System</b>: Searchable chip pool (Opera PMS, Micros POS, Guest Relations, Food Safety, Night Audit, Concierge, etc.) with custom skill addition chip.</p>
+<p>- Languages schema (Bengali, English, Arabic, etc.).</p>
+<p>- <b>Previous Experience Multi-Entry Card</b>: Hotel name, role, years of service, acquired skills, with <code>+ Add Another Experience Entry</code> and <code>✕ Remove</code> actions.</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 3: Account Security</b></li>
+</ul>
+<p>- Password + Confirm Password with eye visibility toggles.</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 4: OTP Verification & Activation</b></li>
+</ul>
+<p>- 6-digit security code sent to phone & email.</p>
+<p>- Demo Auto-Fill bar (default mock code: <code>258330</code>).</p>
+<p>- Action: <code>Verify & Submit Registration ✓</code>.</p>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h3>C. Business Onboarding Flow (<code>#signup</code>, Route Choice)</h3>
+<p>User chooses between:</p>
+<ul>
+<li><code>🏨 New Business Account</code> (Registering a new hotel/resort).</li>
+<li><code>👥 Add New User</code> (Joining an existing registered property).</li>
+</ul>
+<h4>Route A: New Business Registration (6 Stages)</h4>
+<ol>
+<li><b>Stage 1: Establishment Profile & Segmented Location</b></li>
+</ul>
+<p>- Business Brand Name (e.g. Radisson Blu Dhaka Water Garden).</p>
+<p>- Legal Registered Company Name (e.g. Sena Hotel Developments Ltd.).</p>
+<p>- <b>Hospitality Property Type Schema</b>: Searchable selector (5-Star Luxury Hotel, Beach Resort, Boutique Hotel, Eco Resort, Heritage Palace, etc.) with custom type addition.</p>
+<p>- <b>Location Segmentation</b>:</p>
+<p>- Plot / Holding Number.</p>
+<p>- Road / Street Name.</p>
+<p>- Thana / Upazila.</p>
+<p>- <b>District Dropdown</b>: Contains all <b>64 Districts of Bangladesh</b> organized alphabetically.</p>
+<p>- Official Website URL.</p>
+<p>- Official Business Email.</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 2: Property Amenities & Facilities Schema</b></li>
+</ul>
+<p>- Comprehensive amenities tag pool (Infinity Pool, Luxury Spa, 24/7 Gym, Multi-Cuisine Restaurant, High-Speed Wi-Fi, Valet Parking, Executive Lounge, Helipad, Banquet Hall, etc.).</p>
+<p>- Live filter search bar + <code>+ Add custom facility</code> button.</p>
+<p>- Selected amenities counter chips with individual remove buttons.</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 3: Representative On Behalf of Business</b></li>
+</ul>
+<p>- Representative PFP avatar chip picker.</p>
+<p>- Full Name.</p>
+<p>- Mobile Cell Phone with <b>fixed <code>+88</code> prefix</b> (11 digits <code>01...</code>).</p>
+<p>- Personal Work Email.</p>
+<p>- Date of Birth (DOB).</p>
+<p>- Designation / Role in Business (e.g. Director of Human Resources).</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 4: Account Credentials</b></li>
+</ul>
+<p>- Set Password & Confirm Password (with eye toggles).</p>
+<p>- Action: <code>Continue →</code>.</p>
+<ol>
+<li><b>Stage 5: Security OTP Verification</b></li>
+</ul>
+<p>- 6-digit verification code sent to phone and official email.</p>
+<p>- 1-click Auto-Fill bar (<code>258330</code>).</p>
+<p>- Action: <code>Verify & Submit Property Registration ✓</code>.</p>
+<ol>
+<li><b>Stage 6: Queued for Verification Screen</b></li>
+</ul>
+<p>- Reassurance message: *"Registration Queued for Verification — We are notified and please wait for verification"*.</p>
+<p>- Explains that the creator has been designated as the <b>Business Administrator</b>.</p>
+<p>- Direct Trust Desk contact pills:</p>
+<p>- 💬 WhatsApp: <code>+880 1819-876543</code> (clickable <code>https://wa.me/8801819876543</code>).</p>
+<p>- ✉️ Email: <code>trust@nicejobs.bd</code> (<code>mailto:</code>).</p>
+<p>- Action: <code>Go to Business Workspace →</code>.</p>
+<h4>Route B: Add Team Member to Existing Hotel (6 Stages)</h4>
+<ol>
+<li><b>Stage 1: Find Business</b>: User inputs official business email (<code>hr@radissondhaka.com</code>) -> verified against database.</li>
+<li><b>Stage 2: Credentials</b>: Shows matched hotel card and admin name -> enter personal work email and password.</li>
+<li><b>Stage 3: Profile Details</b>: PFP avatar, Full Name, Cell Phone (<code>+88</code> fixed), DOB, Designation.</li>
+<li><b>Stage 4: Confirm Password</b>: Confirm password with eye toggle.</li>
+<li><b>Stage 5: Mobile OTP</b>: Verification code dispatched to representative's mobile.</li>
+<li><b>Stage 6: Waiting for Admin Approval Screen</b>: Informs user that notification was dispatched to the Hotel Business Administrator asking: *"A team member (Name, Designation) is trying to join. Do you approve or not?"*. User account is held in <code>pending_admin_approval</code> until approved.</li>
+</ul>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>6. Complete Single-Page Application (SPA) Screens</h2>
+<p>The application renders 17 screens dynamically into <code>#app-viewport</code>:</p>
+<table>
+<tr><th>Screen Route</th><th>View Function</th><th>Key Features & Workflow</th></tr>
+<tr><td><code>home</code></td><td><code>renderHomeScreen</code></td><td>Hero banner with search bar; filter tags; featured hotel cards; active jobs listing with salary, location, and department pills.</td></tr>
+<tr><td><code>job-details</code></td><td><code>renderJobDetailsScreen</code></td><td>Full vacancy spec; service charge pool & perks breakdown; screening questions; 1-click apply modal with CV selector.</td></tr>
+<tr><td><code>hotels</code></td><td><code>renderHotelsScreen</code></td><td>Directory of verified hospitality properties in Bangladesh; search by city and star rating; follower counter.</td></tr>
+<tr><td><code>hotel-details</code></td><td><code>renderHotelDetailsScreen</code></td><td>Hotel overview, brand photos, departments list, property amenities, active job vacancies, 1-click follow toggle.</td></tr>
+<tr><td><code>login</code></td><td><code>renderLoginPage</code></td><td>Segmented Candidate vs Hotel Employer login; 2-part business verification check.</td></tr>
+<tr><td><code>signup</code></td><td><code>renderSignupPage</code></td><td>4-stage candidate onboarding; Route choice; 6-stage New Business setup; 6-stage Team Member setup.</td></tr>
+<tr><td><code>profile</code></td><td><code>renderProfileScreen</code></td><td>Candidate profile view; profile completeness bar; multi-CV repository (upload, preview, set default); skills & languages display.</td></tr>
+<tr><td><code>applications</code></td><td><code>renderApplicationsScreen</code></td><td>Candidate application history with interactive visual milestone tracker (<code>submitted</code> ➔ <code>under_review</code> ➔ <code>shortlisted</code> ➔ <code>interview_scheduled</code> ➔ <code>offer</code>/<code>hired</code>).</td></tr>
+<tr><td><code>saved</code></td><td><code>renderSavedJobsScreen</code></td><td>Saved bookmarks for rapid access and application.</td></tr>
+<tr><td><code>inbox</code></td><td><code>renderInboxScreen</code></td><td>Real-time dual-perspective chat threads; interview invitation action cards with confirmation buttons.</td></tr>
+<tr><td><code>recruiter-dashboard</code></td><td><code>renderRecruiterDashboard</code></td><td>Hotel employer dashboard; metrics (Active Jobs, Applicants, Shortlisted, Interviews); active vacancies table with applicant count; + Post Vacancy CTA.</td></tr>
+<tr><td><code>ats</code></td><td><code>renderAtsScreen</code></td><td>Applicant Tracking System pipeline; candidate filter by stage; resume view; screening answers viewer; stage progression dropdown; private recruiter notes; Schedule Interview modal.</td></tr>
+<tr><td><code>resources</code></td><td><code>renderResourcesScreen</code></td><td>Hospitality training guides (Opera PMS, F&B service standards, HACCP food hygiene).</td></tr>
+<tr><td><code>admin</code></td><td><code>renderAdminScreen</code></td><td>Platform root administrator console; live counts; candidate users management table; business employers table; job vacancy moderation; team member requests queue; business license verifications queue; 1-click demo reset.</td></tr>
+</table>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>7. Backend REST API Surface (61 Endpoints)</h2>
+<h3>A. Authentication & Onboarding</h3>
+<ul>
+<li><code>POST /api/auth/login</code>: Authenticates candidate (email+pwd) or business (business_email + user_email + pwd). Automatically designates business sign-in as Admin.</li>
+<li><code>POST /api/auth/check-business</code>: Checks if an official business email exists in the directory.</li>
+<li><code>POST /api/auth/register-candidate</code>: Creates candidate user and initial <code>employee_profile</code>.</li>
+<li><code>POST /api/auth/register-business</code>: Registers new business property, creates founding user as Admin, creates membership, generates trade license verification ticket.</li>
+<li><code>POST /api/auth/register-business-user</code>: Creates team member account with <code>pending_admin_approval</code> status.</li>
+<li><code>POST /api/auth/send-otp</code>: Generates and dispatches 6-digit OTP (returns demo OTP for mock testing).</li>
+<li><code>POST /api/auth/verify-otp</code>: Validates 6-digit OTP.</li>
+</ul>
+<h3>B. Hospitality Jobs & Directory</h3>
+<ul>
+<li><code>GET /api/jobs</code>: List and filter vacancies (department, location, property_type, experience, status).</li>
+<li><code>POST /api/jobs</code>: Post a new vacancy (authorized business members).</li>
+<li><code>GET /api/jobs/{job_id}</code>: Retrieve detailed job record.</li>
+<li><code>PATCH /api/jobs/{job_id}/status</code>: Update job status (<code>active</code>, <code>paused</code>, <code>closed</code>).</li>
+<li><code>GET /api/businesses</code>: List verified hotels and hospitality employers.</li>
+<li><code>GET /api/businesses/{business_id}</code>: Hotel details, amenities, active jobs, departments.</li>
+<li><code>POST /api/businesses/{business_id}/follow</code>: Toggle candidate following a hotel.</li>
+</ul>
+<h3>C. Applications & ATS Pipeline</h3>
+<ul>
+<li><code>GET /api/applications</code>: Get applications filtered by <code>user_id</code> or <code>business_id</code>.</li>
+<li><code>POST /api/applications</code>: Submit job application with selected CV, cover letter, and screening answers.</li>
+<li><code>GET /api/applications/{app_id}/cv</code>: Retrieve attached CV filename and content.</li>
+<li><code>PATCH /api/applications/{app_id}/status</code>: Transition applicant stage (<code>submitted</code>, <code>under_review</code>, <code>shortlisted</code>, <code>interview_scheduled</code>, <code>offer</code>, <code>hired</code>, <code>rejected</code>) and append audit event.</li>
+</ul>
+<h3>D. Team & Membership Management</h3>
+<ul>
+<li><code>GET /api/business/members</code>: List team members of an establishment.</li>
+<li><code>POST /api/business/members/{id}/approve</code>: Business Admin approves pending member.</li>
+<li><code>POST /api/business/members/{id}/reject</code>: Business Admin rejects member request.</li>
+<li><code>POST /api/business/members/{id}/promote-admin</code>: Transfer/grant Business Admin authority.</li>
+</ul>
+<h3>E. Messaging & Notifications</h3>
+<ul>
+<li><code>GET /api/conversations</code>: List active message threads.</li>
+<li><code>GET /api/conversations/{conv_id}/messages</code>: Fetch chat history.</li>
+<li><code>POST /api/messages</code>: Send chat message or action prompt.</li>
+<li><code>GET /api/notifications</code>: Retrieve user notification alerts.</li>
+<li><code>POST /api/notifications/read-all</code>: Mark all alerts as read.</li>
+</ul>
+<h3>F. Candidate Profile & Multi-CV Management</h3>
+<ul>
+<li><code>GET /api/profile</code>: Retrieve candidate profile details.</li>
+<li><code>POST /api/profile/edit</code>: Update bio, education, skills, experience.</li>
+<li><code>GET /api/profile/cvs</code>: List all uploaded CV documents for candidate.</li>
+<li><code>POST /api/profile/cvs</code>: Upload/add a new tailored CV.</li>
+<li><code>DELETE /api/profile/cvs/{cv_id}</code>: Delete a tailored CV.</li>
+<li><code>PATCH /api/profile/cvs/{cv_id}/default</code>: Set designated default CV.</li>
+</ul>
+<h3>G. Root Platform Administrator Console</h3>
+<ul>
+<li><code>GET /api/admin/overview</code>: Platform metrics summary (total candidates, business reps, properties, active jobs, pending verifications, pending moderators).</li>
+<li><code>GET /api/admin/users</code>: All platform users with search, role filters, and status.</li>
+<li><code>POST /api/admin/users/{user_id}/status</code>: Suspend or activate user account.</li>
+<li><code>DELETE /api/admin/users/{user_id}</code>: Delete user record.</li>
+<li><code>GET /api/admin/jobs-list</code>: All platform jobs with status and moderation controls.</li>
+<li><code>POST /api/admin/jobs/{job_id}/status</code>: Pause, close, or activate job.</li>
+<li><code>POST /api/admin/jobs/{job_id}/feature</code>: Toggle featured job status.</li>
+<li><code>DELETE /api/admin/jobs/{job_id}</code>: Delete job listing.</li>
+<li><code>GET /api/admin/businesses-list</code>: All registered businesses with verification status.</li>
+<li><code>POST /api/admin/verify-business/{id}</code>: Directly verify an establishment.</li>
+<li><code>GET /api/admin/verifications</code>: Trade license review queue.</li>
+<li><code>POST /api/admin/verifications/{id}/review</code>: Approve or reject trade license document.</li>
+<li><code>GET /api/admin/moderator-requests</code>: Global queue of team member join requests.</li>
+<li><code>POST /api/admin/reset-demo</code>: Reset SQLite database to pristine demo seed data.</li>
+</ul>
+<h3>H. Administrator Authentication & Complete Security Architecture</h3>
+<ul>
+<li><b>Login Endpoint</b>: <code>POST /api/admin/login</code> (payload: <code>{ email, password, master_key }</code>).</li>
+<li><b>UI Architecture</b>: Ultra-minimalist interface containing solely 4 input elements:</li>
+</ul>
+<p>1. Email field (<code>id="admin-input-email"</code>)</p>
+<p>2. Password field (<code>id="admin-input-password"</code>)</p>
+<p>3. Master Key field (<code>id="admin-input-pin"</code>)</p>
+<p>4. Submit Button (<code>id="admin-submit-btn"</code> with label <code>"Login"</code>)</p>
+<p>- Zero extraneous text, zero headlines/subheadings, zero encryption disclosures, zero banners.</p>
+<p>- Zero fancy colors, glowing borders, or highlights; clean, neutral, sober platform surfaces.</p>
+<p>- Clean placeholders (<code>Email</code>, <code>Password</code>, <code>Master Key</code>) with no hardcoded prefilled credential strings.</p>
+<ul>
+<li><b>Backend Security Architecture Specifications</b>:</li>
+</ul>
+<p>- <b>Multi-Factor Authentication</b>: Requires valid root administrator email, root password, and 2FA Master Token (<code>258330</code>).</p>
+<p>- <b>Brute-Force Rate Limiting Engine</b>: Per-IP and per-account in-memory tracker (<code>_admin_login_attempts</code>) enforcing a 5-attempt threshold. Sixth failure triggers an automated 60-second penalty lockout.</p>
+<p>- <b>Timing-Safe Role Validation</b>: Constant-time checks verifying <code>role == 'admin'</code>, completely preventing non-admin user access and stopping username enumeration.</p>
+<p>- <b>Cryptographic Session Token Issuance</b>: Root tokens generated via Python <code>secrets.token_hex(24)</code> (192-bit CSPRNG entropy).</p>
+<p>- <b>Immutable Audit Logging</b>: Every admin authorization attempt (success, bad credentials, lockout) is permanently recorded in <code>moderation_reports</code> with IP address, timestamp, and audit classification (<code>ADMIN_LOGIN_SUCCESS</code>, <code>ADMIN_LOGIN_BAD_CREDENTIALS</code>, <code>ADMIN_LOGIN_LOCKED_OUT</code>).</p>
+<p>- <b>Client & Server Route Guards</b>: Unauthenticated route hits to <code>#admin</code> redirect directly to <code>#admin-login</code>; all <code>/api/admin/*</code> endpoints enforce administrative session verification.</p>
+<p>- <b>Safe Session Termination</b>: <code>adminSignOut()</code> resets local session storage, revokes in-memory session token, clears <code>state.currentUser</code>, and redirects safely to the candidate/guest home screen.</p>
+<p>- <b>Default Administrator Credentials</b>:</p>
+<p>- Email: <code>admin@nicejobs.bd</code></p>
+<p>- Password: <code>Password123!</code></p>
+<p>- Master Key: <code>258330</code></p>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>8. Database Schema & Relational Models (14 Tables)</h2>
+<ol>
+<li><code>users</code>: System users (<code>id</code>, <code>name</code>, <code>email</code>, <code>phone</code>, <code>password</code>, <code>role</code>, <code>avatar_url</code>, <code>created_at</code>, <code>dob</code>, <code>designation</code>, <code>status</code>, <code>is_business_admin</code>).</li>
+<li><code>employee_profiles</code>: Hospitality candidate profile details (<code>user_id</code>, <code>headline</code>, <code>current_position</code>, <code>department</code>, <code>location</code>, <code>experience_years</code>, <code>recent_employer</code>, <code>summary</code>, <code>skills</code>, <code>languages</code>, <code>certifications</code>, <code>experience</code>, <code>education</code>, <code>preferences</code>, <code>cv_name</code>, <code>cv_url</code>, <code>dob</code>, <code>nid_passport</code>, <code>profile_completion</code>, <code>cv_list</code>).</li>
+<li><code>businesses</code>: Hotel & resort profiles (<code>id</code>, <code>legal_name</code>, <code>brand_name</code>, <code>property_type</code>, <code>star_rating</code>, <code>city</code>, <code>address</code>, <code>country</code>, <code>website</code>, <code>email</code>, <code>logo_url</code>, <code>cover_image</code>, <code>description</code>, <code>verification_status</code>, <code>verification_notes</code>, <code>departments</code>, <code>amenities</code>, <code>benefits</code>, <code>follower_count</code>, <code>parent_group</code>, <code>property_size</code>, <code>plot_number</code>, <code>road_number</code>, <code>thana_upazila</code>, <code>district</code>, <code>features</code>, <code>admin_user_id</code>).</li>
+<li><code>business_memberships</code>: User-to-hotel organizational links (<code>id</code>, <code>business_id</code>, <code>user_id</code>, <code>org_role</code>, <code>created_at</code>, <code>membership_role</code>, <code>approval_status</code>, <code>approved_by</code>, <code>approved_at</code>).</li>
+<li><code>jobs</code>: Hotel job postings (<code>id</code>, <code>business_id</code>, <code>title</code>, <code>department</code>, <code>property_location</code>, <code>employment_type</code>, <code>shift</code>, <code>salary_min</code>, <code>salary_max</code>, <code>salary_period</code>, <code>currency</code>, <code>service_charge_included</code>, <code>accommodation_provided</code>, <code>duty_meals_provided</code>, <code>experience_level</code>, <code>vacancies</code>, <code>description</code>, <code>requirements</code>, <code>screening_questions</code>, <code>status</code>, <code>is_urgent</code>, <code>is_featured</code>, <code>deadline</code>, <code>posted_at</code>, <code>applicant_count</code>).</li>
+<li><code>applications</code>: Candidate job applications (<code>id</code>, <code>job_id</code>, <code>user_id</code>, <code>status</code>, <code>applied_at</code>, <code>updated_at</code>, <code>cover_letter</code>, <code>selected_cv</code>, <code>screening_answers</code>, <code>recruiter_notes</code>, <code>interview_time</code>, <code>interview_notes</code>).</li>
+<li><code>application_events</code>: Audit trail for application state changes (<code>id</code>, <code>application_id</code>, <code>status</code>, <code>actor_name</code>, <code>note</code>, <code>timestamp</code>).</li>
+<li><code>conversations</code>: Messaging threads (<code>id</code>, <code>user_id</code>, <code>business_id</code>, <code>job_id</code>, <code>last_message</code>, <code>last_message_time</code>, <code>unread_for_user</code>, <code>unread_for_business</code>).</li>
+<li><code>messages</code>: Thread messages (<code>id</code>, <code>conversation_id</code>, <code>sender_id</code>, <code>sender_role</code>, <code>sender_name</code>, <code>content</code>, <code>is_action_prompt</code>, <code>timestamp</code>).</li>
+<li><code>saved_jobs</code>: Bookmarked jobs (<code>user_id</code>, <code>job_id</code>, <code>saved_at</code>).</li>
+<li><code>followed_businesses</code>: Hotel follow relationships (<code>user_id</code>, <code>business_id</code>, <code>followed_at</code>).</li>
+<li><code>notifications</code>: In-app notification cards (<code>id</code>, <code>user_id</code>, <code>title</code>, <code>message</code>, <code>type</code>, <code>link</code>, <code>is_read</code>, <code>timestamp</code>).</li>
+<li><code>business_verifications</code>: Trade license verification tickets (<code>id</code>, <code>business_id</code>, <code>legal_doc_type</code>, <code>doc_number</code>, <code>submitted_by</code>, <code>submitted_at</code>, <code>status</code>, <code>reviewed_at</code>, <code>reviewed_by</code>, <code>review_comments</code>, <code>issuing_authority</code>).</li>
+<li><code>otp_verifications</code>: OTP verification logs (<code>id</code>, <code>identifier</code>, <code>otp_code</code>, <code>purpose</code>, <code>created_at</code>, <code>verified</code>).</li>
+<li><code>email_logs</code>: Dispatched system emails audit trail (<code>id</code>, <code>recipient</code>, <code>subject</code>, <code>event_type</code>, <code>body_text</code>, <code>status</code>, <code>sent_at</code>).</li>
+</ul>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>9. Chronological Log of User Instructions & System Updates</h2>
+<table>
+<tr><th>#</th><th>User Request / Instruction</th><th>System Implementation Details</th><th>Status</th></tr>
+<tr><td><b>1</b></td><td>Build the website product based on <code>NiceJobs_Product_Scope_and_Workflows.docx</code>.</td><td>Implemented full full-stack web application with FastAPI backend, SQLite database, dynamic Vanilla JS SPA, and rich modern design.</td><td>✅ Completed</td></tr>
+<tr><td><b>2</b></td><td>Theme colors: Main theme Blue, sub-theme Orange and White.</td><td>Applied CSS custom variables with deep midnight navy surfaces, <code>#2563eb</code> primary blue, and <code>#f97316</code> vibrant orange accents.</td><td>✅ Completed</td></tr>
+<tr><td><b>3</b></td><td>Guest visitors cannot view candidates or candidate CVs.</td><td>Added role-based restrictions. Unauthenticated visitors are redirected to sign-in before accessing candidate data or applying.</td><td>✅ Completed</td></tr>
+<tr><td><b>4</b></td><td>Button label: Just write "Join/Sign up" in the signup button.</td><td>Updated site header navigation actions and home banner CTAs to display <code>"Join/Sign up"</code>.</td><td>✅ Completed</td></tr>
+<tr><td><b>5</b></td><td>Step-by-step onboarding for both candidate and business; different steps on clean screens.</td><td>Refactored auth flow into structured stages with seamless transitions and stage back buttons.</td><td>✅ Completed</td></tr>
+<tr><td><b>6</b></td><td>Remove unnecessary verbose writing across website; keep UI clean and user-friendly.</td><td>Streamlined card copy, eliminated walls of explanatory text, and added clean micro-badges.</td><td>✅ Completed</td></tr>
+<tr><td><b>7</b></td><td>Fixed <code>+88</code> prefix in front of mobile phone numbers across all forms (11-digit <code>01...</code>).</td><td>Built <code>.phone-input-wrapper</code> with immutable <code>+88</code> prefix chip and regex filtering restricting input to 11 digits starting with <code>01</code>.</td><td>✅ Completed</td></tr>
+<tr><td><b>8</b></td><td>Candidate Signup: PFP, Name, DOB, NID/Passport (optional), Cell, Email, Bio, CV upload, Education, Skills schema with search & custom chip addition, Languages, Previous Experience multi-entry (+ button), Password, OTP.</td><td>Implemented 4-stage candidate onboarding with multi-entry experience and education cards, and searchable skills schema.</td><td>✅ Completed</td></tr>
+<tr><td><b>9</b></td><td>Business Onboarding: Route Choice (New Business Account vs Add New User).</td><td>Created initial routing screen allowing users to pick between establishing a property or joining a team.</td><td>✅ Completed</td></tr>
+<tr><td><b>10</b></td><td>Route A: Business name, Legal name, Property type schema with search, Location segmentation (Plot, Road, Thana/Upazila, all 64 Bangladesh districts), Website, Official Email, Amenities schema with search, Representative details, Credentials, OTP, Pending verification with WhatsApp link (+880 1819-876543) and Trust desk email (<code>trust@nicejobs.bd</code>).</td><td>Implemented all 6 stages of New Business onboarding including the complete 64 districts array and direct Trust Desk contacts.</td><td>✅ Completed</td></tr>
+<tr><td><b>11</b></td><td>Route B: Check official business email against directory; match hotel card; enter personal work email + password; representative profile; OTP; notify Admin to approve.</td><td>Built complete team join flow with matched hotel overview card and admin approval queue.</td><td>✅ Completed</td></tr>
+<tr><td><b>12</b></td><td>Business Login 2-part flow: Part 1 official email check; Part 2 person work email + password.</td><td>Implemented 2-step verification in <code>#login</code> with automated directory check and unlisted business/user redirect cards.</td><td>✅ Completed</td></tr>
+<tr><td><b>13</b></td><td>Backend control: Platform Admin console to control posts, candidate users, business users, and moderation.</td><td>Implemented <code>/admin</code> console with live statistics, candidate table, business table, vacancies moderation, join requests queue, and trade license verification.</td><td>✅ Completed</td></tr>
+<tr><td><b>14</b></td><td>Fix JavaScript syntax error: <code>Expression expected. @[static/js/app.js:L3526]</code>.</td><td>Diagnosed duplicate snippet and corrupted closing tags between Route A Part 6 and Route B. Restored clean UTF-8 encoding and 0 balance errors.</td><td>✅ Completed</td></tr>
+<tr><td><b>15</b></td><td>Remove admin/moderator selecting option in business login. Default admin the person who is signing in on behalf of the business.</td><td>Removed all role choice selectors; set <code>biz_role_choice = 'admin'</code>; backend automatically designates the representative signing in on behalf of the business as <code>is_business_admin = true</code> and <code>membership_role = 'admin'</code> in database.</td><td>✅ Completed</td></tr>
+<tr><td><b>16</b></td><td>"Dont mention the parts in the continue button or any where. It was for your understanding."</td><td>Stripped all "Part 1", "Part 2", "Part 3", etc. labels from all continue buttons and subtitles across Candidate, Route A, and Route B forms.</td><td>✅ Completed</td></tr>
+<tr><td><b>17</b></td><td>Fix error when clicking "Verify and submit property registration".</td><td>Resolved backend <code>users.email</code> unique collision by re-using/updating existing business accounts, added <code>try...finally</code> database connection cleanup to eliminate SQLite locks, corrected OTP dispatch trigger to <code>targetStep === 5</code>, and routed final submit to verification screen (Step 6).</td><td>✅ Completed</td></tr>
+<tr><td><b>18</b></td><td>"Dont use emojis as icon. It will be childish. Keep it modern and clean."</td><td>Migrated entire platform away from childish text emojis to a modern vector SVG icon system (<code>svgIcon</code> helper) for navigation, search bars, inputs, eye toggles, perk chips, and communication pills.</td><td>✅ Completed</td></tr>
+<tr><td><b>19</b></td><td>"i thinks there are some bugs in app.js Check it"</td><td>Conducted exhaustive automated and static bug audit on <code>app.js</code>. Implemented missing <code>renderJobDetailScreen()</code> for deep linking (<code>/#job-details?id=...</code>); fixed hash routing param extraction for <code>#hotels?id=...</code>; eliminated invalid SVG markup inside <code><option></code> dropdowns; made job publisher modal hotel header dynamic; made <code>openConversationForJob()</code> query and bind matching conversation threads dynamically; attached <code>business_id</code> to <code>state.currentUser</code> upon property signup; added fallback routing in <code>switchAuthTab()</code>; removed reliance on deprecated global <code>event</code> in avatar selectors; enhanced <code>showToast()</code> with warning styling and CSS transitions. Validated via headless Chromium CDP automated test suite: 0 console errors and 0 exceptions.</td><td>✅ Completed</td></tr>
+<tr><td><b>20</b></td><td>"make the home page of candidate so that candidate are attracted to the jobs. Keep the search bar on the top. Then under the searchbar the posts will start."</td><td>Redesigned candidate homepage layout: placed search console directly at the top of the viewport with live trust counters (<code>500+ Active Roles</code>, <code>100% Direct Hotel HR</code>, <code>Zero Recruitment Fees</code>), title/location/department search, quick perks filter toggles, and 1-click popular category pills. Placed job vacancies feed directly underneath the search console with dynamic sorting (<code>Featured & Urgent</code>, <code>Highest Salary (BDT)</code>, <code>Newest First</code>). Redesigned job cards for maximum candidate attraction: prominent BDT salary badges (<code>৳50,000 – ৳70,000 / mo</code>), verified property badges, 5-star rating displays, luxury hospitality perks badges (Service Charge pool, accommodation, duty meals, medical), and primary <code>Apply Now →</code> CTA. Fixed <code>seed_data()</code> in <code>database.py</code> with explicit column schemas to seed 6 verified 5-star hotel vacancies.</td><td>✅ Completed</td></tr>
+<tr><td><b>21</b></td><td>"make the admin button in the bottom. make admin go to a admin login page. Where email of admin and password will be added. Make it as secure as possible"</td><td>Removed the Admin button from the top persona bar to prevent candidate/visitor exposure. Added a discreet, luxury "Admin Portal" button in the bottom footer. Created a dedicated Admin Login page (<code>#admin-login</code>) with Level 4 Root clearance branding, administrator work email input, root password input with show/hide toggle, and 2FA Master Token input. Built backend <code>POST /api/admin/login</code> with multi-layered security: IP/identity brute force rate-limiting (lockout after 5 failed attempts with 60s cooldown), role check (<code>role == 'admin'</code>), cryptographic session token generation (<code>secrets.token_hex(24)</code>), and automated security audit logging. Protected the <code>#admin</code> route with strict client- and server-side authentication guards, plus secure <code>adminSignOut()</code> flow.</td><td>✅ Completed</td></tr>
+<tr><td><b>22</b></td><td>"you dont have to say which type of encryption that you did for admin there will be simple email password master key And a login button Nothing else no writing in the admin login No fancy color or highlight Keep all the security system data and etc in the project workflow"</td><td>Redesigned Admin Login screen to absolute minimalist essentials: stripped all disclaimers, encryption technical notices, headers, and badges. Rendered solely Email input, Password input, Master Key input, and "Login" button with clean placeholders and no prefilled credential text. Removed glowing borders, accent strips, and highlights in favor of clean neutral platform styling. Preserved all backend security subsystems under the hood (multi-factor master token validation, 5-attempt brute-force rate limiter with 60-second lockout penalty, 192-bit CSPRNG session token issuance, and permanent immutable audit logging to <code>moderation_reports</code>). Documented complete security specifications, endpoints, and credentials directly in project workflow documentation.</td><td>✅ Completed</td></tr>
+<tr><td><b>23</b></td><td>"bring back the features above the search bar only for guest visitor. Remove quick filters and popular from bottom of the search bar. add designation beside department in the searchbar. Fix the message system, make is scroll able to see previous messages. Remove templates from the candidate messages. Make a system that will send mail to business when a person applies in their job. Also make system that will send notification to the canditate about their application update. Remove the number beside application in candidate view will show unseen notification. also make the number appear beside messages for unseen texts"</td><td>1. <b>Hero Features Banner for Guests Only</b>: Rendered luxury features hero banner above search bar exclusively when browsing as guest visitor (<code>state.currentRole === 'guest'</td><td></td><td>!state.currentUser</code>). Logged-in candidates have searchbar positioned directly at the top of the screen.<br>2. <b>Searchbar Clean-Up</b>: Removed quick filters row (<code>#chk-filter-accom</code>, <code>#chk-filter-meals</code>, <code>#chk-filter-urgent</code>) and popular department category chips from underneath the search bar.<br>3. <b>Designation Selector in Searchbar</b>: Added <code>#select-search-desig</code> dropdown directly beside Department in the search bar row; added backend query filter <code>designation</code> in <code>@app.get("/api/jobs")</code>.<br>4. <b>Scrollable Chat Stream</b>: Refactored inbox chat flexbox hierarchy with <code>overflow-y: auto</code>, <code>min-height: 0</code>, and <code>max-height: 100%</code> on <code>.chat-stream-scroll</code>, custom scrollbar, and auto-scroll to latest message while enabling users to scroll up smoothly through full conversation history.<br>5. <b>Candidate Templates Removed</b>: Restricted <code>.chat-templates-shelf</code> strictly to recruiter role; candidates have a clean message thread and composer without recruiter canned responses.<br>6. <b>Business Email Notification on Application</b>: Added <code>dispatch_system_email()</code> and <code>email_logs</code> table to automatically notify business official email when candidates apply.<br>7. <b>Candidate Notification on Application Update</b>: Added candidate in-app unread notification and email dispatch when recruiters update application status.<br>8. <b>Dynamic Navigation Badges</b>: Removed static applied job count from <code>Applications</code>; replaced with real-time unseen notification count badge. Added unseen texts count badge to <code>Messages</code>.</td><td>✅ Completed</td></tr>
+<tr><td><b>25</b></td><td>"Remove candiate profile option in nav bar. Clicking the pfp and name part in the right will take you to profile. in profile add option to turn off and on open to work"</td><td>1. <b>Removed Profile Link from Candidate Navigation Bar</b>: In <code>updateNavigation()</code> for <code>role === 'jobseeker'</code>, removed the text/tab link <code><li class="nav-item"><a href="#profile">Profile</a></li></code> from <code>#main-nav-links</code>. Nav bar strictly shows core candidate sections (<code>Jobs</code>, <code>Hotels</code>, <code>Applications</code>, <code>Saved</code>, <code>Messages</code>).<br>2. <b>PFP and Name Profile Navigation</b>: Enhanced right-hand <code>.user-profile-badge</code> with <code>id="nav-candidate-profile-badge"</code>, pointer cursor, interactive hover elevation, and direct <code>onclick="navigateTo('profile')"</code>. Clicking either candidate avatar or candidate name seamlessly navigates to <code>#profile</code>.<br>3. <b>Interactive Open to Work Toggle in Profile</b>: Added <code>toggleOpenToWork()</code> controller and bound to both the header action pill (<code>Open to Work: ON / OFF</code>) and a dedicated status panel card in <code>renderProfileScreen()</code>. When toggled, executes <code>PUT /api/profile</code> updating <code>open_to_work</code> in SQLite database (<code>employee_profiles.open_to_work</code>), updates UI status pills (<code>● Open to Work</code> vs <code>○ Not Looking for Work</code>), and displays instant toast notifications. Also integrated Open to Work checkbox into the full profile edit modal (<code>openComprehensiveEditProfileModal()</code>).</td><td>✅ Completed</td></tr>
+<tr><td><b>26</b></td><td>"Refactor the website's design theme to a modern, clean Dark Glassmorphism aesthetic. Apply strict design constraints: Primary Background #0a1128; Secondary Colors White and Orange; Glassmorphism UI components (translucent white rgba(255,255,255,0.03-0.07), crisp 1px border, backdrop blur 12-24px); Content & Layout Minimalism (drastically reduce copy, eliminate filler text, maximize negative space); match reference image (/home/NiceJobs/image.png)."</td><td>1. <b>Complete Color Palette Overhaul</b>: Eliminated all residual blue elements (<code>#2563eb</code>, <code>#1d4ed8</code>, <code>#3b82f6</code>, <code>#93c5fd</code>, <code>#60a5fa</code>). Replaced with deep midnight blue (<code>#0a1128</code>), translucent white glass surfaces (<code>rgba(255, 255, 255, 0.035)</code>), crisp white borders (<code>rgba(255, 255, 255, 0.09)</code>), and high-contrast vibrant orange (<code>#ff6b00</code> / <code>#ff7a18</code>) focal points.<br>2. <b>Floating Pill Frosted-Glass Navigation</b>: Redesigned header as a floating pill capsule (<code>position: sticky; top: 16px; border-radius: 9999px; background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1)</code>). Replaced bulky icon with typographic <code>Nice<span class="logo-orange">Jobs</span></code> logo, active orange underline bar indicator, circular glass search button, glass <code>Sign In</code> pill, and glowing orange <code>Get Started</code> CTA.<br>3. <b>Hero Section Aligned with Reference Image (<code>image.png</code>)</b>: Added <code>● Hospitality Employment Platform</code> pill chip with glowing orange dot; bold headline <code>Your Next Opportunity <span class="text-orange">Awaits</span></code>; reduced hero copy; unified search capsule with dividers and circular orange <code>→</code> button; 3D perspective luxury hotel reception frame with brass bell visual and floating glass badge <code>Better Jobs / Bigger Dreams</code>; 4 frosted-glass bottom feature cards (<code>Find Jobs</code>, <code>Hire Talent</code>, <code>Grow Together</code>, <code>Premium Access</code>); and animated mouse scroll indicator (<code>Scroll to explore</code>).<br>4. <b>Global Glassmorphism UI Components</b>: Applied semi-transparent frosted-glass aesthetic (<code>backdrop-filter: blur(16px-24px)</code>) across all job vacancy cards, modals (<code>.modal-backdrop</code> & <code>.modal-dialog</code>), candidate profile console, and recruiter dashboard. Repaired CSS syntax ensuring 0 unclosed braces and 0 JavaScript errors.</td><td>✅ Completed</td></tr>
+<tr><td><b>27</b></td><td>"make the name NiceJobs to nicejobs.info all small letters; update it just in the navbar"</td><td>Updated <code>.brand-logo</code> link in the floating navigation header (<code>.site-header</code>) to render strictly as <code>nicejobs<span class="logo-orange">.info</span></code> with <code>text-transform: lowercase;</code> in <code>styles.css</code>. Retained original metadata and platform naming elsewhere untouched per instructions. Verified via automated Chromium CDP screenshots.</td><td>✅ Completed</td></tr>
+<tr><td><b>28</b></td><td>"the cross icon is not showing properly"</td><td>Replaced raw text/unicode cross characters (<code>✕</code> and <code>×</code>) across all modal dialogs, CV list items, tag remove chips, and dynamic forms with clean, high-contrast vector SVG icons (<code>svgIcon('x', '', 18)</code>). Enhanced <code>.modal-close</code> in <code>styles.css</code> with dark glassmorphic styling (36px circular pill, <code>rgba(255,255,255,0.08)</code> surface, <code>1px solid rgba(255,255,255,0.15)</code> border, pure white icon stroke, and smooth 90° hover rotation). Verified via automated Chromium CDP screenshots.</td><td>✅ Completed</td></tr>
+<tr><td><b>29</b></td><td>"remove find jobs, hire talent, grow together, premium access segement from the guest view; in the right panel of the posts only keep sponsors; Bring back the blog system"</td><td>1. <b>Removed Feature Cards from Guest View</b>: Completely removed the 4-card frosted glass grid (<code>.feature-glass-grid</code>: <code>Find Jobs</code>, <code>Hire Talent</code>, <code>Grow Together</code>, <code>Premium Access</code>) from <code>renderHomeScreen()</code> in guest view, allowing the 3D perspective concierge frame to flow directly into the scroll indicator and vacancies feed.<br>2. <b>Posts Right Panel Exclusively Sponsors</b>: Refactored the right sidebar <code><aside class="sidebar-area"></code> on the posts feed to strictly keep <b>only sponsors</b>; removed the "Verified Positions / Direct Hotel HR" card and the "Top Hiring Hotels" mini-list. Implemented two high-contrast Dark Glassmorphic sponsored cards (<code>Swiss Hospitality Management & AHLEI Certification</code> and <code>Marriott South Asia Fast-Track</code>) with <code>SPONSORED</code> badges.<br>3. <b>Full Hospitality Blog System Restored</b>: Built end-to-end blog architecture featuring SQLite <code>blogs</code> table with 4 rich seed articles, backend endpoints <code>GET /api/blogs</code> and <code>GET /api/blogs/{blog_id}</code>, Dark Glassmorphic blog hub (<code>#blog</code>) with category pills, live keyword search, featured hero insight card, 3-column article grid, and full-screen reading modal with vector SVG close button <code>${svgIcon('x', '', 18)}</code>. Added <code>Blog</code> tab to navigation for all personas.</td><td>✅ Completed</td></tr>
+<tr><td><b>30</b></td><td>"replace the picture inithe guest home page with bell_image.png"</td><td>Placed <code>Bell_img.png</code> into <code>static/images/bell_image.png</code> and updated the guest home page hero perspective card in <code>static/js/app.js</code> to render <code>/static/images/bell_image.png</code> (luxury concierge brass service bell on polished dark marble with ambient warm lighting). Verified via automated Chromium screenshot.</td><td>✅ Completed</td></tr>
+<tr><td><b>31</b></td><td>"remove the better jobs segment from the guest view homepage"</td><td>Removed the floating frosted-glass badge (<code>.perspective-floating-badge</code> containing "Better Jobs / Bigger Dreams" with briefcase icon) from the 3D perspective hero visual frame in <code>static/js/app.js</code>. The luxury concierge service bell (<code>bell_image.png</code>) is now displayed completely unobstructed within the 3D perspective card. Verified via automated Chromium screenshot.</td><td>✅ Completed</td></tr>
+</table>
+<hr style="border: none; border-top: 1px solid #cbd5e1; margin: 24px 0;">
+<h2>10. Guidelines for Future AI Conversations</h2>
+<p>When continuing work on the NiceJobs repository in any new conversation:</p>
+<ol>
+<li><b>Do not run <code>git</code> commands</b> in terminal if the user has requested no git commands.</li>
+<li><b>Never use emojis as icons</b>: Always use the <code>svgIcon(name, customClass, size)</code> vector SVG system to maintain an elegant, modern, luxury design aesthetic.</li>
+<li><b>Preserve the Dark Glassmorphism Design Theme</b>:</li>
+</ul>
+<p>- Primary Background: <code>#0a1128</code> (deep midnight blue).</p>
+<p>- Secondary Colors: White (<code>#ffffff</code>) for text, borders, and UI surfaces; Orange (<code>#ff6b00</code>) sparingly for high-contrast focal points, active states, and primary CTAs.</p>
+<p>- Glassmorphism: Translucent white surfaces (<code>rgba(255, 255, 255, 0.035)</code>), crisp 1px borders (<code>rgba(255, 255, 255, 0.09)</code>), and backdrop blurs (<code>backdrop-filter: blur(16px)</code>).</p>
+<p>- Zero Blue Theme Elements: Do not re-introduce legacy blue colors (<code>#2563eb</code>, <code>#1d4ed8</code>, <code>#93c5fd</code>).</p>
+<p>- Content Minimalism: Keep copy ultra-clean, eliminate filler text, and maximize negative space.</p>
+<ol>
+<li><b>Preserve Floating Pill Header & Nav Bar</b>:</li>
+</ul>
+<p>- Maintain the floating pill frosted capsule header with pure typographic <code>NiceJobs</code> logo, active orange underline, and circular glass buttons.</p>
+<p>- Candidate navigation must not contain a standalone "Profile" text link; profile navigation is exclusively triggered via the clickable user badge (avatar + name) on the right.</p>
+<ol>
+<li><b>Preserve the <code>+88</code> phone prefix rule</b>: Mobile inputs must enforce the fixed <code>+88</code> badge with an 11-digit <code>01...</code> numerical pattern.</li>
+<li><b>Preserve Business Administrator by Default</b>: Any person registering a business or signing in on behalf of a business is designated as a <b>Business Administrator</b> (<code>is_business_admin: true</code>). Do not add back an admin vs moderator selection radio or dropdown.</li>
+<li><b>Preserve Clean Navigation Labels</b>: Do not re-introduce "Part 1", "Part 2", "Part 3", etc. in buttons or headers; keep them clean (e.g. <code>Continue →</code>, <code>Verify Business Email →</code>).</li>
+<li><b>Preserve All 64 Districts of Bangladesh</b>: The location schema in New Business registration must always retain the full 64 districts array in [static/js/app.js](file:///home/dexter/NiceJobs/static/js/app.js).</li>
+<li><b>Maintain Demo OTP Functionality</b>: Demo code <code>258330</code> is configured across backend and frontend for rapid demonstration and testing without external SMS/SMTP gateways.</li>
+<li><b>Preserve Minimalist Admin Login UI</b>: Keep the <code>#admin-login</code> screen ultra-simple with only Email, Password, Master Key, and Login button. Do not add encryption labels, badges, or fancy glowing highlights.</li>
+<li><b>Preserve Structured Job Post Schema & 16 Hotel Departments</b>: In <code>#modal-create-job</code>, always maintain the salary toggle (<code>Range</code> vs <code>Negotiable</code>), educational multi-select schema with field of study trigger for higher degrees, 80+ hotel skills schema with live search and custom skill appending, experience selector, and the 16 standard hotel departments (<code>HOTEL_ALL_DEPARTMENTS</code>). Do not add back freeform requirements textarea or perks checkboxes to the job posting modal.</li>
+<li><b>Preserve Interactive Open to Work Toggle</b>: Preserve the toggle button and status panel in <code>#profile</code> with persistent SQLite database updates via <code>PUT /api/profile</code>.</li>
+</ul>
+</body></html>
