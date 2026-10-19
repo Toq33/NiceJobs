@@ -91,7 +91,7 @@ html {
 body {
   font-family: var(--font-main);
   background-color: #0a1128;
-  background-image: 
+  background-image:
     radial-gradient(circle at 5% 95%, rgba(255, 107, 0, 0.08) 0%, transparent 45%),
     radial-gradient(circle at 95% 15%, rgba(255, 107, 0, 0.06) 0%, transparent 40%),
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
@@ -112,7 +112,10 @@ a {
   text-decoration: none;
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: inherit;
 }
@@ -349,9 +352,11 @@ button {
 .mobile-menu-toggle.is-open .hamburger-bar:nth-child(1) {
   transform: translateY(7px) rotate(45deg);
 }
+
 .mobile-menu-toggle.is-open .hamburger-bar:nth-child(2) {
   opacity: 0;
 }
+
 .mobile-menu-toggle.is-open .hamburger-bar:nth-child(3) {
   transform: translateY(-7px) rotate(-45deg);
 }
@@ -427,7 +432,8 @@ button {
 }
 
 /* Glass Buttons System */
-.btn-primary, .btn-orange {
+.btn-primary,
+.btn-orange {
   background: var(--orange-gradient);
   color: var(--white);
   font-weight: 700;
@@ -443,7 +449,8 @@ button {
   cursor: pointer;
 }
 
-.btn-primary:hover, .btn-orange:hover {
+.btn-primary:hover,
+.btn-orange:hover {
   transform: translateY(-1px);
   filter: brightness(1.08);
   box-shadow: 0 6px 20px var(--orange-glow);
@@ -632,7 +639,7 @@ button {
   line-height: 1.1;
   letter-spacing: -1.2px;
   color: var(--white);
-  margin-bottom: 6px;
+  margin-bottom: 40px;
 }
 
 .hero-title span.text-orange {
@@ -897,6 +904,7 @@ button {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
 @media (max-width: 560px) {
   .feature-glass-grid {
     grid-template-columns: 1fr;
@@ -1002,8 +1010,15 @@ button {
 }
 
 @keyframes mouseScroll {
-  0% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, 10px); }
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
 }
 
 /* ==========================================================================
@@ -2434,8 +2449,15 @@ button {
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 /* Note: Consolidated Medium-Scale Responsive & UI/UX media queries are placed at the end of this file for cascading precedence */
@@ -2829,6 +2851,7 @@ button {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -2992,6 +3015,7 @@ button {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -4657,7 +4681,8 @@ button {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.blog-prose h2, .blog-prose h3 {
+.blog-prose h2,
+.blog-prose h3 {
   color: var(--white);
   margin-top: 28px;
   margin-bottom: 12px;
@@ -4679,7 +4704,8 @@ button {
   margin-bottom: 16px;
 }
 
-.blog-prose ul, .blog-prose ol {
+.blog-prose ul,
+.blog-prose ol {
   margin: 12px 0 20px 24px;
   padding: 0;
 }
@@ -4722,35 +4748,45 @@ button {
   .site-header {
     padding: 0 16px;
   }
+
   .hero-glass-section {
     grid-template-columns: 1.15fr 0.85fr;
     gap: 20px;
     padding: 6px 0 6px;
     align-items: flex-end;
   }
+
   .hero-left-col {
     height: 280px;
   }
+
   .hero-perspective-wrap {
     height: 280px;
   }
+
   .perspective-main-card {
     height: 280px;
   }
+
   .hero-title {
     font-size: 2.1rem !important;
   }
+
   .hero-subtitle {
     margin-bottom: 8px;
   }
+
   .content-grid {
     grid-template-columns: 1fr 280px;
     gap: 18px;
   }
-  .hotels-grid, .blog-grid {
+
+  .hotels-grid,
+  .blog-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 16px !important;
   }
+
   .feature-glass-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 14px;
@@ -4762,75 +4798,93 @@ button {
   .nav-links {
     display: none !important;
   }
+
   .mobile-menu-toggle {
     display: flex !important;
   }
+
   .site-header {
     padding: 0 12px;
     top: 6px;
     margin-top: 4px;
   }
+
   .nav-container {
     padding: 5px 14px;
     min-height: 42px;
   }
+
   .brand-logo {
     font-size: 1.18rem;
   }
+
   .nav-actions {
     gap: 6px;
   }
+
   .user-badge-info {
     display: none !important;
   }
+
   .nav-signout-btn {
     display: none !important;
   }
+
   .hero-glass-section {
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 6px 0 6px;
     align-items: stretch;
   }
+
   .hero-left-col {
     height: auto;
   }
+
   .hero-title {
     font-size: 1.85rem !important;
     line-height: 1.2 !important;
     margin-bottom: 6px;
   }
+
   .hero-subtitle {
     font-size: 0.88rem;
     margin-bottom: 8px;
     max-width: 100%;
   }
+
   .hero-perspective-wrap {
     max-width: 340px;
     margin: 0 auto;
     width: 100%;
     height: auto;
   }
+
   .perspective-main-card {
     height: 180px;
     border-radius: 14px;
   }
+
   .content-grid {
     grid-template-columns: 1fr !important;
     gap: 18px;
   }
+
   .sidebar-area {
     width: 100%;
   }
+
   .ats-header-stats {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px;
   }
+
   .inbox-shell {
     grid-template-columns: 1fr !important;
     height: auto;
     min-height: 480px;
   }
+
   .inbox-sidebar-panel {
     max-height: 240px;
   }
@@ -4838,21 +4892,25 @@ button {
 
 /* 3. Small Tablets & Phablets (<= 768px) - Medium UI/UX Scaling */
 @media (max-width: 768px) {
+
   /* Compact Top Demo Bar */
   .demo-bar {
     padding: 4px 10px;
     gap: 6px;
     font-size: 0.72rem;
   }
+
   .role-switcher {
     padding: 2px 4px;
     gap: 3px;
   }
+
   .role-btn {
     padding: 4px 8px;
     font-size: 0.72rem;
     border-radius: 6px;
   }
+
   #role-status-text {
     font-size: 0.7rem;
     max-width: 140px;
@@ -4860,6 +4918,7 @@ button {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
   .btn-demo-reset {
     padding: 2px 8px;
     font-size: 0.68rem;
@@ -4871,12 +4930,14 @@ button {
     font-size: 0.72rem;
     margin-bottom: 10px;
   }
+
   .hero-title {
     font-size: 1.6rem !important;
     line-height: 1.2 !important;
     letter-spacing: -0.3px;
     margin-bottom: 8px;
   }
+
   .hero-subtitle {
     font-size: 0.84rem;
     line-height: 1.45;
@@ -4895,9 +4956,11 @@ button {
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
+
   .capsule-divider {
     display: none !important;
   }
+
   .capsule-field {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -4906,15 +4969,18 @@ button {
     min-height: 34px;
     gap: 8px;
   }
+
   .capsule-field input,
   .capsule-field select {
     font-size: 0.82rem;
     padding: 2px 0;
   }
+
   .capsule-field .field-icon svg {
     width: 14px;
     height: 14px;
   }
+
   .hero-search-btn {
     width: 100%;
     height: 36px;
@@ -4928,32 +4994,38 @@ button {
   .candidate-home-header {
     margin-bottom: 14px;
   }
+
   .candidate-top-headline-row {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
     margin-bottom: 10px;
   }
+
   .candidate-live-tag {
     padding: 3px 8px;
     font-size: 0.68rem;
     margin-bottom: 4px;
   }
+
   .candidate-hero-heading {
     font-size: 1.35rem !important;
     line-height: 1.25 !important;
   }
+
   .candidate-stats-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     width: 100%;
   }
+
   .candidate-stat-chip {
     padding: 4px 10px;
     font-size: 0.72rem;
     border-radius: 9999px;
   }
+
   .candidate-stat-chip strong {
     font-size: 0.88rem;
   }
@@ -4963,10 +5035,12 @@ button {
     grid-template-columns: 1fr !important;
     gap: 8px !important;
   }
+
   .search-field .field-icon {
     left: 10px !important;
     font-size: 0.9rem !important;
   }
+
   .search-field input,
   .search-field select {
     height: 36px !important;
@@ -4974,6 +5048,7 @@ button {
     font-size: 0.82rem !important;
     border-radius: 8px !important;
   }
+
   .search-main-row .btn-orange {
     height: 36px !important;
     padding: 0 16px !important;
@@ -4991,6 +5066,7 @@ button {
     align-items: center !important;
     pointer-events: none !important;
   }
+
   .toast {
     pointer-events: auto !important;
     padding: 8px 16px !important;
@@ -5015,19 +5091,23 @@ button {
     padding: 3px 6px !important;
     gap: 0 !important;
   }
+
   .demo-bar-left {
     width: 100% !important;
     justify-content: center !important;
   }
+
   .demo-bar-right {
     display: none !important;
   }
+
   .role-switcher {
     width: 100% !important;
     max-width: 330px !important;
     justify-content: space-between !important;
     padding: 2px 3px !important;
   }
+
   .role-btn {
     flex: 1 !important;
     text-align: center !important;
@@ -5035,6 +5115,7 @@ button {
     padding: 4px 6px !important;
     font-size: 0.68rem !important;
   }
+
   .role-btn svg {
     display: none !important;
   }
@@ -5044,40 +5125,51 @@ button {
     padding: 0 8px;
     top: 4px;
   }
+
   .nav-container {
     padding: 4px 10px;
     min-height: 40px;
   }
+
   .brand-logo {
     font-size: 1.12rem;
   }
+
   .mobile-menu-toggle {
     width: 32px;
     height: 32px;
     min-width: 32px;
   }
+
   .hamburger-bar {
     width: 15px;
     height: 1.5px;
   }
+
   .btn-nav-search {
     width: 30px;
     height: 30px;
     min-width: 30px;
   }
+
   .btn-icon {
     width: 30px;
     height: 30px;
     min-width: 30px;
   }
+
   .user-profile-badge {
     padding: 2px 6px 2px 2px;
   }
+
   .user-profile-badge img {
     width: 24px;
     height: 24px;
   }
-  .btn-secondary, .btn-orange, .btn-primary {
+
+  .btn-secondary,
+  .btn-orange,
+  .btn-primary {
     padding: 5px 12px;
     font-size: 0.78rem;
   }
@@ -5090,29 +5182,36 @@ button {
     border-radius: 14px;
     gap: 6px;
   }
+
   .mobile-nav-links .nav-item a {
     padding: 8px 12px;
     font-size: 0.85rem;
     border-radius: 8px;
   }
+
   .mobile-user-card {
     padding: 8px 10px;
     border-radius: 10px;
   }
+
   .mobile-user-card img {
     width: 32px;
     height: 32px;
   }
+
   .mobile-user-card div div:first-child {
     font-size: 0.84rem;
   }
+
   .mobile-user-card div div:last-child {
     font-size: 0.7rem;
   }
+
   .mobile-nav-actions {
     padding-top: 8px;
     gap: 6px;
   }
+
   .mobile-nav-actions button {
     padding: 7px 12px;
     font-size: 0.78rem;
@@ -5123,13 +5222,16 @@ button {
     gap: 8px !important;
     margin-bottom: 10px !important;
   }
+
   .section-title {
     font-size: 1.18rem !important;
     margin-bottom: 2px !important;
   }
+
   .section-subtitle {
     font-size: 0.75rem !important;
   }
+
   #select-job-sort {
     height: 30px !important;
     font-size: 0.76rem !important;
@@ -5137,11 +5239,13 @@ button {
   }
 
   /* Medium-Sized Proportional Job Cards */
-  .job-card, .job-glass-card {
+  .job-card,
+  .job-glass-card {
     padding: 12px 14px !important;
     border-radius: 12px !important;
     margin-bottom: 10px !important;
   }
+
   .job-card-header {
     flex-direction: row !important;
     align-items: flex-start !important;
@@ -5149,34 +5253,41 @@ button {
     gap: 8px !important;
     margin-bottom: 6px !important;
   }
+
   .hotel-info-group {
     gap: 10px !important;
     align-items: flex-start !important;
   }
+
   .hotel-thumb {
     width: 38px !important;
     height: 38px !important;
     min-width: 38px !important;
     border-radius: 8px !important;
   }
+
   .hotel-name {
     font-size: 0.74rem !important;
     line-height: 1.2 !important;
     margin-bottom: 1px !important;
   }
+
   .verified-badge svg {
     width: 12px !important;
     height: 12px !important;
   }
+
   .star-rating svg {
     width: 10px !important;
     height: 10px !important;
   }
+
   .job-title-link {
     font-size: 0.98rem !important;
     line-height: 1.25 !important;
     margin-top: 1px !important;
   }
+
   .candidate-salary-card-badge {
     font-size: 0.78rem !important;
     font-weight: 700 !important;
@@ -5185,56 +5296,70 @@ button {
     white-space: nowrap !important;
     box-shadow: none !important;
   }
+
   .candidate-salary-card-badge span {
     font-size: 0.68rem !important;
   }
+
   .card-badges {
     display: flex !important;
     gap: 4px !important;
     margin-top: 2px !important;
   }
-  .badge-urgent, .badge-featured {
+
+  .badge-urgent,
+  .badge-featured {
     font-size: 0.64rem !important;
     padding: 2px 6px !important;
     border-radius: 4px !important;
   }
-  .badge-urgent svg, .badge-featured svg {
+
+  .badge-urgent svg,
+  .badge-featured svg {
     width: 10px !important;
     height: 10px !important;
   }
+
   .job-meta-row {
     flex-wrap: wrap !important;
     gap: 4px 8px !important;
     font-size: 0.72rem !important;
     margin: 6px 0 8px 0 !important;
   }
+
   .meta-item {
     font-size: 0.72rem !important;
     gap: 4px !important;
   }
+
   .meta-item svg {
     width: 12px !important;
     height: 12px !important;
   }
+
   .schema-tag-badge {
     font-size: 0.66rem !important;
     padding: 2px 6px !important;
     border-radius: 4px !important;
   }
+
   .job-perks-row {
     gap: 4px !important;
     margin-bottom: 8px !important;
     flex-wrap: wrap !important;
   }
+
   .perk-chip {
     font-size: 0.64rem !important;
     padding: 2px 6px !important;
     border-radius: 4px !important;
   }
+
   .perk-chip svg {
     width: 10px !important;
     height: 10px !important;
   }
+
   .job-card-footer {
     flex-direction: row !important;
     align-items: center !important;
@@ -5244,32 +5369,39 @@ button {
     gap: 6px !important;
     border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
   }
+
   .card-deadline {
     font-size: 0.68rem !important;
   }
+
   .card-deadline svg {
     width: 11px !important;
     height: 11px !important;
   }
+
   .card-actions {
     gap: 5px !important;
     align-items: center !important;
   }
+
   .card-actions .btn-icon {
     width: 28px !important;
     height: 28px !important;
     min-width: 28px !important;
   }
+
   .card-actions .btn-icon svg {
     width: 13px !important;
     height: 13px !important;
   }
+
   .card-actions .btn-secondary {
     height: 30px !important;
     padding: 0 10px !important;
     font-size: 0.74rem !important;
     border-radius: 6px !important;
   }
+
   .card-actions .btn-orange {
     height: 30px !important;
     padding: 0 12px !important;
@@ -5281,29 +5413,36 @@ button {
   .modal-backdrop {
     padding: 8px !important;
   }
+
   .modal-dialog {
     max-width: 98% !important;
     max-height: 88vh !important;
     border-radius: 14px !important;
   }
+
   .modal-header {
     padding: 10px 14px !important;
   }
+
   .modal-title {
     font-size: 1.02rem !important;
   }
+
   .modal-close {
     width: 26px !important;
     height: 26px !important;
   }
+
   .modal-body {
     padding: 12px 14px !important;
     font-size: 0.82rem !important;
   }
+
   .modal-footer {
     padding: 10px 14px !important;
     gap: 6px !important;
   }
+
   .modal-footer button {
     height: 34px !important;
     padding: 0 12px !important;
@@ -5315,55 +5454,72 @@ button {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
+
   .blog-grid {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
+
   .blog-hero-card {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
+
   .blog-hero-img {
     height: 170px !important;
     border-radius: 12px !important;
   }
+
   .blog-card-img {
     height: 120px !important;
   }
+
   .blog-card-body {
     padding: 10px 12px !important;
   }
+
   .blog-card-title {
     font-size: 0.88rem !important;
   }
+
   .blog-reader-content {
     padding: 14px 12px !important;
   }
+
   .feature-glass-grid {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
+
   .admin-metrics-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
   }
+
   .admin-metric-card {
     padding: 12px 10px !important;
   }
+
   .login-role-selector {
     grid-template-columns: 1fr !important;
     gap: 8px !important;
   }
+
   .auth-switch-cards {
     grid-template-columns: 1fr !important;
     gap: 8px !important;
   }
-  .table-responsive, .ats-table-wrapper, .admin-table-wrapper {
+
+  .table-responsive,
+  .ats-table-wrapper,
+  .admin-table-wrapper {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
     width: 100% !important;
   }
-  .ats-table, .admin-table {
+
+  .ats-table,
+  .admin-table {
     min-width: 500px !important;
     font-size: 0.76rem !important;
   }
@@ -5372,11 +5528,13 @@ button {
   .site-footer {
     padding: 12px 10px;
   }
-  .site-footer > div {
+
+  .site-footer>div {
     flex-direction: column;
     text-align: center;
     gap: 8px;
   }
+
   .site-footer a {
     font-size: 0.74rem;
   }
@@ -5388,61 +5546,73 @@ button {
     padding: 0 6px;
     top: 4px;
   }
+
   .nav-container {
     padding: 4px 8px;
   }
+
   .brand-logo {
     font-size: 1.08rem;
   }
+
   .nav-actions {
     gap: 4px;
   }
+
   .nav-guest-getstarted,
   .nav-post-btn {
     display: none !important;
   }
+
   .nav-guest-signin {
     padding: 4px 10px;
     font-size: 0.74rem;
   }
+
   .btn-nav-search {
     width: 28px;
     height: 28px;
   }
+
   .perspective-main-card {
     height: 150px;
   }
+
   .hero-title {
     font-size: 1.48rem !important;
   }
+
   .hero-subtitle {
     font-size: 0.8rem;
   }
+
   .candidate-hero-heading {
     font-size: 1.25rem !important;
   }
+
   .job-card-header {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 6px !important;
   }
+
   .candidate-salary-card-badge {
     align-self: flex-start !important;
   }
+
   .job-card-footer {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 6px !important;
   }
+
   .card-actions {
     width: 100% !important;
     justify-content: space-between !important;
   }
+
   .card-actions .btn-orange {
     flex: 1 !important;
     justify-content: center !important;
   }
 }
-
-
-
