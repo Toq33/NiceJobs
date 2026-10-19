@@ -23,7 +23,10 @@ database.init_db()
 
 # Mount static folder
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-os.makedirs(STATIC_DIR, exist_ok=True)
+try:
+    os.makedirs(STATIC_DIR, exist_ok=True)
+except Exception:
+    pass
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.api_route("/", methods=["GET", "HEAD"])

@@ -95,8 +95,11 @@ The platform includes demo accounts seeded automatically on first launch:
 
 ```
 NiceJobs/
+├── api/
+│   └── index.py                                  # Vercel serverless entry point
 ├── app.py                                        # FastAPI application & REST endpoints
-├── database.py                                   # SQLite schema definitions & seed data
+├── database.py                                   # SQLite schema definitions & seed data (with Vercel /tmp fallback)
+├── vercel.json                                   # Vercel serverless rewrite configuration
 ├── nicejobs.db                                   # SQLite database file
 ├── requirements.txt                              # Python package dependencies
 ├── PROJECT_WORKFLOW_AND_UPDATES.md               # Detailed changelog and architectural logs
@@ -111,6 +114,17 @@ NiceJobs/
 │       └── ...                                   # Hotel brand assets and sponsor visual banners
 └── README.md                                     # Project overview and documentation
 ```
+
+---
+
+## ☁️ Deploying to Vercel
+
+NiceJobs is pre-configured for **1-click deployment on Vercel**:
+
+1. Import the repository `Toq33/NiceJobs` on [Vercel](https://vercel.com/new).
+2. Framework Preset: **Other**.
+3. Root Directory: `./` (leave default).
+4. Click **Deploy**. Vercel will install dependencies from `requirements.txt`, route requests through `api/index.py`, and serve static files directly from the edge CDN.
 
 ---
 

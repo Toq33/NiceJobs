@@ -5,12 +5,27 @@ Database and Seed Data Layer
 import sqlite3
 import json
 import os
+import shutil
 from datetime import datetime
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nicejobs.db")
+def get_db_path():
+    # Detect Vercel serverless environment (read-only filesystem)
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        tmp_db = "/tmp/nicejobs.db"
+        if not os.path.exists(tmp_db):
+            source_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nicejobs.db")
+            if os.path.exists(source_db):
+                try:
+                    shutil.copy2(source_db, tmp_db)
+                except Exception:
+                    pass
+        return tmp_db
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "nicejobs.db")
+
+DB_FILE = get_db_path()
 
 def get_db():
-    conn = sqlite3.connect(DB_FILE, timeout=30.0)
+    conn = sqlite3.connect(get_db_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
