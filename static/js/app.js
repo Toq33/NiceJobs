@@ -865,11 +865,11 @@ async function renderHomeScreen(viewport) {
           Find your place in hospitality. Explore top jobs, and grow your career.
         </p>
 
-        <!-- Glass Capsule Search Bar -->
-        <div class="hero-search-capsule">
+        <!-- Glass Capsule Search Bar with Autocomplete -->
+        <div class="hero-search-capsule" style="position: relative;">
           <div class="capsule-field">
             <span class="field-icon">${svgIcon('search', '', 16)}</span>
-            <input type="text" id="input-search-q" placeholder="Job title, role or keyword" value="${state.search.query}" onkeydown="if(event.key==='Enter') executeSearch()">
+            <input type="text" id="input-search-q" placeholder="Job title, role or keyword" value="${state.search.query}" oninput="handleGuestSearchInput(this.value)" onfocus="handleGuestSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch()" autocomplete="off">
           </div>
           <div class="capsule-divider"></div>
           <div class="capsule-field field-location">
@@ -893,6 +893,7 @@ async function renderHomeScreen(viewport) {
           <button class="hero-search-btn" onclick="executeSearch()" title="Search Opportunities">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
           </button>
+          <div id="guest-search-dropdown" class="guest-search-dropdown" style="display: none;"></div>
         </div>
       </div>
 
@@ -905,14 +906,6 @@ async function renderHomeScreen(viewport) {
         </div>
       </div>
     </section>
-
-    <!-- Scroll Indicator -->
-    <div class="scroll-indicator" onclick="document.getElementById('jobs-feed-anchor')?.scrollIntoView({behavior: 'smooth'})">
-      <div class="mouse-icon">
-        <div class="mouse-wheel"></div>
-      </div>
-      <span>Scroll to explore</span>
-    </div>
 
     <div id="jobs-feed-anchor"></div>
     ` : `
@@ -1161,6 +1154,71 @@ function executeSearch() {
   state.search.department = document.getElementById('select-search-dept')?.value || '';
   state.search.designation = document.getElementById('select-search-desig')?.value || '';
   renderHomeScreen(document.getElementById('app-viewport'));
+}
+
+const GUEST_AUTOCOMPLETE_ITEMS = [
+  { label: 'Front Desk Officer / Receptionist', query: 'Front Desk', category: 'Front Office' },
+  { label: 'Executive Chef / Sous Chef', query: 'Executive Chef', category: 'Kitchen' },
+  { label: 'Housekeeping Supervisor / Attendant', query: 'Housekeeping', category: 'Rooms' },
+  { label: 'Food & Beverage Service / Captain', query: 'F&B Manager', category: 'F&B Service' },
+  { label: 'General Manager / Resident Manager', query: 'General Manager', category: 'Management' },
+  { label: 'Guest Relations Executive', query: 'Guest Relations', category: 'Front Office' },
+  { label: 'Hotel Vacancies in Dhaka', location: 'Dhaka', category: 'Location' },
+  { label: 'Luxury Beach Resort Jobs in Cox\'s Bazar', location: 'Cox\'s Bazar', category: 'Location' },
+  { label: 'Tea Garden & Eco Resorts in Sylhet', location: 'Sylhet', category: 'Location' },
+  { label: 'Port City Hotels in Chittagong', location: 'Chittagong', category: 'Location' }
+];
+
+function applyGuestSuggestion(val, type = 'query') {
+  if (type === 'location') {
+    state.search.location = val;
+    state.search.query = '';
+  } else if (type === 'department') {
+    state.search.department = val;
+    state.search.query = '';
+  } else {
+    state.search.query = val;
+  }
+  const inputQ = document.getElementById('input-search-q');
+  const selLoc = document.getElementById('select-search-loc');
+  const selDept = document.getElementById('select-search-dept');
+  if (inputQ && type === 'query') inputQ.value = val;
+  if (selLoc && type === 'location') selLoc.value = val;
+  if (selDept && type === 'department') selDept.value = val;
+  closeGuestSearchDropdown();
+  renderHomeScreen(document.getElementById('app-viewport'));
+  document.getElementById('jobs-feed-anchor')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function handleGuestSearchInput(rawVal) {
+  const dropdown = document.getElementById('guest-search-dropdown');
+  if (!dropdown) return;
+  const q = (rawVal || '').toLowerCase().trim();
+  const filtered = GUEST_AUTOCOMPLETE_ITEMS.filter(item => {
+    if (!q) return true;
+    return item.label.toLowerCase().includes(q) || (item.query && item.query.toLowerCase().includes(q)) || (item.location && item.location.toLowerCase().includes(q)) || item.category.toLowerCase().includes(q);
+  }).slice(0, 5);
+
+  if (filtered.length === 0) {
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  dropdown.innerHTML = filtered.map(item => `
+    <div class="guest-sugg-item" onclick="applyGuestSuggestion('${(item.query || item.location).replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
+      <span style="display: flex; align-items: center; gap: 8px;">
+        ${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}
+        <strong>${item.label}</strong>
+      </span>
+      <span class="guest-sugg-badge">${item.category}</span>
+    </div>
+  `).join('');
+  dropdown.style.display = 'flex';
+}
+
+function closeGuestSearchDropdown() {
+  const dropdown = document.getElementById('guest-search-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
 }
 
 function setDepartmentFilter(dept) {
@@ -8298,6 +8356,14 @@ document.addEventListener('click', function(e) {
   if (drawer && drawer.classList.contains('is-open')) {
     if (!drawer.contains(e.target) && !btn?.contains(e.target)) {
       closeMobileMenu();
+    }
+  }
+
+  const dropdown = document.getElementById('guest-search-dropdown');
+  const inputQ = document.getElementById('input-search-q');
+  if (dropdown && dropdown.style.display !== 'none') {
+    if (!dropdown.contains(e.target) && e.target !== inputQ) {
+      closeGuestSearchDropdown();
     }
   }
 });
