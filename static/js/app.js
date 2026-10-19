@@ -451,7 +451,29 @@ function setupHashRouting() {
   parseRoute();
 }
 
+function toggleMobileMenu() {
+  const drawer = document.getElementById('mobile-nav-drawer');
+  const btn = document.getElementById('btn-mobile-menu');
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('is-open');
+  if (isOpen) {
+    drawer.classList.remove('is-open');
+    btn?.classList.remove('is-open');
+  } else {
+    drawer.classList.add('is-open');
+    btn?.classList.add('is-open');
+  }
+}
+
+function closeMobileMenu() {
+  const drawer = document.getElementById('mobile-nav-drawer');
+  const btn = document.getElementById('btn-mobile-menu');
+  drawer?.classList.remove('is-open');
+  btn?.classList.remove('is-open');
+}
+
 function navigateTo(screen, params = null) {
+  closeMobileMenu();
   let hash = screen;
   if (params) {
     const searchParams = new URLSearchParams(params).toString();
@@ -467,6 +489,7 @@ function navigateTo(screen, params = null) {
 // ==========================================================================
 
 function switchRole(role) {
+  closeMobileMenu();
   state.currentRole = role;
 
   document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
@@ -593,10 +616,16 @@ async function loadInitialData() {
 function updateNavigation() {
   const navList = document.getElementById('main-nav-links');
   const actionsContainer = document.getElementById('nav-actions-container');
+  const mobileNavList = document.getElementById('mobile-nav-links');
+  const mobileActions = document.getElementById('mobile-nav-actions');
   if (!navList || !actionsContainer) return;
 
   const role = state.currentRole;
   const screen = state.currentScreen;
+
+  let linksHtml = '';
+  let actionsHtml = '';
+  let mobileActionsHtml = '';
 
   if (role === 'jobseeker') {
     // Only display number beside Applications if there is an unseen application notification
@@ -605,7 +634,7 @@ function updateNavigation() {
     const unseenTexts = (state.conversations || []).reduce((acc, c) => acc + (c.unread_for_user || 0), 0);
     const totalUnreadNotifs = (state.notifications || []).filter(n => !n.is_read).length;
 
-    navList.innerHTML = `
+    linksHtml = `
       <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
       <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
       <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
@@ -621,8 +650,9 @@ function updateNavigation() {
         </a>
       </li>
     `;
-    actionsContainer.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
+
+    actionsHtml = `
+      <div style="display: flex; align-items: center; gap: 8px;">
         <button class="btn-nav-search" onclick="document.getElementById('input-search-q')?.focus()" title="Search Opportunities">${svgIcon('search', '', 16)}</button>
         <button class="btn-icon" style="position: relative; color: var(--white); border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);" onclick="openNotificationsModal()" title="Notifications">
           ${svgIcon('bell', '', 17)}
@@ -635,13 +665,29 @@ function updateNavigation() {
             <span class="user-badge-role">${state.currentUser.title || 'Candidate'}</span>
           </div>
         </div>
-        <button class="btn-secondary" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
+        <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
+      </div>
+    `;
+
+    mobileActionsHtml = `
+      <div class="mobile-user-card" onclick="navigateTo('profile')" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);">
+        <img src="${state.currentUser.avatar || '/static/images/candidate_rahim.jpg'}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">
+        <div>
+          <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${state.currentUser.name}</div>
+          <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 600;">${state.currentUser.title || 'Candidate'} • View Profile →</div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;">
+        <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="openNotificationsModal(); closeMobileMenu();">
+          ${svgIcon('bell', '', 15)} Alerts ${totalUnreadNotifs > 0 ? `(${totalUnreadNotifs})` : ''}
+        </button>
+        <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="switchRole('guest')">Sign Out</button>
       </div>
     `;
   } else if (role === 'recruiter') {
     const currentBizId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
     const unseenBizTexts = (state.conversations || []).reduce((acc, c) => acc + (c.unread_for_business || 0), 0);
-    navList.innerHTML = `
+    linksHtml = `
       <li class="nav-item"><a href="#recruiter-dashboard" class="${screen === 'recruiter-dashboard' ? 'active' : ''}">Dashboard</a></li>
       <li class="nav-item"><a href="#ats" class="${screen === 'ats' ? 'active' : ''}">Candidates</a></li>
       <li class="nav-item"><a href="#hotels?id=${currentBizId}" class="${screen === 'hotels' ? 'active' : ''}">Hotel Profile</a></li>
@@ -653,9 +699,9 @@ function updateNavigation() {
       </li>
     `;
     const initials = (state.currentUser.name || 'HR').split(' ').map(n=>n[0]).join('').slice(0,2);
-    actionsContainer.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <button class="btn-orange" onclick="openCreateJobModal()">+ Post Job</button>
+    actionsHtml = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn-orange nav-post-btn" onclick="openCreateJobModal()">+ Post Job</button>
         <div class="user-profile-badge">
           <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1.5px solid rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>
           <div class="user-badge-info">
@@ -663,36 +709,59 @@ function updateNavigation() {
             <span class="user-badge-role">${state.currentUser.title || 'Recruiter'}</span>
           </div>
         </div>
-        <button class="btn-secondary" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
+        <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
       </div>
     `;
+    mobileActionsHtml = `
+      <button class="btn-orange" style="width: 100%; justify-content: center; padding: 12px;" onclick="openCreateJobModal(); closeMobileMenu();">+ Post New Vacancy</button>
+      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest')">Sign Out</button>
+    `;
   } else if (role === 'admin' && state.currentUser && state.currentUser.role === 'admin') {
-    navList.innerHTML = `
+    linksHtml = `
       <li class="nav-item"><a href="#admin" class="${screen === 'admin' ? 'active' : ''}">${svgIcon('shield_check', '', 14)} Admin Console</a></li>
       <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
       <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
       <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
     `;
-    actionsContainer.innerHTML = `
+    actionsHtml = `
       <div style="display: flex; align-items: center; gap: 10px;">
         <span class="badge-urgent" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: #ef4444;">${svgIcon('shield_check', '', 12)} Root Admin</span>
         <button class="btn-secondary" style="font-size: 0.78rem; padding: 6px 14px;" onclick="adminSignOut()" title="Sign Out">Sign Out</button>
       </div>
     `;
+    mobileActionsHtml = `
+      <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="adminSignOut()">Sign Out (Admin)</button>
+    `;
   } else {
-    // Guest: Modeled after reference image with Home, Jobs, Employers, Blog, About
-    navList.innerHTML = `
+    // Guest
+    linksHtml = `
       <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Home</a></li>
       <li class="nav-item"><a href="#home" class="">Jobs</a></li>
       <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Employers</a></li>
       <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
       <li class="nav-item"><a href="#resources" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
     `;
-    actionsContainer.innerHTML = `
+    actionsHtml = `
       <button class="btn-nav-search" onclick="document.getElementById('input-search-q')?.focus()" title="Search Opportunities">${svgIcon('search', '', 16)}</button>
-      <button class="btn-secondary" onclick="startLoginFlow('candidate')">Sign In</button>
-      <button class="btn-orange" onclick="startSignupFlow('candidate')">Get Started</button>
+      <button class="btn-secondary nav-guest-signin" onclick="startLoginFlow('candidate')">Sign In</button>
+      <button class="btn-orange nav-guest-getstarted" onclick="startSignupFlow('candidate')">Get Started</button>
     `;
+    mobileActionsHtml = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="btn-secondary" style="justify-content: center; padding: 11px;" onclick="startLoginFlow('candidate'); closeMobileMenu();">Sign In</button>
+        <button class="btn-orange" style="justify-content: center; padding: 11px;" onclick="startSignupFlow('candidate'); closeMobileMenu();">Get Started</button>
+      </div>
+    `;
+  }
+
+  navList.innerHTML = linksHtml;
+  actionsContainer.innerHTML = actionsHtml;
+
+  if (mobileNavList) {
+    mobileNavList.innerHTML = linksHtml.replace(/<a\s+href="([^"]+)"/g, '<a href="$1" onclick="closeMobileMenu()"');
+  }
+  if (mobileActions) {
+    mobileActions.innerHTML = mobileActionsHtml;
   }
 }
 
@@ -8183,3 +8252,14 @@ async function handleNotificationClick(notifId, link) {
     navigateTo(link.replace('#', ''));
   }
 }
+
+// Close mobile navigation drawer when clicking outside
+document.addEventListener('click', function(e) {
+  const drawer = document.getElementById('mobile-nav-drawer');
+  const btn = document.getElementById('btn-mobile-menu');
+  if (drawer && drawer.classList.contains('is-open')) {
+    if (!drawer.contains(e.target) && !btn?.contains(e.target)) {
+      closeMobileMenu();
+    }
+  }
+});
