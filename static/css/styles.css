@@ -2399,291 +2399,7 @@ button {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* ==========================================================================
-   Comprehensive Responsive & Mobile Design System
-   ========================================================================== */
-
-/* 1. Large Tablets & Small Laptops (<= 1024px) */
-@media (max-width: 1024px) {
-  .site-header {
-    padding: 0 16px;
-  }
-  .hero-glass-section {
-    grid-template-columns: 1fr 1fr;
-    gap: 32px;
-  }
-  .content-grid {
-    grid-template-columns: 1fr 300px;
-    gap: 20px;
-  }
-  .hotels-grid, .blog-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* 2. Tablets & Mobile Navigation Transition (<= 900px) */
-@media (max-width: 900px) {
-  .nav-links {
-    display: none !important;
-  }
-  .mobile-menu-toggle {
-    display: flex !important;
-  }
-  .site-header {
-    padding: 0 14px;
-    top: 8px;
-    margin-top: 8px;
-  }
-  .nav-container {
-    padding: 6px 16px;
-  }
-  .brand-logo {
-    font-size: 1.3rem;
-  }
-  .nav-actions {
-    gap: 8px;
-  }
-  .user-badge-info {
-    display: none;
-  }
-  .nav-signout-btn {
-    display: none;
-  }
-  .hero-glass-section {
-    grid-template-columns: 1fr;
-    gap: 32px;
-    padding: 16px 0;
-  }
-  .hero-perspective-wrap {
-    max-width: 480px;
-    margin: 0 auto;
-    width: 100%;
-  }
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-  .sidebar-area {
-    width: 100%;
-  }
-  .ats-header-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .inbox-shell {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 520px;
-  }
-  .inbox-sidebar-panel {
-    max-height: 280px;
-  }
-}
-
-/* 3. Small Tablets & Phablets (<= 768px) */
-@media (max-width: 768px) {
-  .demo-bar {
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px;
-  }
-  .demo-bar-left, .demo-bar-right {
-    width: 100%;
-    justify-content: center;
-  }
-  .role-switcher {
-    width: 100%;
-    max-width: 420px;
-    justify-content: space-between;
-  }
-  .role-btn {
-    flex: 1;
-    justify-content: center;
-    padding: 5px 8px;
-    font-size: 0.74rem;
-  }
-  #role-status-text {
-    font-size: 0.72rem;
-  }
-  .hero-title {
-    font-size: clamp(2rem, 6.5vw, 2.75rem);
-    line-height: 1.15;
-  }
-  .hero-subtitle {
-    font-size: 0.98rem;
-    margin-bottom: 24px;
-    max-width: 100%;
-  }
-  .hero-search-capsule {
-    border-radius: 20px;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 14px;
-    gap: 10px;
-    max-width: 100%;
-  }
-  .capsule-divider {
-    display: none;
-  }
-  .capsule-field {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 8px 14px;
-  }
-  .hero-search-btn {
-    width: 100%;
-    height: 44px;
-    border-radius: 12px;
-    font-size: 0.95rem;
-  }
-  .candidate-top-headline-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .candidate-hero-heading {
-    font-size: 1.65rem;
-  }
-  .candidate-stats-strip {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    width: 100%;
-    gap: 8px;
-  }
-  .candidate-stat-chip {
-    padding: 6px 10px;
-    font-size: 0.75rem;
-    justify-content: center;
-  }
-  .search-main-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-}
-
-/* 4. Standard Mobile Phones (<= 640px) */
-@media (max-width: 640px) {
-  .main-wrapper {
-    padding: 16px 12px;
-  }
-  .candidate-stats-strip {
-    grid-template-columns: 1fr 1fr;
-  }
-  .candidate-stat-chip:last-child {
-    grid-column: span 2;
-  }
-  .job-card, .job-glass-card {
-    padding: 16px;
-    border-radius: 16px;
-  }
-  .job-card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  .hotel-info-group {
-    gap: 10px;
-  }
-  .hotel-thumb {
-    width: 44px;
-    height: 44px;
-  }
-  .job-title-link {
-    font-size: 1.15rem;
-  }
-  .job-card-meta {
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    font-size: 0.78rem;
-  }
-  .job-card-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .job-card-footer .btn-primary,
-  .job-card-footer .btn-orange {
-    width: 100%;
-    justify-content: center;
-  }
-  .hotels-grid, .blog-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .blog-reader-content {
-    padding: 20px 16px;
-  }
-  .modal-backdrop {
-    padding: 8px;
-    align-items: flex-end;
-  }
-  .modal-dialog {
-    max-width: 100%;
-    max-height: 92vh;
-    border-radius: 20px 20px 0 0;
-  }
-  .modal-header {
-    padding: 14px 16px;
-  }
-  .modal-body {
-    padding: 14px 16px;
-  }
-  .modal-footer {
-    padding: 12px 16px;
-    flex-direction: column-reverse;
-    gap: 8px;
-  }
-  .modal-footer button {
-    width: 100%;
-    justify-content: center;
-  }
-  .site-footer {
-    padding: 20px 14px;
-  }
-  .site-footer > div {
-    flex-direction: column;
-    text-align: center;
-    gap: 14px;
-  }
-}
-
-/* 5. Ultra-Compact Mobile Screens (<= 480px) */
-@media (max-width: 480px) {
-  .site-header {
-    padding: 0 8px;
-    top: 6px;
-  }
-  .nav-container {
-    padding: 5px 12px;
-  }
-  .brand-logo {
-    font-size: 1.18rem;
-  }
-  .nav-actions {
-    gap: 6px;
-  }
-  .nav-guest-getstarted,
-  .nav-post-btn {
-    display: none !important;
-  }
-  .nav-guest-signin {
-    padding: 6px 12px;
-    font-size: 0.78rem;
-  }
-  .btn-nav-search {
-    width: 34px;
-    height: 34px;
-  }
-  .perspective-main-card {
-    height: 220px;
-  }
-  .candidate-stats-strip {
-    grid-template-columns: 1fr;
-  }
-  .candidate-stat-chip:last-child {
-    grid-column: span 1;
-  }
-}
+/* Note: Consolidated Medium-Scale Responsive & UI/UX media queries are placed at the end of this file for cascading precedence */
 
 /* ==========================================================================
    Modern & User-Friendly Login UI/UX Styles
@@ -4931,5 +4647,721 @@ button {
   margin-right: 6px;
   margin-bottom: 6px;
 }
+
+/* ==========================================================================
+   CONSOLIDATED MEDIUM-SCALE RESPONSIVE & UI/UX DESIGN SYSTEM
+   Final cascading block ensuring consistent, medium-scale, high-density UI
+   across Desktop, Tablet, and Mobile devices.
+   ========================================================================== */
+
+/* 1. Large Tablets & Small Laptops (<= 1024px) */
+@media (max-width: 1024px) {
+  .site-header {
+    padding: 0 16px;
+  }
+  .hero-glass-section {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px 0 16px;
+  }
+  .hero-title {
+    font-size: 2.2rem !important;
+  }
+  .content-grid {
+    grid-template-columns: 1fr 280px;
+    gap: 18px;
+  }
+  .hotels-grid, .blog-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+  .feature-glass-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 14px;
+  }
+}
+
+/* 2. Tablets & Mobile Navigation Transition (<= 900px) */
+@media (max-width: 900px) {
+  .nav-links {
+    display: none !important;
+  }
+  .mobile-menu-toggle {
+    display: flex !important;
+  }
+  .site-header {
+    padding: 0 12px;
+    top: 6px;
+    margin-top: 4px;
+  }
+  .nav-container {
+    padding: 5px 14px;
+    min-height: 42px;
+  }
+  .brand-logo {
+    font-size: 1.18rem;
+  }
+  .nav-actions {
+    gap: 6px;
+  }
+  .user-badge-info {
+    display: none !important;
+  }
+  .nav-signout-btn {
+    display: none !important;
+  }
+  .hero-glass-section {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 16px 0 10px;
+  }
+  .hero-title {
+    font-size: 1.85rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 8px;
+  }
+  .hero-subtitle {
+    font-size: 0.88rem;
+    margin-bottom: 14px;
+    max-width: 100%;
+  }
+  .hero-perspective-wrap {
+    max-width: 340px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .perspective-main-card {
+    height: 180px;
+    border-radius: 14px;
+  }
+  .content-grid {
+    grid-template-columns: 1fr !important;
+    gap: 18px;
+  }
+  .sidebar-area {
+    width: 100%;
+  }
+  .ats-header-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .inbox-shell {
+    grid-template-columns: 1fr !important;
+    height: auto;
+    min-height: 480px;
+  }
+  .inbox-sidebar-panel {
+    max-height: 240px;
+  }
+}
+
+/* 3. Small Tablets & Phablets (<= 768px) - Medium UI/UX Scaling */
+@media (max-width: 768px) {
+  /* Compact Top Demo Bar */
+  .demo-bar {
+    padding: 4px 10px;
+    gap: 6px;
+    font-size: 0.72rem;
+  }
+  .role-switcher {
+    padding: 2px 4px;
+    gap: 3px;
+  }
+  .role-btn {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+  }
+  #role-status-text {
+    font-size: 0.7rem;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .btn-demo-reset {
+    padding: 2px 8px;
+    font-size: 0.68rem;
+  }
+
+  /* Medium Hero Title & Subtitle */
+  .hero-chip {
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    margin-bottom: 10px;
+  }
+  .hero-title {
+    font-size: 1.6rem !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.3px;
+    margin-bottom: 8px;
+  }
+  .hero-subtitle {
+    font-size: 0.84rem;
+    line-height: 1.45;
+    margin-bottom: 14px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  /* Medium Guest Search Capsule */
+  .hero-search-capsule {
+    border-radius: 14px;
+    padding: 10px 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .capsule-divider {
+    display: none !important;
+  }
+  .capsule-field {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-height: 34px;
+    gap: 8px;
+  }
+  .capsule-field input,
+  .capsule-field select {
+    font-size: 0.82rem;
+    padding: 2px 0;
+  }
+  .capsule-field .field-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+  .hero-search-btn {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    gap: 6px;
+  }
+
+  /* Candidate Console Medium Sizing */
+  .candidate-home-header {
+    margin-bottom: 14px;
+  }
+  .candidate-top-headline-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .candidate-live-tag {
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    margin-bottom: 4px;
+  }
+  .candidate-hero-heading {
+    font-size: 1.35rem !important;
+    line-height: 1.25 !important;
+  }
+  .candidate-stats-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .candidate-stat-chip {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    border-radius: 9999px;
+  }
+  .candidate-stat-chip strong {
+    font-size: 0.88rem;
+  }
+
+  /* Search Console Inputs */
+  .search-main-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .search-field .field-icon {
+    left: 10px !important;
+    font-size: 0.9rem !important;
+  }
+  .search-field input,
+  .search-field select {
+    height: 36px !important;
+    padding: 6px 10px 6px 32px !important;
+    font-size: 0.82rem !important;
+    border-radius: 8px !important;
+  }
+  .search-main-row .btn-orange {
+    height: 36px !important;
+    padding: 0 16px !important;
+    font-size: 0.84rem !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Floating Toasts */
+  .toast-container {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 14px !important;
+    align-items: center !important;
+    pointer-events: none !important;
+  }
+  .toast {
+    pointer-events: auto !important;
+    padding: 8px 16px !important;
+    font-size: 0.78rem !important;
+    border-radius: 999px !important;
+    max-width: 90% !important;
+    text-align: center !important;
+    justify-content: center !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  }
+}
+
+/* 4. Standard Mobile Phones (<= 640px) - Medium, Balanced & High Density UI/UX */
+@media (max-width: 640px) {
+  .main-wrapper {
+    padding: 12px 10px;
+  }
+
+  /* Compact Demo Bar for Mobile */
+  .demo-bar {
+    justify-content: center !important;
+    padding: 3px 6px !important;
+    gap: 0 !important;
+  }
+  .demo-bar-left {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .demo-bar-right {
+    display: none !important;
+  }
+  .role-switcher {
+    width: 100% !important;
+    max-width: 330px !important;
+    justify-content: space-between !important;
+    padding: 2px 3px !important;
+  }
+  .role-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 4px 6px !important;
+    font-size: 0.68rem !important;
+  }
+  .role-btn svg {
+    display: none !important;
+  }
+
+  /* Site Header & Mobile Nav */
+  .site-header {
+    padding: 0 8px;
+    top: 4px;
+  }
+  .nav-container {
+    padding: 4px 10px;
+    min-height: 40px;
+  }
+  .brand-logo {
+    font-size: 1.12rem;
+  }
+  .mobile-menu-toggle {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+  .hamburger-bar {
+    width: 15px;
+    height: 1.5px;
+  }
+  .btn-nav-search {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+  }
+  .btn-icon {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+  }
+  .user-profile-badge {
+    padding: 2px 6px 2px 2px;
+  }
+  .user-profile-badge img {
+    width: 24px;
+    height: 24px;
+  }
+  .btn-secondary, .btn-orange, .btn-primary {
+    padding: 5px 12px;
+    font-size: 0.78rem;
+  }
+
+  /* Mobile Nav Drawer */
+  .mobile-nav-drawer {
+    left: 8px;
+    right: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    gap: 6px;
+  }
+  .mobile-nav-links .nav-item a {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+  }
+  .mobile-user-card {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .mobile-user-card img {
+    width: 32px;
+    height: 32px;
+  }
+  .mobile-user-card div div:first-child {
+    font-size: 0.84rem;
+  }
+  .mobile-user-card div div:last-child {
+    font-size: 0.7rem;
+  }
+  .mobile-nav-actions {
+    padding-top: 8px;
+    gap: 6px;
+  }
+  .mobile-nav-actions button {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  /* Section Titles & Filtering */
+  .section-header {
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+  }
+  .section-title {
+    font-size: 1.18rem !important;
+    margin-bottom: 2px !important;
+  }
+  .section-subtitle {
+    font-size: 0.75rem !important;
+  }
+  #select-job-sort {
+    height: 30px !important;
+    font-size: 0.76rem !important;
+    padding: 2px 8px !important;
+  }
+
+  /* Medium-Sized Proportional Job Cards */
+  .job-card, .job-glass-card {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+    margin-bottom: 10px !important;
+  }
+  .job-card-header {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+  }
+  .hotel-info-group {
+    gap: 10px !important;
+    align-items: flex-start !important;
+  }
+  .hotel-thumb {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 8px !important;
+  }
+  .hotel-name {
+    font-size: 0.74rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 1px !important;
+  }
+  .verified-badge svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  .star-rating svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+  .job-title-link {
+    font-size: 0.98rem !important;
+    line-height: 1.25 !important;
+    margin-top: 1px !important;
+  }
+  .candidate-salary-card-badge {
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+  }
+  .candidate-salary-card-badge span {
+    font-size: 0.68rem !important;
+  }
+  .card-badges {
+    display: flex !important;
+    gap: 4px !important;
+    margin-top: 2px !important;
+  }
+  .badge-urgent, .badge-featured {
+    font-size: 0.64rem !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+  .badge-urgent svg, .badge-featured svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+  .job-meta-row {
+    flex-wrap: wrap !important;
+    gap: 4px 8px !important;
+    font-size: 0.72rem !important;
+    margin: 6px 0 8px 0 !important;
+  }
+  .meta-item {
+    font-size: 0.72rem !important;
+    gap: 4px !important;
+  }
+  .meta-item svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  .schema-tag-badge {
+    font-size: 0.66rem !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+  .job-perks-row {
+    gap: 4px !important;
+    margin-bottom: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .perk-chip {
+    font-size: 0.64rem !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+  .perk-chip svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+  .job-card-footer {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding-top: 6px !important;
+    margin-top: 6px !important;
+    gap: 6px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+  }
+  .card-deadline {
+    font-size: 0.68rem !important;
+  }
+  .card-deadline svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
+  .card-actions {
+    gap: 5px !important;
+    align-items: center !important;
+  }
+  .card-actions .btn-icon {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+  }
+  .card-actions .btn-icon svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .card-actions .btn-secondary {
+    height: 30px !important;
+    padding: 0 10px !important;
+    font-size: 0.74rem !important;
+    border-radius: 6px !important;
+  }
+  .card-actions .btn-orange {
+    height: 30px !important;
+    padding: 0 12px !important;
+    font-size: 0.76rem !important;
+    border-radius: 6px !important;
+  }
+
+  /* Modals (Medium iOS-Style Bottom-Sheet) */
+  .modal-backdrop {
+    padding: 8px !important;
+  }
+  .modal-dialog {
+    max-width: 98% !important;
+    max-height: 88vh !important;
+    border-radius: 14px !important;
+  }
+  .modal-header {
+    padding: 10px 14px !important;
+  }
+  .modal-title {
+    font-size: 1.02rem !important;
+  }
+  .modal-close {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  .modal-body {
+    padding: 12px 14px !important;
+    font-size: 0.82rem !important;
+  }
+  .modal-footer {
+    padding: 10px 14px !important;
+    gap: 6px !important;
+  }
+  .modal-footer button {
+    height: 34px !important;
+    padding: 0 12px !important;
+    font-size: 0.78rem !important;
+  }
+
+  /* Hotels, Blogs & Administrative Grids */
+  .hotels-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .blog-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .blog-hero-card {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .blog-hero-img {
+    height: 170px !important;
+    border-radius: 12px !important;
+  }
+  .blog-card-img {
+    height: 120px !important;
+  }
+  .blog-card-body {
+    padding: 10px 12px !important;
+  }
+  .blog-card-title {
+    font-size: 0.88rem !important;
+  }
+  .blog-reader-content {
+    padding: 14px 12px !important;
+  }
+  .feature-glass-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .admin-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .admin-metric-card {
+    padding: 12px 10px !important;
+  }
+  .login-role-selector {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .auth-switch-cards {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .table-responsive, .ats-table-wrapper, .admin-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+  .ats-table, .admin-table {
+    min-width: 500px !important;
+    font-size: 0.76rem !important;
+  }
+
+  /* Site Footer */
+  .site-footer {
+    padding: 12px 10px;
+  }
+  .site-footer > div {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+  .site-footer a {
+    font-size: 0.74rem;
+  }
+}
+
+/* 5. Ultra-Compact Mobile Screens (<= 480px) */
+@media (max-width: 480px) {
+  .site-header {
+    padding: 0 6px;
+    top: 4px;
+  }
+  .nav-container {
+    padding: 4px 8px;
+  }
+  .brand-logo {
+    font-size: 1.08rem;
+  }
+  .nav-actions {
+    gap: 4px;
+  }
+  .nav-guest-getstarted,
+  .nav-post-btn {
+    display: none !important;
+  }
+  .nav-guest-signin {
+    padding: 4px 10px;
+    font-size: 0.74rem;
+  }
+  .btn-nav-search {
+    width: 28px;
+    height: 28px;
+  }
+  .perspective-main-card {
+    height: 150px;
+  }
+  .hero-title {
+    font-size: 1.48rem !important;
+  }
+  .hero-subtitle {
+    font-size: 0.8rem;
+  }
+  .candidate-hero-heading {
+    font-size: 1.25rem !important;
+  }
+  .job-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+  .candidate-salary-card-badge {
+    align-self: flex-start !important;
+  }
+  .job-card-footer {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+  .card-actions {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  .card-actions .btn-orange {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+}
+
 
 
