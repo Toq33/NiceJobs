@@ -4384,13 +4384,9 @@ function quickDemoLogin(role) {
 function renderSignupPage(viewport) {
   const isCandidate = signupState.role === 'candidate';
 
-  // For Candidate: 4 Parts
-  // For Business: Initial Choice ('choose') -> Route A New Business (Parts 1-8) -> Route B Add New User (Parts 1-7)
-  const isWide = !isCandidate || signupState.stage === 2;
-
   viewport.innerHTML = `
-    <div class="auth-page-container ${isWide ? 'wide' : ''}">
-      <div class="auth-page-card">
+    <div class="auth-page-container signup-page-container wide">
+      <div class="auth-page-card signup-card-wide">
         <!-- Top Navigation -->
         <div class="auth-card-top-nav">
           ${isCandidate ? `
@@ -4437,15 +4433,23 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part1" onsubmit="event.preventDefault(); nextSignupStage(2);">
-              <!-- Name -->
-              <div class="auth-field">
-                <label class="auth-label">Full Name</label>
-                <input type="text" id="cand-name" class="auth-input" required 
-                  placeholder="e.g. Rahim Ahmed" 
-                  value="${signupState.name || ''}" autofocus>
+              <!-- Row 1: Full Name & Personal Email -->
+              <div class="auth-field-grid">
+                <div class="auth-field">
+                  <label class="auth-label">Full Name</label>
+                  <input type="text" id="cand-name" class="auth-input" required 
+                    placeholder="e.g. Rahim Ahmed" 
+                    value="${signupState.name || ''}" autofocus>
+                </div>
+                <div class="auth-field">
+                  <label class="auth-label">Personal Email Address</label>
+                  <input type="email" id="cand-email" class="auth-input" required 
+                    placeholder="rahim.ahmed@example.bd" 
+                    value="${signupState.email || ''}">
+                </div>
               </div>
 
-              <!-- DOB & NID/Passport Grid -->
+              <!-- Row 2: DOB & NID/Passport Grid -->
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Date of Birth (DOB)</label>
@@ -4460,50 +4464,43 @@ function renderSignupPage(viewport) {
                 </div>
               </div>
 
-              <!-- Cell with fixed +88 in front (11 digits: 01...) -->
-              <div class="auth-field">
-                <label class="auth-label">Mobile Cell Number</label>
-                <div class="phone-input-wrapper">
-                  <span class="phone-prefix-fixed">+88</span>
-                  <input type="tel" 
-                    id="cand-phone" 
-                    class="phone-number-field" 
-                    placeholder="01711234567" 
-                    maxlength="11" 
-                    minlength="11" 
-                    pattern="01[0-9]{9}" 
-                    inputmode="numeric" 
-                    required 
-                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
-                    value="${signupState.phone || ''}">
+              <!-- Row 3: Primary Phone & Secondary Phone Grid -->
+              <div class="auth-field-grid">
+                <div class="auth-field">
+                  <label class="auth-label">Mobile Cell Number</label>
+                  <div class="phone-input-wrapper">
+                    <span class="phone-prefix-fixed">+88</span>
+                    <input type="tel" 
+                      id="cand-phone" 
+                      class="phone-number-field" 
+                      placeholder="01711234567" 
+                      maxlength="11" 
+                      minlength="11" 
+                      pattern="01[0-9]{9}" 
+                      inputmode="numeric" 
+                      required 
+                      oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
+                      value="${signupState.phone || ''}">
+                  </div>
+                  <span class="auth-field-hint">Primary number receives OTP verification</span>
                 </div>
-                <span class="auth-field-hint">Enter your 11-digit mobile number starting with 01 (Primary number receives OTP verification)</span>
-              </div>
 
-              <!-- Secondary Phone Number (+88 fixed prefix, 11 digits, optional) -->
-              <div class="auth-field">
-                <label class="auth-label">Secondary Mobile Number (Optional)</label>
-                <div class="phone-input-wrapper">
-                  <span class="phone-prefix-fixed">+88</span>
-                  <input type="tel" 
-                    id="cand-phone-secondary" 
-                    class="phone-number-field" 
-                    placeholder="01811234567" 
-                    maxlength="11" 
-                    minlength="11" 
-                    inputmode="numeric" 
-                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
-                    value="${signupState.phone_secondary || ''}">
+                <div class="auth-field">
+                  <label class="auth-label">Secondary Mobile Number (Optional)</label>
+                  <div class="phone-input-wrapper">
+                    <span class="phone-prefix-fixed">+88</span>
+                    <input type="tel" 
+                      id="cand-phone-secondary" 
+                      class="phone-number-field" 
+                      placeholder="01811234567" 
+                      maxlength="11" 
+                      minlength="11" 
+                      inputmode="numeric" 
+                      oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
+                      value="${signupState.phone_secondary || ''}">
+                  </div>
+                  <span class="auth-field-hint">Alternative contact number for hotel HR (Optional)</span>
                 </div>
-                <span class="auth-field-hint">Alternative contact number for hotel HR (Optional)</span>
-              </div>
-
-              <!-- Email -->
-              <div class="auth-field">
-                <label class="auth-label">Personal Email Address</label>
-                <input type="email" id="cand-email" class="auth-input" required 
-                  placeholder="rahim.ahmed@example.bd" 
-                  value="${signupState.email || ''}">
               </div>
 
               <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
@@ -4834,25 +4831,27 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part3" onsubmit="event.preventDefault(); nextSignupStage(4);">
-              <div class="auth-field">
-                <label class="auth-label">Password</label>
-                <div class="auth-password-wrapper">
-                  <input type="password" id="cand-pwd" class="auth-input" required 
-                    placeholder="••••••••" value="${signupState.password || 'Password123!'}" autofocus>
-                  <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
-                    onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
-                    title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+              <div class="auth-field-grid">
+                <div class="auth-field">
+                  <label class="auth-label">Password</label>
+                  <div class="auth-password-wrapper">
+                    <input type="password" id="cand-pwd" class="auth-input" required 
+                      placeholder="••••••••" value="${signupState.password || 'Password123!'}" autofocus>
+                    <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
+                      onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
+                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+                  </div>
                 </div>
-              </div>
 
-              <div class="auth-field">
-                <label class="auth-label">Confirm Password</label>
-                <div class="auth-password-wrapper">
-                  <input type="password" id="cand-confirm-pwd" class="auth-input" required 
-                    placeholder="••••••••" value="${signupState.confirm_password || 'Password123!'}">
-                  <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
-                    onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
-                    title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+                <div class="auth-field">
+                  <label class="auth-label">Confirm Password</label>
+                  <div class="auth-password-wrapper">
+                    <input type="password" id="cand-confirm-pwd" class="auth-input" required 
+                      placeholder="••••••••" value="${signupState.confirm_password || 'Password123!'}">
+                    <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
+                      onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
+                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+                  </div>
                 </div>
               </div>
 
@@ -4978,18 +4977,20 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-new-part1" onsubmit="event.preventDefault(); nextBizStage(2);">
-                <div class="auth-field">
-                  <label class="auth-label">Business Name (Brand Name)</label>
-                  <input type="text" id="biz-new-brand" class="auth-input" required 
-                    placeholder="e.g. Radisson Blu Dhaka Water Garden" 
-                    value="${signupState.brand_name || ''}" autofocus>
-                </div>
+                <div class="auth-field-grid">
+                  <div class="auth-field">
+                    <label class="auth-label">Business Name (Brand Name)</label>
+                    <input type="text" id="biz-new-brand" class="auth-input" required 
+                      placeholder="e.g. Radisson Blu Dhaka Water Garden" 
+                      value="${signupState.brand_name || ''}" autofocus>
+                  </div>
 
-                <div class="auth-field">
-                  <label class="auth-label">Legal Registered Name</label>
-                  <input type="text" id="biz-new-legal" class="auth-input" required 
-                    placeholder="e.g. Sena Hotel Developments Ltd." 
-                    value="${signupState.legal_name || ''}">
+                  <div class="auth-field">
+                    <label class="auth-label">Legal Registered Name</label>
+                    <input type="text" id="biz-new-legal" class="auth-input" required 
+                      placeholder="e.g. Sena Hotel Developments Ltd." 
+                      value="${signupState.legal_name || ''}">
+                  </div>
                 </div>
 
                 <!-- Business Type (all hotel/resort types schema + search inside) -->
@@ -5213,23 +5214,25 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-new-part4" onsubmit="event.preventDefault(); nextBizStage(5);">
-                <div class="auth-field">
-                  <label class="auth-label">Set Password</label>
-                  <div class="auth-password-wrapper">
-                    <input type="password" id="biz-pwd-part4" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.biz_password || 'Password123!'}" autofocus>
-                    <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
-                      onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
+                <div class="auth-field-grid">
+                  <div class="auth-field">
+                    <label class="auth-label">Set Password</label>
+                    <div class="auth-password-wrapper">
+                      <input type="password" id="biz-pwd-part4" class="auth-input" required 
+                        placeholder="••••••••" value="${signupState.biz_password || 'Password123!'}" autofocus>
+                      <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
+                        onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
+                    </div>
                   </div>
-                </div>
 
-                <div class="auth-field">
-                  <label class="auth-label">Confirm Password</label>
-                  <div class="auth-password-wrapper">
-                    <input type="password" id="biz-confirm-pwd-part4" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.biz_confirm_password || 'Password123!'}">
-                    <button type="button" class="auth-eye-toggle" id="biz-p4-t2" 
-                      onclick="togglePasswordVisibility('biz-confirm-pwd-part4', 'biz-p4-t2')">${svgIcon('eye', '', 16)}</button>
+                  <div class="auth-field">
+                    <label class="auth-label">Confirm Password</label>
+                    <div class="auth-password-wrapper">
+                      <input type="password" id="biz-confirm-pwd-part4" class="auth-input" required 
+                        placeholder="••••••••" value="${signupState.biz_confirm_password || 'Password123!'}">
+                      <button type="button" class="auth-eye-toggle" id="biz-p4-t2" 
+                        onclick="togglePasswordVisibility('biz-confirm-pwd-part4', 'biz-p4-t2')">${svgIcon('eye', '', 16)}</button>
+                    </div>
                   </div>
                 </div>
 

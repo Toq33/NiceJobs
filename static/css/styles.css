@@ -3604,8 +3604,10 @@ button {
 }
 
 /* Wider Container for Comprehensive Profile & Hotel Setup */
-.auth-page-container.wide {
-  max-width: 680px;
+.auth-page-container.wide,
+.auth-page-container.signup-page-container {
+  max-width: 960px !important;
+  width: 100% !important;
 }
 
 /* Choice Cards (New Business vs Add New User) */
@@ -5951,26 +5953,64 @@ body.screen-inbox .main-wrapper {
   pointer-events: none;
 }
 
-/* 6. Wider Signup Card with Gaps on Both Sides */
-.auth-page-container.wide .auth-page-card,
-.auth-page-card {
-  max-width: 820px !important;
+/* 6. Wider Signup Card with Gaps on Both Sides (Candidate & Business) */
+.auth-page-container.wide,
+.auth-page-container.signup-page-container {
+  max-width: 960px !important;
   width: 100% !important;
-  margin: 0 auto;
+  margin: 40px auto;
+  padding: 0 24px;
 }
 
-@media (max-width: 880px) {
-  .auth-page-card {
+.auth-page-container.wide .auth-page-card,
+.auth-page-container.signup-page-container .auth-page-card,
+.auth-page-card.signup-card-wide {
+  max-width: 960px !important;
+  width: 100% !important;
+  margin: 0 auto;
+  padding: 38px 44px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .auth-page-container.wide,
+  .auth-page-container.signup-page-container {
     max-width: 100% !important;
-    margin: 0 12px;
+    padding: 0 20px;
+    margin: 28px auto;
+  }
+
+  .auth-page-container.wide .auth-page-card,
+  .auth-page-container.signup-page-container .auth-page-card {
+    padding: 30px 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .auth-page-container.wide,
+  .auth-page-container.signup-page-container {
+    padding: 0 16px;
+    margin: 20px auto;
+  }
+
+  .auth-page-container.wide .auth-page-card,
+  .auth-page-container.signup-page-container .auth-page-card {
+    padding: 24px 20px;
   }
 }
 
 @media (max-width: 640px) {
-  .auth-page-card {
+  .auth-page-container.wide,
+  .auth-page-container.signup-page-container {
+    padding: 0 10px;
+    margin: 12px auto;
+  }
+
+  .auth-page-container.wide .auth-page-card,
+  .auth-page-container.signup-page-container .auth-page-card {
     margin: 0;
     border-radius: 16px;
-    padding: 20px 16px !important;
+    padding: 20px 14px !important;
   }
 }
 
