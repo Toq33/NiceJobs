@@ -1064,33 +1064,106 @@ button {
 .search-field .field-icon {
   position: absolute;
   left: 14px;
-  color: var(--text-dim);
+  top: 50%;
+  transform: translateY(-50%);
+  color: #60a5fa;
   font-size: 1.1rem;
   pointer-events: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
 }
 
-.search-field input,
-.search-field select {
+.search-field input {
   width: 100%;
+  height: 44px;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 12px 14px 12px 42px;
+  padding: 0 14px 0 42px;
   color: var(--white);
   font-size: 0.92rem;
   transition: var(--transition);
+  box-sizing: border-box;
 }
 
-.search-field input:focus,
-.search-field select:focus {
+.search-field input:focus {
   outline: none;
-  border-color: var(--blue-primary);
-  box-shadow: 0 0 0 3px var(--blue-light);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
-.search-field select option {
-  background: var(--bg-surface);
-  color: var(--white);
+/* Rich Blue Dropdowns for Location, All Departments, and All Designations */
+.search-field select,
+#select-search-loc,
+#select-search-dept,
+#select-search-desig {
+  width: 100%;
+  height: 44px;
+  background-color: #0d1e48 !important;
+  border: 1.5px solid #2563eb !important;
+  border-radius: var(--radius-md) !important;
+  padding: 0 36px 0 42px !important;
+  color: #ffffff !important;
+  font-size: 0.92rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  box-shadow: 0 2px 8px rgba(10, 25, 60, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  transition: all 0.2s ease !important;
+  box-sizing: border-box !important;
+}
+
+.search-field select:hover,
+#select-search-loc:hover,
+#select-search-dept:hover,
+#select-search-desig:hover {
+  background-color: #122860 !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+}
+
+.search-field select:focus,
+#select-search-loc:focus,
+#select-search-dept:focus,
+#select-search-desig:focus {
+  outline: none !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35), 0 0 16px rgba(59, 130, 246, 0.4) !important;
+  background-color: #152f70 !important;
+}
+
+/* Solid Opaque Luxury Deep Blue Background for all Select Options (Prevents white-on-white bug) */
+select option,
+.search-field select option,
+#select-search-loc option,
+#select-search-dept option,
+#select-search-desig option,
+.capsule-field select option {
+  background: #0c1c44 !important;
+  background-color: #0c1c44 !important;
+  color: #ffffff !important;
+  padding: 10px 14px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+}
+
+select option:checked,
+select option:hover,
+select option:focus,
+.search-field select option:checked,
+.search-field select option:hover,
+#select-search-loc option:checked,
+#select-search-dept option:checked,
+#select-search-desig option:checked {
+  background: #1d4ed8 !important;
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
 }
 
 .search-filter-pills {
@@ -5249,12 +5322,19 @@ button {
     font-size: 0.9rem !important;
   }
 
-  .search-field input,
-  .search-field select {
+  .search-field input {
     height: 36px !important;
     padding: 6px 10px 6px 32px !important;
     font-size: 0.82rem !important;
     border-radius: 8px !important;
+  }
+
+  .search-field select {
+    height: 38px !important;
+    padding: 0 28px 0 32px !important;
+    font-size: 0.82rem !important;
+    border-radius: 8px !important;
+    background-position: right 10px center !important;
   }
 
   .search-main-row .btn-orange {
