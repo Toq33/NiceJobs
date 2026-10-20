@@ -3949,10 +3949,11 @@ select option {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 150px;
+  max-height: 240px;
   overflow-y: auto;
   padding-right: 4px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
 }
 
 .schema-pills-pool::-webkit-scrollbar {

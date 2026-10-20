@@ -798,6 +798,8 @@ class BusinessRegisterPayload(BaseModel):
     address: Optional[str] = ""
     website: Optional[str] = ""
     email: str # Official business email
+    official_telephone: Optional[str] = ""
+    telephone: Optional[str] = ""
     features: Optional[List[str]] = None
     # Representative Info (Part 3)
     representative_name: str
@@ -868,13 +870,14 @@ def register_business(payload: BusinessRegisterPayload):
         # Check if business already exists
         cursor.execute("SELECT id FROM businesses WHERE lower(email) = ? OR lower(brand_name) = ?", (payload.email.strip().lower(), payload.brand_name.strip().lower()))
         existing_biz = cursor.fetchone()
+        official_tel = (payload.official_telephone or payload.telephone or "").strip()
         if existing_biz:
             biz_id = existing_biz["id"]
             cursor.execute("""
                 UPDATE businesses
                 SET legal_name = ?, brand_name = ?, property_type = ?, city = ?, address = ?,
                     website = ?, plot_number = ?, road_number = ?, thana_upazila = ?, district = ?,
-                    amenities = ?, features = ?, admin_user_id = ?
+                    amenities = ?, features = ?, admin_user_id = ?, telephone = ?, official_telephone = ?
                 WHERE id = ?
             """, (
                 payload.legal_name,
@@ -890,6 +893,8 @@ def register_business(payload: BusinessRegisterPayload):
                 json.dumps(feature_list),
                 json.dumps(feature_list),
                 user_id,
+                official_tel,
+                official_tel,
                 biz_id
             ))
         else:
@@ -899,8 +904,8 @@ def register_business(payload: BusinessRegisterPayload):
                     website, email, logo_url, cover_image, description, verification_status,
                     verification_notes, departments, amenities, benefits, follower_count,
                     parent_group, property_size, plot_number, road_number, thana_upazila, district,
-                    features, admin_user_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    features, admin_user_id, telephone, official_telephone
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 biz_id,
                 payload.legal_name,
@@ -928,7 +933,9 @@ def register_business(payload: BusinessRegisterPayload):
                 payload.thana_upazila or "",
                 payload.district or "",
                 json.dumps(feature_list),
-                user_id
+                user_id,
+                official_tel,
+                official_tel
             ))
 
         # Check business membership

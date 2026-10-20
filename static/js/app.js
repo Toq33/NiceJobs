@@ -482,6 +482,7 @@ const signupState = {
   district: 'Dhaka',
   website: 'https://www.radissonhotels.com/en-us/hotels/radisson-blu-dhaka',
   official_email: 'hr@radissondhaka.com',
+  official_telephone: '+880 2 9834555',
   features: ['Infinity Swimming Pool', 'Luxury Spa & Wellness Center', '24/7 Fitness Center & Gym', 'Multi-Cuisine Fine Dining Restaurant', 'High-Speed Optical Fiber Wi-Fi'],
   customFeaturesPool: [],
   featuresSearchQuery: '',
@@ -719,6 +720,7 @@ function switchRole(role) {
     state.currentUser = null;
     state.notifications = [];
     state.conversations = [];
+    state.savedJobs = [];
     statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
     showToast('Guest mode');
     navigateTo('home');
@@ -1303,7 +1305,8 @@ async function renderHomeScreen(viewport) {
 function renderJobCardHTML(job) {
   const isUrgent = job.is_urgent === 1;
   const isFeatured = job.is_featured === 1;
-  const isSaved = state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id);
+  const isGuest = !state.currentUser || state.currentRole === 'guest';
+  const isSaved = !isGuest && state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id);
 
   return `
     <article class="job-card job-card-interactive ${isFeatured ? 'featured-card' : ''} ${isUrgent ? 'urgent-card' : ''}" id="job-card-${job.id}">
@@ -1387,7 +1390,7 @@ function renderJobCardHTML(job) {
           ${svgIcon('calendar', '', 13)} Deadline: <strong>${job.deadline || 'Open'}</strong> • <strong>${job.applicant_count || 12}</strong> applied
         </span>
         <div class="card-actions">
-          <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isSaved ? 'Bookmarked' : 'Save Job Post'}" onclick="toggleSaveJob('${job.id}')">
+          <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isGuest ? 'Log in to save favourite' : (isSaved ? 'Bookmarked' : 'Save Job Post')}" onclick="toggleSaveJob('${job.id}')">
             ${isSaved ? svgIcon('starFilled', '', 16) : svgIcon('star', '', 16)}
           </button>
           <button class="btn-icon" title="Share Job Post" onclick="shareJob('${job.id}', '${encodeURIComponent(job.title)}')">
@@ -1720,6 +1723,9 @@ async function renderJobDetailScreen(viewport, jobId) {
     return;
   }
 
+  const isGuest = !state.currentUser || state.currentRole === 'guest';
+  const isSaved = !isGuest && (job.is_saved || (state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id)));
+
   viewport.innerHTML = `
     <div style="max-width: 960px; margin: 0 auto; padding: 24px 16px;">
       <div style="margin-bottom: 20px;">
@@ -1738,7 +1744,7 @@ async function renderJobDetailScreen(viewport, jobId) {
               ${job.is_urgent ? `<span class="badge-urgent" style="margin-left: 6px;">Urgent</span>` : ''}
               ${job.is_featured ? `<span class="badge-featured" style="margin-left: 6px;">Featured</span>` : ''}
             </div>
-            <h1 style="font-size: 2rem; font-weight: 800; color: var(--white); margin: 0 0 12px 0; line-height: 1.25;">${job.title}</h1>
+            <h1 style="font-size: 2rem; font-weight: 800; color: var(--white); margin-bottom: 0 0 12px 0; line-height: 1.25;">${job.title}</h1>
             <div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.88rem; color: var(--text-muted);">
               <div style="display: inline-flex; align-items: center; gap: 5px;">${svgIcon('mapPin', '', 15)} ${job.property_location}</div>
               <div style="display: inline-flex; align-items: center; gap: 5px;">${svgIcon('briefcase', '', 15)} ${job.department}</div>
@@ -1750,8 +1756,8 @@ async function renderJobDetailScreen(viewport, jobId) {
           </div>
 
           <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <button class="btn-icon" style="width: 44px; height: 44px;" onclick="toggleSaveJob('${job.id}')" title="Save Job">
-              ${svgIcon('star', '', 20)}
+            <button class="btn-icon ${isSaved ? 'saved' : ''}" style="width: 44px; height: 44px;" onclick="toggleSaveJob('${job.id}')" title="${isGuest ? 'Log in to save favourite' : (isSaved ? 'Bookmarked' : 'Save Job')}">
+              ${isSaved ? svgIcon('starFilled', '', 20) : svgIcon('star', '', 20)}
             </button>
             <button class="btn-icon" style="width: 44px; height: 44px;" onclick="shareJob('${job.id}', '${encodeURIComponent(job.title)}')" title="Share">
               ${svgIcon('share', '', 20)}
@@ -3908,7 +3914,30 @@ async function reviewVerification(verifId, action) {
 // ==========================================================================
 
 async function renderSavedJobsScreen(viewport) {
-  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  if (!state.currentUser || state.currentRole === 'guest') {
+    viewport.innerHTML = `
+      <div style="max-width: 520px; margin: 48px auto; text-align: center; padding: 48px 24px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl);">
+        <div style="width: 64px; height: 64px; margin: 0 auto 20px; background: rgba(255, 107, 0, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--orange-primary);">
+          ${svgIcon('starFilled', '', 32)}
+        </div>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Log In to View Saved Jobs</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px;">
+          Favourites and bookmarked hospitality roles are only available for candidate accounts. Sign in or create a candidate profile to save jobs.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <button class="btn-orange" style="padding: 10px 24px; font-weight: 700;" onclick="startLoginFlow('candidate')">
+            Log In as Candidate
+          </button>
+          <button class="btn-secondary" style="padding: 10px 20px;" onclick="navigateTo('home')">
+            Browse Jobs
+          </button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const userId = state.currentUser.id;
   const res = await fetch(`/api/saved-jobs?user_id=${userId}`);
   const jobs = await res.json();
 
@@ -5428,6 +5457,14 @@ function renderSignupPage(viewport) {
                   </div>
                 </div>
 
+                <div class="auth-field" style="margin-top: 14px;">
+                  <label class="auth-label">Official Telephone Number <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Landline / Reception Hotline)</span></label>
+                  <input type="tel" id="biz-new-telephone" class="auth-input" 
+                    placeholder="e.g. +880 2 9834555 or 02-9834555" 
+                    value="${signupState.official_telephone || ''}">
+                  <span class="auth-hint">Official landline, PABX reception desk, or corporate hotline.</span>
+                </div>
+
                 <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
                   Continue →
                 </button>
@@ -5445,45 +5482,56 @@ function renderSignupPage(viewport) {
             ${signupState.biz_step === 2 ? `
               <div class="auth-header">
                 <h2 class="auth-title">Property Features &amp; Amenities</h2>
-                <p class="auth-subtitle">Select all facilities your hotel provides to guests</p>
+                <p class="auth-subtitle">Select or add all facilities and amenities your property provides</p>
               </div>
 
               <form id="form-biz-new-part2" onsubmit="event.preventDefault(); nextBizStage(3);">
                 <div class="auth-field">
                   <div class="schema-box-wrapper">
                     <input type="text" class="schema-search-input" id="features-search" 
-                      placeholder="Search facilities (spa, swimming pool, gym, etc.)..." 
+                      placeholder="Search or type facility (spa, pool, gym, etc.) and press Enter..." 
                       value="${signupState.featuresSearchQuery || ''}" 
-                      oninput="filterFeaturesSchema(this.value)">
+                      oninput="filterFeaturesSchema(this.value)"
+                      onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomFeature(this.value);}">
+
+                    ${(() => {
+                      const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
+                      const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
+                      const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
+                      if (q && !hasExactMatch) {
+                        return `
+                          <div class="schema-add-chip" onclick="addCustomFeature('${signupState.featuresSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                            + Add "${signupState.featuresSearchQuery}" to features
+                          </div>
+                        `;
+                      }
+                      return '';
+                    })()}
 
                     <div class="schema-pills-pool">
-                      ${HOTEL_FEATURES_SCHEMA.concat(signupState.customFeaturesPool).filter(f => {
-                        if (!signupState.featuresSearchQuery) return true;
-                        return f.toLowerCase().includes(signupState.featuresSearchQuery.toLowerCase());
-                      }).map(f => {
-                        const isSelected = signupState.features.includes(f);
-                        return `
-                          <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleFeatureSelection('${f}')">
-                            ${isSelected ? '✓ ' : '+ '}${f}
-                          </span>
-                        `;
-                      }).join('')}
-                    </div>
+                      ${(() => {
+                        const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
+                        const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
+                        
+                        // Stack logic: Selected features at the top in stack order (latest selected is at top)
+                        const selectedStack = (signupState.features || []).filter(f => !q || f.toLowerCase().includes(q));
+                        
+                        // Remaining unselected features below
+                        const unselectedPool = allPool.filter(f => !signupState.features.includes(f)).filter(f => !q || f.toLowerCase().includes(q));
 
-                    ${signupState.featuresSearchQuery && !HOTEL_FEATURES_SCHEMA.concat(signupState.customFeaturesPool).some(f => f.toLowerCase() === signupState.featuresSearchQuery.toLowerCase()) ? `
-                      <div class="schema-add-chip" onclick="addCustomFeature('${signupState.featuresSearchQuery}')">
-                        + Add "${signupState.featuresSearchQuery}" as a custom facility
-                      </div>
-                    ` : ''}
-
-                    <div class="schema-selected-tags">
-                      <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Amenities (${signupState.features.length}):</span>
-                      ${signupState.features.map(f => `
-                        <span class="schema-tag-badge">
-                          ${f}
-                          <button type="button" class="schema-tag-remove" onclick="removeFeature('${f}')">${svgIcon('x', '', 12)}</button>
-                        </span>
-                      `).join('')}
+                        return [
+                          ...selectedStack.map(f => `
+                            <span class="schema-pill-item selected" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+                              ✓ ${f}
+                            </span>
+                          `),
+                          ...unselectedPool.map(f => `
+                            <span class="schema-pill-item" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to select">
+                              + ${f}
+                            </span>
+                          `)
+                        ].join('');
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -6519,30 +6567,46 @@ function filterFeaturesSchema(q) {
 }
 
 function toggleFeatureSelection(feat) {
+  if (!signupState.features) signupState.features = [];
   const idx = signupState.features.indexOf(feat);
   if (idx >= 0) {
     signupState.features.splice(idx, 1);
   } else {
-    signupState.features.push(feat);
+    // Stack logic: selected features go up to the top of the stack
+    signupState.features.unshift(feat);
   }
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function addCustomFeature(feat) {
+  if (!feat) return;
   const trimmed = feat.trim();
-  if (trimmed && !signupState.features.includes(trimmed)) {
-    signupState.customFeaturesPool.push(trimmed);
-    signupState.features.push(trimmed);
+  if (trimmed) {
+    if (!signupState.customFeaturesPool) signupState.customFeaturesPool = [];
+    if (!signupState.customFeaturesPool.includes(trimmed)) {
+      signupState.customFeaturesPool.push(trimmed);
+    }
+    if (!signupState.features) signupState.features = [];
+    const idx = signupState.features.indexOf(trimmed);
+    if (idx >= 0) {
+      signupState.features.splice(idx, 1);
+    }
+    // Stack logic: newly added feature goes to the top of the selected stack
+    signupState.features.unshift(trimmed);
     signupState.featuresSearchQuery = '';
-    showToast(`Facility "${trimmed}" added!`, 'success');
+    saveSignupProgress();
+    showToast(`Added "${trimmed}" to features`, 'success');
     renderSignupPage(document.getElementById('app-viewport'));
   }
 }
 
 function removeFeature(feat) {
+  if (!signupState.features) return;
   const idx = signupState.features.indexOf(feat);
   if (idx >= 0) {
     signupState.features.splice(idx, 1);
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   }
 }
@@ -6841,6 +6905,7 @@ async function nextBizStage(targetStep) {
     const district = document.getElementById('biz-new-district')?.value || 'Dhaka';
     const website = document.getElementById('biz-new-website')?.value || '';
     const email = (document.getElementById('biz-new-email')?.value || '').trim();
+    const telephone = (document.getElementById('biz-new-telephone')?.value || '').trim();
 
     if (!brand) {
       showToast('Please enter the business brand name.', 'danger');
@@ -6860,6 +6925,8 @@ async function nextBizStage(targetStep) {
     signupState.district = district;
     signupState.website = website;
     signupState.official_email = email;
+    signupState.official_telephone = telephone;
+    saveSignupProgress();
   }
 
   if (current === 3) {
@@ -6926,6 +6993,7 @@ async function nextBizStage(targetStep) {
   }
 
   signupState.biz_step = targetStep;
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
@@ -6992,6 +7060,8 @@ async function finalizeNewBusinessRegistration() {
       district: signupState.district,
       website: signupState.website,
       email: signupState.official_email,
+      official_telephone: signupState.official_telephone || '',
+      telephone: signupState.official_telephone || '',
       features: signupState.features,
       representative_name: signupState.rep_name,
       phone: signupState.rep_cell,
@@ -8425,6 +8495,8 @@ async function openJobDetailModal(jobId) {
   const res = await fetch(`/api/jobs/${jobId}?user_id=${userId}`);
   if (!res.ok) return;
   const job = await res.json();
+  const isGuest = !state.currentUser || state.currentRole === 'guest';
+  const isSaved = !isGuest && (job.is_saved || (state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id)));
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
@@ -8525,7 +8597,7 @@ async function openJobDetailModal(jobId) {
 
         <div class="modal-footer">
           <button class="btn-secondary" onclick="closeModal('modal-job-detail')">Close</button>
-          <button class="btn-icon" style="width: 40px; height: 40px;" onclick="toggleSaveJob('${job.id}')">${svgIcon('star', '', 18)}</button>
+          <button class="btn-icon ${isSaved ? 'saved' : ''}" style="width: 40px; height: 40px;" onclick="toggleSaveJob('${job.id}')" title="${isGuest ? 'Log in to save favourite' : (isSaved ? 'Bookmarked' : 'Save Job')}">${isSaved ? svgIcon('starFilled', '', 18) : svgIcon('star', '', 18)}</button>
           <button class="btn-icon" style="width: 40px; height: 40px;" onclick="shareJob('${job.id}', '${encodeURIComponent(job.title)}')">${svgIcon('share', '', 18)}</button>
           ${!job.is_applied ? `
             <button class="btn-orange" onclick="closeModal('modal-job-detail'); handleApplyClick('${job.id}');">
@@ -10143,14 +10215,69 @@ function closeModal(modalId) {
 
 // Quick Actions & Utilities
 async function toggleSaveJob(jobId) {
-  if (!state.currentUser) {
-    openAuthModal('candidate');
+  if (!state.currentUser || state.currentRole === 'guest') {
+    showToast('Login required to save favourites', 'warning');
+    if (typeof startLoginFlow === 'function') {
+      startLoginFlow('candidate');
+    } else {
+      openAuthModal('candidate');
+    }
+    return;
+  }
+  if (state.currentRole !== 'jobseeker') {
+    showToast('Candidate account required to save jobs', 'warning');
     return;
   }
   try {
     const res = await fetch(`/api/saved-jobs/${jobId}?user_id=${state.currentUser.id}`, { method: 'POST' });
     const data = await res.json();
-    showToast(data.is_saved ? 'Job added to your saved bookmarks!' : 'Job removed from saved bookmarks.');
+    if (data.is_saved) {
+      if (!state.savedJobs) state.savedJobs = [];
+      if (!state.savedJobs.some(s => s.id === jobId || s.job_id === jobId)) {
+        state.savedJobs.push({ id: jobId, job_id: jobId });
+      }
+      showToast('Saved to favourites', 'success');
+    } else {
+      if (state.savedJobs) {
+        state.savedJobs = state.savedJobs.filter(s => s.id !== jobId && s.job_id !== jobId);
+      }
+      showToast('Removed from favourites', 'info');
+    }
+    // Update active job cards on page if present
+    const cardEl = document.getElementById(`job-card-${jobId}`);
+    if (cardEl) {
+      const btn = cardEl.querySelector('.card-actions .btn-icon');
+      if (btn) {
+        if (data.is_saved) {
+          btn.classList.add('saved');
+          btn.title = 'Bookmarked';
+          btn.innerHTML = svgIcon('starFilled', '', 16);
+        } else {
+          btn.classList.remove('saved');
+          btn.title = 'Save Job Post';
+          btn.innerHTML = svgIcon('star', '', 16);
+        }
+      }
+    }
+    // Update modal save button if open
+    const modalDetail = document.getElementById('modal-job-detail');
+    if (modalDetail) {
+      const modalBtn = modalDetail.querySelector('.modal-footer .btn-icon');
+      if (modalBtn) {
+        if (data.is_saved) {
+          modalBtn.classList.add('saved');
+          modalBtn.title = 'Bookmarked';
+          modalBtn.innerHTML = svgIcon('starFilled', '', 18);
+        } else {
+          modalBtn.classList.remove('saved');
+          modalBtn.title = 'Save Job';
+          modalBtn.innerHTML = svgIcon('star', '', 18);
+        }
+      }
+    }
+    if (state.currentView === 'saved' || state.currentScreen === 'saved') {
+      renderSavedJobsScreen(document.getElementById('app-viewport'));
+    }
   } catch (err) {
     showToast(err.message, 'danger');
   }

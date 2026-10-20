@@ -292,7 +292,9 @@ def init_db():
         ("thana_upazila", "TEXT DEFAULT ''"),
         ("district", "TEXT DEFAULT ''"),
         ("features", "TEXT DEFAULT '[]'"),
-        ("admin_user_id", "TEXT DEFAULT ''")
+        ("admin_user_id", "TEXT DEFAULT ''"),
+        ("telephone", "TEXT DEFAULT ''"),
+        ("official_telephone", "TEXT DEFAULT ''")
     ]:
         try:
             cursor.execute(f"ALTER TABLE businesses ADD COLUMN {col} {typ}")
