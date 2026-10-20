@@ -6845,29 +6845,24 @@ body.screen-inbox .main-wrapper {
 .guest-sugg-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border-radius: 10px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.84rem;
   color: var(--white);
   transition: all 0.15s ease;
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
 }
 
 .guest-sugg-item:hover {
-  background: rgba(255, 107, 0, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
   color: #ffffff !important;
-  transform: translateX(3px);
 }
 
 .guest-sugg-badge {
-  font-size: 0.7rem;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 600;
+  display: none !important;
 }
 
 /* 4. Drag & Drop CV Zone */

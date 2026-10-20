@@ -1429,11 +1429,8 @@ function handleGuestSearchInput(rawVal) {
 
   dropdown.innerHTML = filtered.map(item => `
     <div class="guest-sugg-item" onclick="applyGuestSuggestion('${(item.query || item.location).replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
-      <span style="display: flex; align-items: center; gap: 8px;">
-        ${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}
-        <strong>${item.label}</strong>
-      </span>
-      <span class="guest-sugg-badge">${item.category}</span>
+      <span class="field-icon-bullet">${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}</span>
+      <span class="sugg-item-title">${item.label}</span>
     </div>
   `).join('');
   dropdown.style.display = 'flex';
@@ -1478,11 +1475,8 @@ function handleCandidateSearchInput(rawVal) {
 
   dropdown.innerHTML = filtered.map(item => `
     <div class="guest-sugg-item" onclick="applyCandidateSuggestion('${(item.query || item.location || '').replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
-      <span style="display: flex; align-items: center; gap: 8px;">
-        ${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}
-        <strong>${item.label}</strong>
-      </span>
-      <span class="guest-sugg-badge">${item.category}</span>
+      <span class="field-icon-bullet">${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}</span>
+      <span class="sugg-item-title">${item.label}</span>
     </div>
   `).join('');
   dropdown.style.display = 'flex';
