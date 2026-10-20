@@ -151,23 +151,100 @@ const HOTEL_ALL_DEPARTMENTS = [
 ];
 
 const SEARCH_LOCATIONS = [
-  { value: '', label: 'All Locations in Bangladesh', shortLabel: 'All Locations', badge: 'Bangladesh' },
-  { value: 'Dhaka', label: 'Dhaka (Gulshan, Banani, Motijheel)', shortLabel: 'Dhaka', badge: 'Capital' },
-  { value: "Cox's Bazar", label: "Cox's Bazar & Inani Beach", shortLabel: "Cox's Bazar", badge: 'Beach Resort' },
-  { value: 'Sylhet', label: 'Sylhet & Sreemangal Resorts', shortLabel: 'Sylhet', badge: 'Eco/Resort' },
-  { value: 'Chittagong', label: 'Chittagong & Patenga Coast', shortLabel: 'Chittagong', badge: 'Port City' }
+  { value: '', label: 'All Locations in Bangladesh', shortLabel: 'All Locations' },
+  { value: 'Dhaka', label: 'Dhaka', shortLabel: 'Dhaka' },
+  { value: 'Chattogram', label: 'Chattogram (Chittagong)', shortLabel: 'Chattogram' },
+  { value: "Cox's Bazar", label: "Cox's Bazar", shortLabel: "Cox's Bazar" },
+  { value: 'Sylhet', label: 'Sylhet', shortLabel: 'Sylhet' },
+  { value: 'Rajshahi', label: 'Rajshahi', shortLabel: 'Rajshahi' },
+  { value: 'Khulna', label: 'Khulna', shortLabel: 'Khulna' },
+  { value: 'Barishal', label: 'Barishal', shortLabel: 'Barishal' }
 ];
 
 const SEARCH_DESIGNATIONS = [
-  { value: '', label: 'All Designations', shortLabel: 'All Designations', badge: 'Any' },
-  { value: 'General Manager', label: 'General Manager / Resident Manager', shortLabel: 'General Manager', badge: 'Executive' },
-  { value: 'Manager', label: 'Department Manager / Assistant Manager', shortLabel: 'Manager', badge: 'Management' },
-  { value: 'Supervisor', label: 'Supervisor / Team Lead', shortLabel: 'Supervisor', badge: 'Lead' },
-  { value: 'Executive', label: 'Executive / Officer', shortLabel: 'Executive', badge: 'Operational' },
-  { value: 'Chef', label: 'Executive Chef / Sous Chef / Commis', shortLabel: 'Chef', badge: 'Culinary' },
-  { value: 'Captain', label: 'F&B Captain / Senior Server', shortLabel: 'Captain', badge: 'Service' },
-  { value: 'Attendant', label: 'Housekeeping Attendant / Associate', shortLabel: 'Attendant', badge: 'Rooms' },
-  { value: 'Engineer', label: 'Duty Engineer / Technical Specialist', shortLabel: 'Engineer', badge: 'Technical' }
+  { value: '', label: 'All Designations', shortLabel: 'All Designations' },
+  // Executive & General Management
+  { value: 'General Manager', label: 'General Manager', shortLabel: 'General Manager' },
+  { value: 'Hotel Manager', label: 'Hotel Manager / Resident Manager', shortLabel: 'Hotel Manager' },
+  { value: 'Executive Assistant Manager', label: 'Executive Assistant Manager (EAM)', shortLabel: 'EAM' },
+  { value: 'Director of Operations', label: 'Director of Operations', shortLabel: 'Operations Dir.' },
+  { value: 'Operations Manager', label: 'Operations Manager', shortLabel: 'Operations Mgr.' },
+
+  // Front Office & Guest Experience
+  { value: 'Front Office Manager', label: 'Front Office Manager', shortLabel: 'FOM' },
+  { value: 'Assistant Front Office Manager', label: 'Assistant Front Office Manager', shortLabel: 'Asst. FOM' },
+  { value: 'Duty Manager', label: 'Duty Manager', shortLabel: 'Duty Manager' },
+  { value: 'Night Auditor', label: 'Night Auditor', shortLabel: 'Night Auditor' },
+  { value: 'Front Desk Supervisor', label: 'Front Desk Supervisor', shortLabel: 'Front Desk Sup.' },
+  { value: 'Front Desk Agent', label: 'Front Desk Agent / Receptionist', shortLabel: 'Front Desk' },
+  { value: 'Guest Relations Executive', label: 'Guest Relations Executive', shortLabel: 'Guest Relations' },
+  { value: 'Concierge', label: 'Concierge / Bell Captain', shortLabel: 'Concierge' },
+  { value: 'Bell Attendant', label: 'Bell Attendant / Porter / Valet', shortLabel: 'Bell Attendant' },
+
+  // Housekeeping & Laundry
+  { value: 'Executive Housekeeper', label: 'Executive Housekeeper', shortLabel: 'Exec. Housekeeper' },
+  { value: 'Assistant Executive Housekeeper', label: 'Assistant Executive Housekeeper', shortLabel: 'Asst. Housekeeper' },
+  { value: 'Housekeeping Supervisor', label: 'Housekeeping Supervisor', shortLabel: 'HK Supervisor' },
+  { value: 'Housekeeping Attendant', label: 'Housekeeping Attendant / Room Attendant', shortLabel: 'HK Attendant' },
+  { value: 'Public Area Attendant', label: 'Public Area Attendant', shortLabel: 'Public Area' },
+  { value: 'Laundry Manager', label: 'Laundry Manager / Supervisor', shortLabel: 'Laundry Mgr.' },
+  { value: 'Laundry Attendant', label: 'Laundry Attendant', shortLabel: 'Laundry Attendant' },
+
+  // Food & Beverage Service
+  { value: 'Director of Food & Beverage', label: 'Director of Food & Beverage', shortLabel: 'F&B Director' },
+  { value: 'F&B Manager', label: 'Food & Beverage Manager', shortLabel: 'F&B Manager' },
+  { value: 'Assistant F&B Manager', label: 'Assistant F&B Manager', shortLabel: 'Asst. F&B Mgr.' },
+  { value: 'Restaurant Manager', label: 'Restaurant / Outlet Manager', shortLabel: 'Restaurant Mgr.' },
+  { value: 'Banquet Manager', label: 'Banquet Manager / Supervisor', shortLabel: 'Banquet Mgr.' },
+  { value: 'F&B Captain', label: 'F&B Captain / Lead Server', shortLabel: 'F&B Captain' },
+  { value: 'Server', label: 'Waiter / Waitress / Server', shortLabel: 'Server' },
+  { value: 'Bartender', label: 'Bartender / Mixologist / Barista', shortLabel: 'Bartender' },
+  { value: 'Hostess', label: 'Hostess / Welcomer', shortLabel: 'Hostess' },
+
+  // Culinary / Kitchen & Bakery
+  { value: 'Executive Chef', label: 'Executive Chef', shortLabel: 'Executive Chef' },
+  { value: 'Executive Sous Chef', label: 'Executive Sous Chef', shortLabel: 'Exec. Sous Chef' },
+  { value: 'Sous Chef', label: 'Sous Chef', shortLabel: 'Sous Chef' },
+  { value: 'Chef de Partie', label: 'Chef de Partie (CDP)', shortLabel: 'CDP' },
+  { value: 'Demi Chef de Partie', label: 'Demi Chef de Partie', shortLabel: 'Demi CDP' },
+  { value: 'Commis Chef', label: 'Commis Chef (Commis I, II, III)', shortLabel: 'Commis Chef' },
+  { value: 'Pastry Chef', label: 'Pastry Chef / Baker', shortLabel: 'Pastry Chef' },
+  { value: 'Kitchen Steward', label: 'Kitchen Steward / Dishwasher', shortLabel: 'Steward' },
+
+  // Sales, Marketing & Revenue
+  { value: 'Director of Sales & Marketing', label: 'Director of Sales & Marketing', shortLabel: 'Sales Director' },
+  { value: 'Sales Manager', label: 'Sales Manager / Corporate Sales', shortLabel: 'Sales Manager' },
+  { value: 'Sales Executive', label: 'Sales Executive / Coordinator', shortLabel: 'Sales Executive' },
+  { value: 'Marketing Executive', label: 'Marketing & Digital PR Executive', shortLabel: 'Marketing Exec.' },
+  { value: 'Revenue Manager', label: 'Revenue Manager', shortLabel: 'Revenue Mgr.' },
+  { value: 'Reservations Manager', label: 'Reservations Manager / Agent', shortLabel: 'Reservations' },
+
+  // Human Resources & Training
+  { value: 'Director of Human Resources', label: 'Director of Human Resources', shortLabel: 'HR Director' },
+  { value: 'HR Manager', label: 'Human Resources Manager', shortLabel: 'HR Manager' },
+  { value: 'HR Executive', label: 'HR Executive / Training Officer', shortLabel: 'HR Executive' },
+
+  // Finance & Accounts
+  { value: 'Financial Controller', label: 'Financial Controller / Chief Accountant', shortLabel: 'Financial Controller' },
+  { value: 'Accounts Officer', label: 'Accounts Officer / General Cashier', shortLabel: 'Accounts Officer' },
+  { value: 'Purchasing Manager', label: 'Purchasing / Procurement Manager', shortLabel: 'Purchasing Mgr.' },
+
+  // Engineering & Maintenance
+  { value: 'Chief Engineer', label: 'Chief Engineer / Director of Engineering', shortLabel: 'Chief Engineer' },
+  { value: 'Duty Engineer', label: 'Duty Engineer / Maintenance Technician', shortLabel: 'Duty Engineer' },
+  { value: 'Electrician', label: 'Electrician / HVAC Technician', shortLabel: 'Technician' },
+
+  // Security & Safety
+  { value: 'Chief Security Officer', label: 'Chief Security Officer', shortLabel: 'Security Head' },
+  { value: 'Security Supervisor', label: 'Security Supervisor / Guard', shortLabel: 'Security Sup.' },
+
+  // Spa, Wellness & Recreation
+  { value: 'Spa Manager', label: 'Spa & Wellness Manager', shortLabel: 'Spa Manager' },
+  { value: 'Spa Therapist', label: 'Spa Therapist / Masseur', shortLabel: 'Spa Therapist' },
+  { value: 'Fitness Instructor', label: 'Fitness Instructor / Gym Trainer', shortLabel: 'Fitness Trainer' },
+
+  // IT & Telecom
+  { value: 'IT Manager', label: 'IT Manager / Systems Administrator', shortLabel: 'IT Manager' }
 ];
 
 function getSearchLocationLabel(val, isCandidate = true) {
@@ -977,14 +1054,11 @@ async function renderHomeScreen(viewport) {
                 <span class="trigger-chevron">${svgIcon('chevronDown', '', 13)}</span>
               </button>
               <input type="hidden" id="select-search-loc" value="${state.search.location || ''}">
-              <div id="dropdown-hero-loc" class="custom-filter-dropdown" style="display: none; top: calc(100% + 12px); min-width: 250px;">
+              <div id="dropdown-hero-loc" class="custom-filter-dropdown" style="display: none; top: calc(100% + 8px); min-width: 240px;">
                 ${SEARCH_LOCATIONS.map(loc => `
                   <div class="guest-sugg-item ${state.search.location === loc.value ? 'selected' : ''}" onclick="selectSearchFilter('location', '${loc.value.replace(/'/g, "\\'")}', '${(loc.shortLabel || loc.label).replace(/'/g, "\\'")}')">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                      ${svgIcon('mapPin', '', 14)}
-                      <strong>${loc.label}</strong>
-                    </span>
-                    <span class="guest-sugg-badge">${loc.badge}</span>
+                    <span class="field-icon-bullet">${svgIcon('mapPin', '', 13)}</span>
+                    <span class="sugg-item-title">${loc.label}</span>
                   </div>
                 `).join('')}
               </div>
@@ -997,21 +1071,15 @@ async function renderHomeScreen(viewport) {
                 <span class="trigger-chevron">${svgIcon('chevronDown', '', 13)}</span>
               </button>
               <input type="hidden" id="select-search-dept" value="${state.search.department || ''}">
-              <div id="dropdown-hero-dept" class="custom-filter-dropdown" style="display: none; top: calc(100% + 12px); min-width: 250px;">
+              <div id="dropdown-hero-dept" class="custom-filter-dropdown" style="display: none; top: calc(100% + 8px); min-width: 250px;">
                 <div class="guest-sugg-item ${!state.search.department ? 'selected' : ''}" onclick="selectSearchFilter('department', '', 'Department')">
-                  <span style="display: flex; align-items: center; gap: 8px;">
-                    ${svgIcon('briefcase', '', 14)}
-                    <strong>All Departments</strong>
-                  </span>
-                  <span class="guest-sugg-badge">All</span>
+                  <span class="field-icon-bullet">${svgIcon('briefcase', '', 13)}</span>
+                  <span class="sugg-item-title">All Departments</span>
                 </div>
                 ${HOTEL_ALL_DEPARTMENTS.map(d => `
                   <div class="guest-sugg-item ${state.search.department === d ? 'selected' : ''}" onclick="selectSearchFilter('department', '${d.replace(/'/g, "\\'")}', '${d.replace(/'/g, "\\'")}')">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                      ${svgIcon('briefcase', '', 14)}
-                      <strong>${d}</strong>
-                    </span>
-                    <span class="guest-sugg-badge">Dept</span>
+                    <span class="field-icon-bullet">${svgIcon('briefcase', '', 13)}</span>
+                    <span class="sugg-item-title">${d}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1070,11 +1138,8 @@ async function renderHomeScreen(viewport) {
               <div id="dropdown-search-loc" class="custom-filter-dropdown" style="display: none;">
                 ${SEARCH_LOCATIONS.map(loc => `
                   <div class="guest-sugg-item ${state.search.location === loc.value ? 'selected' : ''}" onclick="selectSearchFilter('location', '${loc.value.replace(/'/g, "\\'")}', '${loc.label.replace(/'/g, "\\'")}')">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                      ${svgIcon('mapPin', '', 14)}
-                      <strong>${loc.label}</strong>
-                    </span>
-                    <span class="guest-sugg-badge">${loc.badge}</span>
+                    <span class="field-icon-bullet">${svgIcon('mapPin', '', 13)}</span>
+                    <span class="sugg-item-title">${loc.label}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1088,19 +1153,13 @@ async function renderHomeScreen(viewport) {
               <input type="hidden" id="select-search-dept" value="${state.search.department || ''}">
               <div id="dropdown-search-dept" class="custom-filter-dropdown" style="display: none;">
                 <div class="guest-sugg-item ${!state.search.department ? 'selected' : ''}" onclick="selectSearchFilter('department', '', 'All Departments')">
-                  <span style="display: flex; align-items: center; gap: 8px;">
-                    ${svgIcon('briefcase', '', 14)}
-                    <strong>All Departments</strong>
-                  </span>
-                  <span class="guest-sugg-badge">All</span>
+                  <span class="field-icon-bullet">${svgIcon('briefcase', '', 13)}</span>
+                  <span class="sugg-item-title">All Departments</span>
                 </div>
                 ${HOTEL_ALL_DEPARTMENTS.map(d => `
                   <div class="guest-sugg-item ${state.search.department === d ? 'selected' : ''}" onclick="selectSearchFilter('department', '${d.replace(/'/g, "\\'")}', '${d.replace(/'/g, "\\'")}')">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                      ${svgIcon('briefcase', '', 14)}
-                      <strong>${d}</strong>
-                    </span>
-                    <span class="guest-sugg-badge">Dept</span>
+                    <span class="field-icon-bullet">${svgIcon('briefcase', '', 13)}</span>
+                    <span class="sugg-item-title">${d}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1115,11 +1174,8 @@ async function renderHomeScreen(viewport) {
               <div id="dropdown-search-desig" class="custom-filter-dropdown" style="display: none;">
                 ${SEARCH_DESIGNATIONS.map(d => `
                   <div class="guest-sugg-item ${state.search.designation === d.value ? 'selected' : ''}" onclick="selectSearchFilter('designation', '${d.value.replace(/'/g, "\\'")}', '${d.label.replace(/'/g, "\\'")}')">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                      ${svgIcon('user', '', 14)}
-                      <strong>${d.label}</strong>
-                    </span>
-                    <span class="guest-sugg-badge">${d.badge}</span>
+                    <span class="field-icon-bullet">${svgIcon('user', '', 13)}</span>
+                    <span class="sugg-item-title">${d.label}</span>
                   </div>
                 `).join('')}
               </div>

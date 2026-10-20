@@ -142,9 +142,15 @@ def get_jobs(
         params.extend([like_q, like_q, like_q])
 
     if location:
-        query += " AND (b.city LIKE ? OR j.property_location LIKE ?)"
-        like_loc = f"%{location}%"
-        params.extend([like_loc, like_loc])
+        loc_str = location.strip()
+        if 'chattogram' in loc_str.lower() or 'chittagong' in loc_str.lower():
+            query += " AND (b.city LIKE '%Chittagong%' OR b.city LIKE '%Chattogram%' OR j.property_location LIKE '%Chittagong%' OR j.property_location LIKE '%Chattogram%')"
+        elif 'barishal' in loc_str.lower() or 'barisal' in loc_str.lower():
+            query += " AND (b.city LIKE '%Barishal%' OR b.city LIKE '%Barisal%' OR j.property_location LIKE '%Barishal%' OR j.property_location LIKE '%Barisal%')"
+        else:
+            query += " AND (b.city LIKE ? OR j.property_location LIKE ?)"
+            like_loc = f"%{loc_str}%"
+            params.extend([like_loc, like_loc])
 
     if department:
         query += " AND j.department = ?"
