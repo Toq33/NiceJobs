@@ -4855,7 +4855,9 @@ button {
   }
 
   .hero-left-col {
-    height: auto;
+    height: auto !important;
+    position: relative !important;
+    z-index: 5 !important;
   }
 
   .hero-title {
@@ -4870,16 +4872,24 @@ button {
     max-width: 100%;
   }
 
+  .perspective-back-frame {
+    display: none !important;
+  }
+
   .hero-perspective-wrap {
-    max-width: 340px;
-    margin: 0 auto;
+    max-width: 420px;
+    margin: 8px auto 0 auto;
     width: 100%;
-    height: auto;
+    height: auto !important;
+    overflow: hidden !important;
+    position: relative !important;
+    z-index: 1 !important;
   }
 
   .perspective-main-card {
-    height: 180px;
+    height: 160px;
     border-radius: 14px;
+    width: 100%;
   }
 
   .content-grid {
@@ -4977,95 +4987,201 @@ button {
 
   /* Medium Guest Search Capsule */
   .hero-search-capsule {
-    border-radius: 14px;
-    padding: 10px 12px;
-    gap: 8px;
-    flex-direction: column;
-    align-items: stretch;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    border-radius: 16px !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    z-index: 10 !important;
   }
 
   .capsule-main-query {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    padding: 0 10px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.2s ease, background 0.2s ease !important;
+  }
+
+  .capsule-main-query:focus-within {
+    background: rgba(255, 255, 255, 0.07) !important;
+    border-color: rgba(255, 107, 0, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.15) !important;
+  }
+
+  .capsule-main-query .field-icon {
+    color: rgba(255, 255, 255, 0.5) !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .capsule-main-query input {
+    flex: 1 !important;
+    min-width: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: var(--white) !important;
+    font-size: 0.88rem !important;
+    padding: 8px 0 !important;
+    font-weight: 500 !important;
+  }
+
+  .capsule-main-query input::placeholder {
+    color: rgba(255, 255, 255, 0.42) !important;
+    font-size: 0.84rem !important;
   }
 
   .btn-hero-filter-expand {
     display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.65);
-    cursor: pointer;
-    transition: var(--transition);
-    padding: 0;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 8px !important;
+    color: rgba(255, 255, 255, 0.65) !important;
+    cursor: pointer !important;
+    transition: var(--transition) !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
   }
 
   .btn-hero-filter-expand:hover,
   .btn-hero-filter-expand.is-active {
-    background: rgba(255, 107, 0, 0.15);
-    border-color: var(--orange-primary);
-    color: var(--orange-primary);
+    background: rgba(255, 107, 0, 0.2) !important;
+    border-color: var(--orange-primary) !important;
+    color: var(--orange-primary) !important;
   }
 
   .hero-capsule-extra-fields {
     display: none;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-    animation: fadeIn 0.2s ease;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    animation: fadeIn 0.2s ease !important;
   }
 
   .hero-capsule-extra-fields.is-expanded {
     display: flex !important;
   }
 
+  .hero-capsule-extra-fields .capsule-field {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    padding: 0 10px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    box-sizing: border-box !important;
+    flex: none !important;
+  }
+
+  .hero-capsule-extra-fields .capsule-field .field-icon {
+    color: rgba(255, 255, 255, 0.5) !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .hero-capsule-extra-fields .capsule-field select {
+    flex: 1 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 8px center !important;
+    border: none !important;
+    outline: none !important;
+    color: var(--white) !important;
+    font-size: 0.84rem !important;
+    padding: 8px 24px 8px 0 !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  .hero-capsule-extra-fields .capsule-field select option {
+    background: #0a1128 !important;
+    color: #ffffff !important;
+  }
+
   .capsule-divider {
     display: none !important;
   }
 
-  .capsule-field {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    padding: 6px 10px;
-    min-height: 34px;
-    gap: 8px;
-  }
-
-  .capsule-field input,
-  .capsule-field select {
-    font-size: 0.82rem;
-    padding: 2px 0;
-  }
-
-  .capsule-field .field-icon svg {
-    width: 14px;
-    height: 14px;
-  }
-
   .hero-search-btn {
-    width: 100%;
-    height: 36px;
-    border-radius: 8px;
-    font-size: 0.84rem;
-    font-weight: 700;
-    gap: 6px;
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    background: var(--orange-gradient) !important;
+    color: #ffffff !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    border: none !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 16px rgba(255, 107, 0, 0.35) !important;
+    margin-top: 2px !important;
+    box-sizing: border-box !important;
+    transition: var(--transition) !important;
+  }
+
+  .hero-search-btn svg {
+    width: 16px !important;
+    height: 16px !important;
+    stroke: #ffffff !important;
+    stroke-width: 2.5 !important;
+    flex-shrink: 0 !important;
   }
 
   .hero-btn-label {
     display: inline !important;
-    font-size: 0.84rem;
-    font-weight: 700;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+  }
+
+  .guest-search-dropdown {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin-top: 6px !important;
+    border-radius: 12px !important;
+    z-index: 100 !important;
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    background: rgba(10, 17, 40, 0.96) !important;
+    backdrop-filter: blur(28px) !important;
+    -webkit-backdrop-filter: blur(28px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
   }
 
   /* Candidate Console Medium Sizing */
@@ -5654,7 +5770,29 @@ button {
   }
 
   .perspective-main-card {
-    height: 150px;
+    height: 130px !important;
+  }
+
+  .hero-search-capsule {
+    padding: 8px 10px !important;
+    gap: 6px !important;
+    border-radius: 12px !important;
+  }
+
+  .capsule-main-query {
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  .hero-capsule-extra-fields .capsule-field {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .hero-search-btn {
+    height: 40px !important;
+    min-height: 40px !important;
+    font-size: 0.84rem !important;
   }
 
   .hero-title {
