@@ -590,6 +590,7 @@ button {
   align-items: flex-end;
   padding: 4px 0 6px 0;
   position: relative;
+  z-index: 30;
 }
 
 @media (max-width: 968px) {
@@ -662,6 +663,8 @@ button {
 
 /* Glass Capsule Search Bar (Reference matching) */
 .hero-search-capsule {
+  position: relative;
+  z-index: 40;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1046,6 +1049,8 @@ button {
   padding: 16px;
   box-shadow: var(--shadow-md);
   margin-bottom: 28px;
+  position: relative;
+  z-index: 30;
 }
 
 .search-main-row {
@@ -1066,7 +1071,7 @@ button {
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #60a5fa;
+  color: var(--text-dim) !important;
   font-size: 1.1rem;
   pointer-events: none;
   z-index: 2;
@@ -1074,96 +1079,169 @@ button {
   align-items: center;
 }
 
-.search-field input {
-  width: 100%;
-  height: 44px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0 14px 0 42px;
-  color: var(--white);
-  font-size: 0.92rem;
-  transition: var(--transition);
-  box-sizing: border-box;
-}
-
-.search-field input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-/* Rich Blue Dropdowns for Location, All Departments, and All Designations */
+/* Unified Styling: Location, Department & Designation match Job Search Input */
+.search-field input,
 .search-field select,
-#select-search-loc,
-#select-search-dept,
-#select-search-desig {
+.search-field-trigger {
   width: 100%;
   height: 44px;
-  background-color: #0d1e48 !important;
-  border: 1.5px solid #2563eb !important;
+  background: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-md) !important;
-  padding: 0 36px 0 42px !important;
-  color: #ffffff !important;
+  padding: 0 14px 0 42px !important;
+  color: var(--white) !important;
   font-size: 0.92rem !important;
-  font-weight: 600 !important;
-  cursor: pointer !important;
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 14px center !important;
-  box-shadow: 0 2px 8px rgba(10, 25, 60, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-  transition: all 0.2s ease !important;
+  transition: var(--transition) !important;
   box-sizing: border-box !important;
 }
 
-.search-field select:hover,
-#select-search-loc:hover,
-#select-search-dept:hover,
-#select-search-desig:hover {
-  background-color: #122860 !important;
-  border-color: #3b82f6 !important;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+.search-field input:hover,
+.search-field-trigger:hover,
+.search-field select:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
-.search-field select:focus,
-#select-search-loc:focus,
-#select-search-dept:focus,
-#select-search-desig:focus {
+.search-field input:focus,
+.search-field-trigger:focus,
+.search-field-trigger.is-open,
+.search-field select:focus {
   outline: none !important;
-  border-color: #60a5fa !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35), 0 0 16px rgba(59, 130, 246, 0.4) !important;
-  background-color: #152f70 !important;
+  border-color: var(--orange-primary) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Solid Opaque Luxury Deep Blue Background for all Select Options (Prevents white-on-white bug) */
-select option,
-.search-field select option,
-#select-search-loc option,
-#select-search-dept option,
-#select-search-desig option,
-.capsule-field select option {
-  background: #0c1c44 !important;
-  background-color: #0c1c44 !important;
-  color: #ffffff !important;
-  padding: 10px 14px !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
+/* Custom Dropdown Trigger for Location, Department, Designation */
+.search-field-trigger {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  user-select: none !important;
 }
 
-select option:checked,
-select option:hover,
-select option:focus,
-.search-field select option:checked,
-.search-field select option:hover,
-#select-search-loc option:checked,
-#select-search-dept option:checked,
-#select-search-desig option:checked {
-  background: #1d4ed8 !important;
-  background-color: #1d4ed8 !important;
+.search-field-trigger .trigger-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  color: var(--white);
+  font-weight: 500;
+}
+
+.search-field-trigger .trigger-chevron {
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.search-field-trigger.is-open .trigger-chevron {
+  transform: rotate(180deg);
+  color: var(--orange-primary);
+}
+
+/* Capsule Trigger for Guest Hero Search */
+.capsule-field-trigger {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--white);
+  font-size: 0.92rem;
+  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.capsule-field-trigger .trigger-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  color: var(--white);
+}
+
+.capsule-field-trigger .trigger-chevron {
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  transition: transform 0.2s ease;
+}
+
+.capsule-field-trigger.is-open .trigger-chevron {
+  transform: rotate(180deg);
+  color: var(--orange-primary);
+}
+
+/* Dropdown System: Reuses the Job Search Dropdown Color & Glass Blur System */
+.custom-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  min-width: 250px;
+  background: rgba(10, 17, 40, 0.96) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 16px !important;
+  padding: 8px !important;
+  z-index: 1000 !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-filter-dropdown::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-filter-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-filter-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.custom-filter-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+#dropdown-search-desig {
+  right: 0 !important;
+  left: auto !important;
+}
+
+.guest-sugg-item.selected {
+  background: rgba(255, 107, 0, 0.2) !important;
+  border: 1px solid rgba(255, 107, 0, 0.4) !important;
   color: #ffffff !important;
+}
+
+.guest-sugg-item.selected .guest-sugg-badge {
+  background: var(--orange-primary) !important;
+  color: #ffffff !important;
+}
+
+/* Fallback for standard option elements */
+select option {
+  background: #0a1128 !important;
+  background-color: #0a1128 !important;
+  color: #ffffff !important;
+  padding: 8px 12px;
 }
 
 .search-filter-pills {
@@ -5194,19 +5272,18 @@ select option:focus,
     flex-shrink: 0 !important;
   }
 
-  .hero-capsule-extra-fields .capsule-field select {
+  .hero-capsule-extra-fields .capsule-field select,
+  .hero-capsule-extra-fields .capsule-field .capsule-field-trigger {
     flex: 1 !important;
     min-width: 0 !important;
     width: 100% !important;
-    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 8px center !important;
     border: none !important;
     outline: none !important;
     color: var(--white) !important;
     font-size: 0.84rem !important;
-    padding: 8px 24px 8px 0 !important;
     cursor: pointer !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
+    padding: 0 !important;
+    background: transparent !important;
   }
 
   .hero-capsule-extra-fields .capsule-field select option {
@@ -5322,19 +5399,13 @@ select option:focus,
     font-size: 0.9rem !important;
   }
 
-  .search-field input {
-    height: 36px !important;
-    padding: 6px 10px 6px 32px !important;
-    font-size: 0.82rem !important;
-    border-radius: 8px !important;
-  }
-
+  .search-field input,
+  .search-field-trigger,
   .search-field select {
     height: 38px !important;
-    padding: 0 28px 0 32px !important;
-    font-size: 0.82rem !important;
+    padding: 0 12px 0 32px !important;
+    font-size: 0.84rem !important;
     border-radius: 8px !important;
-    background-position: right 10px center !important;
   }
 
   .search-main-row .btn-orange {

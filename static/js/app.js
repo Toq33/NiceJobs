@@ -150,6 +150,42 @@ const HOTEL_ALL_DEPARTMENTS = [
   "Executive Office / General Management"
 ];
 
+const SEARCH_LOCATIONS = [
+  { value: '', label: 'All Locations in Bangladesh', shortLabel: 'All Locations', badge: 'Bangladesh' },
+  { value: 'Dhaka', label: 'Dhaka (Gulshan, Banani, Motijheel)', shortLabel: 'Dhaka', badge: 'Capital' },
+  { value: "Cox's Bazar", label: "Cox's Bazar & Inani Beach", shortLabel: "Cox's Bazar", badge: 'Beach Resort' },
+  { value: 'Sylhet', label: 'Sylhet & Sreemangal Resorts', shortLabel: 'Sylhet', badge: 'Eco/Resort' },
+  { value: 'Chittagong', label: 'Chittagong & Patenga Coast', shortLabel: 'Chittagong', badge: 'Port City' }
+];
+
+const SEARCH_DESIGNATIONS = [
+  { value: '', label: 'All Designations', shortLabel: 'All Designations', badge: 'Any' },
+  { value: 'General Manager', label: 'General Manager / Resident Manager', shortLabel: 'General Manager', badge: 'Executive' },
+  { value: 'Manager', label: 'Department Manager / Assistant Manager', shortLabel: 'Manager', badge: 'Management' },
+  { value: 'Supervisor', label: 'Supervisor / Team Lead', shortLabel: 'Supervisor', badge: 'Lead' },
+  { value: 'Executive', label: 'Executive / Officer', shortLabel: 'Executive', badge: 'Operational' },
+  { value: 'Chef', label: 'Executive Chef / Sous Chef / Commis', shortLabel: 'Chef', badge: 'Culinary' },
+  { value: 'Captain', label: 'F&B Captain / Senior Server', shortLabel: 'Captain', badge: 'Service' },
+  { value: 'Attendant', label: 'Housekeeping Attendant / Associate', shortLabel: 'Attendant', badge: 'Rooms' },
+  { value: 'Engineer', label: 'Duty Engineer / Technical Specialist', shortLabel: 'Engineer', badge: 'Technical' }
+];
+
+function getSearchLocationLabel(val, isCandidate = true) {
+  const match = SEARCH_LOCATIONS.find(l => l.value === val);
+  if (!match) return isCandidate ? 'All Locations in Bangladesh' : 'Location';
+  return isCandidate ? match.label : match.shortLabel;
+}
+
+function getSearchDepartmentLabel(val) {
+  if (!val) return 'All Departments';
+  return val;
+}
+
+function getSearchDesignationLabel(val) {
+  const match = SEARCH_DESIGNATIONS.find(d => d.value === val);
+  return match ? match.label : 'All Designations';
+}
+
 const HOTEL_EDUCATION_DEGREES = [
   "Secondary School Certificate (SSC)",
   "Higher Secondary Certificate (HSC)",
@@ -934,23 +970,51 @@ async function renderHomeScreen(viewport) {
           </div>
           <div class="hero-capsule-extra-fields ${(state.search.location || state.search.department) ? 'is-expanded' : ''}" id="hero-capsule-extra-fields">
             <div class="capsule-divider"></div>
-            <div class="capsule-field field-location">
+            <div class="capsule-field field-location" style="position: relative;">
               <span class="field-icon">${svgIcon('mapPin', '', 15)}</span>
-              <select id="select-search-loc" onchange="executeSearch()">
-                <option value="">Location</option>
-                <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
-                <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
-                <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
-                <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
-              </select>
+              <button type="button" class="capsule-field-trigger" id="trigger-hero-loc" onclick="toggleSearchCustomDropdown('hero-loc', event)" aria-haspopup="listbox" aria-expanded="false">
+                <span class="trigger-label">${getSearchLocationLabel(state.search.location, false)}</span>
+                <span class="trigger-chevron">${svgIcon('chevronDown', '', 13)}</span>
+              </button>
+              <input type="hidden" id="select-search-loc" value="${state.search.location || ''}">
+              <div id="dropdown-hero-loc" class="custom-filter-dropdown" style="display: none; top: calc(100% + 12px); min-width: 250px;">
+                ${SEARCH_LOCATIONS.map(loc => `
+                  <div class="guest-sugg-item ${state.search.location === loc.value ? 'selected' : ''}" onclick="selectSearchFilter('location', '${loc.value.replace(/'/g, "\\'")}', '${(loc.shortLabel || loc.label).replace(/'/g, "\\'")}')">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('mapPin', '', 14)}
+                      <strong>${loc.label}</strong>
+                    </span>
+                    <span class="guest-sugg-badge">${loc.badge}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
             <div class="capsule-divider"></div>
-            <div class="capsule-field">
+            <div class="capsule-field" style="position: relative;">
               <span class="field-icon">${svgIcon('briefcase', '', 15)}</span>
-              <select id="select-search-dept" onchange="executeSearch()">
-                <option value="">Department</option>
-                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
-              </select>
+              <button type="button" class="capsule-field-trigger" id="trigger-hero-dept" onclick="toggleSearchCustomDropdown('hero-dept', event)" aria-haspopup="listbox" aria-expanded="false">
+                <span class="trigger-label">${state.search.department || 'Department'}</span>
+                <span class="trigger-chevron">${svgIcon('chevronDown', '', 13)}</span>
+              </button>
+              <input type="hidden" id="select-search-dept" value="${state.search.department || ''}">
+              <div id="dropdown-hero-dept" class="custom-filter-dropdown" style="display: none; top: calc(100% + 12px); min-width: 250px;">
+                <div class="guest-sugg-item ${!state.search.department ? 'selected' : ''}" onclick="selectSearchFilter('department', '', 'Department')">
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    ${svgIcon('briefcase', '', 14)}
+                    <strong>All Departments</strong>
+                  </span>
+                  <span class="guest-sugg-badge">All</span>
+                </div>
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `
+                  <div class="guest-sugg-item ${state.search.department === d ? 'selected' : ''}" onclick="selectSearchFilter('department', '${d.replace(/'/g, "\\'")}', '${d.replace(/'/g, "\\'")}')">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('briefcase', '', 14)}
+                      <strong>${d}</strong>
+                    </span>
+                    <span class="guest-sugg-badge">Dept</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
           <button class="hero-search-btn" onclick="executeSearch()" title="Search Opportunities">
@@ -996,36 +1060,69 @@ async function renderHomeScreen(viewport) {
             <div id="candidate-search-dropdown" class="candidate-search-dropdown" style="display: none;"></div>
           </div>
           <div class="mobile-search-extra-fields ${(state.search.location || state.search.department || state.search.designation) ? 'is-expanded' : ''}" id="candidate-mobile-extra-fields">
-            <div class="search-field">
+            <div class="search-field" style="position: relative;">
               <span class="field-icon">${svgIcon('mapPin', '', 16)}</span>
-              <select id="select-search-loc" onchange="executeSearch()">
-                <option value="">All Locations in Bangladesh</option>
-                <option value="Dhaka" ${state.search.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
-                <option value="Cox's Bazar" ${state.search.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar & Inani Beach</option>
-                <option value="Sylhet" ${state.search.location === 'Sylhet' ? 'selected' : ''}>Sylhet & Sreemangal Resorts</option>
-                <option value="Chittagong" ${state.search.location === 'Chittagong' ? 'selected' : ''}>Chittagong & Patenga</option>
-              </select>
+              <button type="button" class="search-field-trigger" id="trigger-search-loc" onclick="toggleSearchCustomDropdown('search-loc', event)" aria-haspopup="listbox" aria-expanded="false">
+                <span class="trigger-label">${getSearchLocationLabel(state.search.location, true)}</span>
+                <span class="trigger-chevron">${svgIcon('chevronDown', '', 14)}</span>
+              </button>
+              <input type="hidden" id="select-search-loc" value="${state.search.location || ''}">
+              <div id="dropdown-search-loc" class="custom-filter-dropdown" style="display: none;">
+                ${SEARCH_LOCATIONS.map(loc => `
+                  <div class="guest-sugg-item ${state.search.location === loc.value ? 'selected' : ''}" onclick="selectSearchFilter('location', '${loc.value.replace(/'/g, "\\'")}', '${loc.label.replace(/'/g, "\\'")}')">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('mapPin', '', 14)}
+                      <strong>${loc.label}</strong>
+                    </span>
+                    <span class="guest-sugg-badge">${loc.badge}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
-            <div class="search-field">
+            <div class="search-field" style="position: relative;">
               <span class="field-icon">${svgIcon('briefcase', '', 16)}</span>
-              <select id="select-search-dept" onchange="executeSearch()">
-                <option value="">All Departments</option>
-                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${state.search.department === d ? 'selected' : ''}>${d}</option>`).join('')}
-              </select>
+              <button type="button" class="search-field-trigger" id="trigger-search-dept" onclick="toggleSearchCustomDropdown('search-dept', event)" aria-haspopup="listbox" aria-expanded="false">
+                <span class="trigger-label">${getSearchDepartmentLabel(state.search.department)}</span>
+                <span class="trigger-chevron">${svgIcon('chevronDown', '', 14)}</span>
+              </button>
+              <input type="hidden" id="select-search-dept" value="${state.search.department || ''}">
+              <div id="dropdown-search-dept" class="custom-filter-dropdown" style="display: none;">
+                <div class="guest-sugg-item ${!state.search.department ? 'selected' : ''}" onclick="selectSearchFilter('department', '', 'All Departments')">
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    ${svgIcon('briefcase', '', 14)}
+                    <strong>All Departments</strong>
+                  </span>
+                  <span class="guest-sugg-badge">All</span>
+                </div>
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `
+                  <div class="guest-sugg-item ${state.search.department === d ? 'selected' : ''}" onclick="selectSearchFilter('department', '${d.replace(/'/g, "\\'")}', '${d.replace(/'/g, "\\'")}')">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('briefcase', '', 14)}
+                      <strong>${d}</strong>
+                    </span>
+                    <span class="guest-sugg-badge">Dept</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
-            <div class="search-field">
+            <div class="search-field" style="position: relative;">
               <span class="field-icon">${svgIcon('user', '', 16)}</span>
-              <select id="select-search-desig" onchange="executeSearch()">
-                <option value="">All Designations</option>
-                <option value="General Manager" ${state.search.designation === 'General Manager' ? 'selected' : ''}>General Manager</option>
-                <option value="Manager" ${state.search.designation === 'Manager' ? 'selected' : ''}>Department Manager</option>
-                <option value="Supervisor" ${state.search.designation === 'Supervisor' ? 'selected' : ''}>Supervisor / Lead</option>
-                <option value="Executive" ${state.search.designation === 'Executive' ? 'selected' : ''}>Executive / Officer</option>
-                <option value="Chef" ${state.search.designation === 'Chef' ? 'selected' : ''}>Executive Chef / Commis</option>
-                <option value="Captain" ${state.search.designation === 'Captain' ? 'selected' : ''}>F&B Captain / Server</option>
-                <option value="Attendant" ${state.search.designation === 'Attendant' ? 'selected' : ''}>Housekeeping Attendant</option>
-                <option value="Engineer" ${state.search.designation === 'Engineer' ? 'selected' : ''}>Duty Engineer / Tech</option>
-              </select>
+              <button type="button" class="search-field-trigger" id="trigger-search-desig" onclick="toggleSearchCustomDropdown('search-desig', event)" aria-haspopup="listbox" aria-expanded="false">
+                <span class="trigger-label">${getSearchDesignationLabel(state.search.designation)}</span>
+                <span class="trigger-chevron">${svgIcon('chevronDown', '', 14)}</span>
+              </button>
+              <input type="hidden" id="select-search-desig" value="${state.search.designation || ''}">
+              <div id="dropdown-search-desig" class="custom-filter-dropdown" style="display: none;">
+                ${SEARCH_DESIGNATIONS.map(d => `
+                  <div class="guest-sugg-item ${state.search.designation === d.value ? 'selected' : ''}" onclick="selectSearchFilter('designation', '${d.value.replace(/'/g, "\\'")}', '${d.label.replace(/'/g, "\\'")}')">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('user', '', 14)}
+                      <strong>${d.label}</strong>
+                    </span>
+                    <span class="guest-sugg-badge">${d.badge}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
           <button type="button" class="btn-mobile-search-expand" id="btn-toggle-candidate-filters" onclick="toggleMobileSearchFields()">
@@ -1404,13 +1501,74 @@ function toggleMobileSearchFields() {
   }
 }
 
-// Global click dismiss for suggestions dropdowns
+function toggleSearchCustomDropdown(type, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const dropdown = document.getElementById(`dropdown-${type}`);
+  const trigger = document.getElementById(`trigger-${type}`);
+  if (!dropdown) return;
+  const isCurrentlyOpen = dropdown.style.display === 'flex' || dropdown.style.display === 'block';
+
+  // Close any open custom dropdowns first
+  closeAllCustomSearchDropdowns();
+  closeCandidateSearchDropdown();
+  closeGuestSearchDropdown();
+
+  if (!isCurrentlyOpen) {
+    dropdown.style.display = 'flex';
+    trigger?.classList.add('is-open');
+    trigger?.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function closeAllCustomSearchDropdowns() {
+  document.querySelectorAll('.custom-filter-dropdown').forEach(dd => {
+    dd.style.display = 'none';
+  });
+  document.querySelectorAll('.search-field-trigger, .capsule-field-trigger').forEach(trig => {
+    trig.classList.remove('is-open');
+    trig.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function selectSearchFilter(type, val, label) {
+  if (type === 'location') {
+    state.search.location = val;
+    const hiddenLoc = document.getElementById('select-search-loc');
+    if (hiddenLoc) hiddenLoc.value = val;
+  } else if (type === 'department') {
+    state.search.department = val;
+    const hiddenDept = document.getElementById('select-search-dept');
+    if (hiddenDept) hiddenDept.value = val;
+  } else if (type === 'designation') {
+    state.search.designation = val;
+    const hiddenDesig = document.getElementById('select-search-desig');
+    if (hiddenDesig) hiddenDesig.value = val;
+  }
+  closeAllCustomSearchDropdowns();
+  renderHomeScreen(document.getElementById('app-viewport'));
+}
+
+// Global click dismiss for suggestions dropdowns & custom filter dropdowns
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#guest-search-dropdown') && !e.target.closest('#hero-search-capsule')) {
     closeGuestSearchDropdown();
   }
-  if (!e.target.closest('#candidate-search-dropdown') && !e.target.closest('.search-field')) {
+  if (!e.target.closest('#candidate-search-dropdown') && !e.target.closest('#input-search-q')) {
     closeCandidateSearchDropdown();
+  }
+  if (!e.target.closest('.custom-filter-dropdown') && !e.target.closest('.search-field-trigger') && !e.target.closest('.capsule-field-trigger')) {
+    closeAllCustomSearchDropdowns();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeGuestSearchDropdown();
+    closeCandidateSearchDropdown();
+    closeAllCustomSearchDropdowns();
   }
 });
 
