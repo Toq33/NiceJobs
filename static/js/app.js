@@ -677,7 +677,7 @@ function switchRole(role) {
       avatar: '/static/images/candidate_rahim.jpg'
     };
     statusText.innerHTML = `Signed in as <strong>Rahim Ahmed</strong> (Front Office Supervisor)`;
-    showToast('Switched perspective to Job Seeker (Rahim Ahmed)');
+    showToast('Job Seeker mode');
     loadInitialData().then(() => {
       updateNavigation();
       if (state.currentScreen === 'recruiter-dashboard' || state.currentScreen === 'ats' || state.currentScreen === 'admin') {
@@ -700,7 +700,7 @@ function switchRole(role) {
       is_business_admin: true
     };
     statusText.innerHTML = `Signed in as <strong>Fatima Khan</strong> (Business Admin, Radisson Blu Dhaka)`;
-    showToast('Switched perspective to Hotel Employer (Business Admin)');
+    showToast('Employer mode');
     loadInitialData().then(() => {
       updateNavigation();
       navigateTo('recruiter-dashboard');
@@ -711,7 +711,7 @@ function switchRole(role) {
       statusText.innerHTML = `Signed in as <strong>${state.currentUser.name}</strong> (Platform Admin)`;
       navigateTo('admin');
     } else {
-      showToast('Administrative console requires verified credentials.', 'warning');
+      showToast('Admin login required', 'warning');
       navigateTo('admin-login');
       return;
     }
@@ -720,7 +720,7 @@ function switchRole(role) {
     state.notifications = [];
     state.conversations = [];
     statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
-    showToast('Browsing as Public Guest. Log-in required to apply or view candidate CVs.');
+    showToast('Guest mode');
     navigateTo('home');
   }
 
@@ -731,11 +731,11 @@ async function resetDemoData() {
   try {
     const res = await fetch('/api/admin/reset-demo', { method: 'POST' });
     const data = await res.json();
-    showToast('Demo data re-initialized to initial fresh state!', 'success');
+    showToast('Demo reset!', 'success');
     await loadInitialData();
     renderApp();
   } catch (err) {
-    showToast('Failed to reset demo data: ' + err.message, 'danger');
+    showToast('Reset failed: ' + err.message, 'danger');
   }
 }
 
@@ -821,7 +821,6 @@ function updateNavigation() {
 
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 8px;">
-        <button class="btn-nav-search" onclick="document.getElementById('input-search-q')?.focus()" title="Search Opportunities">${svgIcon('search', '', 16)}</button>
         <button class="btn-icon" style="position: relative; color: var(--white); border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);" onclick="openNotificationsModal()" title="Notifications">
           ${svgIcon('bell', '', 17)}
           ${totalUnreadNotifs > 0 ? `<span class="badge-count" style="position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; font-size: 0.65rem; padding: 0 4px; display: flex; align-items: center; justify-content: center;">${totalUnreadNotifs}</span>` : ''}
@@ -907,7 +906,6 @@ function updateNavigation() {
       <li class="nav-item"><a href="#resources" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
     `;
     actionsHtml = `
-      <button class="btn-nav-search" onclick="document.getElementById('input-search-q')?.focus()" title="Search Opportunities">${svgIcon('search', '', 16)}</button>
       <button class="btn-secondary nav-guest-signin" onclick="startLoginFlow('candidate')">Log In</button>
       <button class="btn-orange nav-guest-getstarted" onclick="startSignupFlow('candidate')">Sign Up</button>
     `;
@@ -1102,6 +1100,42 @@ async function renderHomeScreen(viewport) {
         </div>
       </div>
     </section>
+
+    <!-- Frosted Glass Feature Cards Below Guest Search Bar -->
+    <div class="feature-glass-grid">
+      <div class="feature-glass-card" onclick="document.getElementById('jobs-feed-anchor')?.scrollIntoView({behavior: 'smooth'})" role="button" tabindex="0">
+        <div>
+          <div class="feature-icon-box">${svgIcon('briefcase', '', 20)}</div>
+          <div class="feature-card-title">Find Jobs</div>
+          <div class="feature-card-desc">Explore verified opportunities in hospitality.</div>
+        </div>
+        <div class="feature-card-arrow">→</div>
+      </div>
+      <div class="feature-glass-card" onclick="startSignupFlow('business', 1, 'new')" role="button" tabindex="0">
+        <div>
+          <div class="feature-icon-box">${svgIcon('users', '', 20)}</div>
+          <div class="feature-card-title">Hire Talent</div>
+          <div class="feature-card-desc">Connect with skilled professionals.</div>
+        </div>
+        <div class="feature-card-arrow">→</div>
+      </div>
+      <div class="feature-glass-card" onclick="navigateTo('blog')" role="button" tabindex="0">
+        <div>
+          <div class="feature-icon-box">${svgIcon('trendingUp', '', 20)}</div>
+          <div class="feature-card-title">Grow Together</div>
+          <div class="feature-card-desc">Build a stronger hospitality future.</div>
+        </div>
+        <div class="feature-card-arrow">→</div>
+      </div>
+      <div class="feature-glass-card" onclick="startSignupFlow('candidate')" role="button" tabindex="0">
+        <div>
+          <div class="feature-icon-box">${svgIcon('star', '', 20)}</div>
+          <div class="feature-card-title">Premium Access</div>
+          <div class="feature-card-desc">Unlock exclusive opportunities.</div>
+        </div>
+        <div class="feature-card-arrow">→</div>
+      </div>
+    </div>
 
     <div id="jobs-feed-anchor"></div>
     ` : `
@@ -4705,22 +4739,27 @@ function renderSignupPage(viewport) {
         <!-- Top Navigation -->
         <div class="auth-card-top-nav">
           ${isCandidate ? `
-            ${signupState.stage > 1 ? `
-              <button type="button" class="auth-back-btn" onclick="prevSignupStage()">← Back</button>
-            ` : `
-              <button type="button" class="auth-back-btn" onclick="startLoginFlow('candidate')">← Log In</button>
-            `}
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${signupState.stage > 1 ? `
+                <button type="button" class="auth-back-btn" onclick="prevSignupStage()">← Back</button>
+              ` : ''}
+              <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('candidate')" title="Sign In with Existing Account">
+                ${svgIcon('user', '', 14)} <span>Already have an account? <strong>Log In</strong></span>
+              </button>
+            </div>
             <span class="auth-stage-indicator">Candidate Registration</span>
           ` : `
-            ${signupState.biz_route !== 'choose' ? `
-              <button type="button" class="auth-back-btn" onclick="prevBizStage()">← Back</button>
-              <span class="auth-stage-indicator">
-                ${signupState.biz_route === 'new' ? `New Business Registration` : `Add Team Member`}
-              </span>
-            ` : `
-              <button type="button" class="auth-back-btn" onclick="startLoginFlow('business')">← Log In</button>
-              <span class="auth-stage-indicator">Business Portal</span>
-            `}
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${signupState.biz_route !== 'choose' ? `
+                <button type="button" class="auth-back-btn" onclick="prevBizStage()">← Back</button>
+              ` : ''}
+              <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('business')" title="Log In to Recruiter Desk">
+                ${svgIcon('hotel', '', 14)} <span>Already have business account? <strong>Log In</strong></span>
+              </button>
+            </div>
+            <span class="auth-stage-indicator">
+              ${signupState.biz_route === 'new' ? `New Business Registration` : (signupState.biz_route === 'join' ? `Add Team Member` : `Business Portal`)}
+            </span>
           `}
         </div>
 
@@ -4822,6 +4861,13 @@ function renderSignupPage(viewport) {
                 Continue →
               </button>
             </form>
+
+            <div class="signup-login-prompt-banner">
+              <span>Already have an account?</span>
+              <button type="button" class="btn-signup-login-action" onclick="startLoginFlow('candidate')">
+                Log In to Your Account →
+              </button>
+            </div>
           ` : ''}
 
           <!-- PFP upload, Bio, Drag&Drop CV, Job Preferences, Education (+), Skills, Language, Previous Experience (+) -->
@@ -5278,6 +5324,13 @@ function renderSignupPage(viewport) {
                 <div class="biz-choice-cta">Join Existing Business Team →</div>
               </div>
             </div>
+
+            <div class="signup-login-prompt-banner">
+              <span>Already registered as a business or recruiter?</span>
+              <button type="button" class="btn-signup-login-action" onclick="startLoginFlow('business')">
+                Log In to Recruiter Desk →
+              </button>
+            </div>
           ` : ''}
 
           <!-- ========================================================= -->
@@ -5379,6 +5432,13 @@ function renderSignupPage(viewport) {
                   Continue →
                 </button>
               </form>
+
+              <div class="signup-login-prompt-banner">
+                <span>Already have an account?</span>
+                <button type="button" class="btn-signup-login-action" onclick="startLoginFlow('business')">
+                  Log In to Recruiter Desk →
+                </button>
+              </div>
             ` : ''}
 
             <!-- Business Features / Amenities Schema + Search -->
@@ -7439,8 +7499,13 @@ function switchAuthTab(tab) {
             </div>
           </div>
 
-          <div style="text-align: center; margin-top: 6px; font-size: 0.82rem; color: var(--text-muted);">
-            Already have an account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Log In to Your Account</a> &nbsp;•&nbsp; Are you a hotel employer? <a href="javascript:void(0)" onclick="switchAuthTab('business')" style="color: #fdba74; font-weight: 700; text-decoration: underline;">Register Hotel Organization</a>
+          <div class="signup-login-prompt-banner" style="margin-top: 14px; font-size: 0.84rem;">
+            <span>Already have an account?</span>
+            <button type="button" class="btn-signup-login-action" onclick="switchAuthTab('signin')" style="padding: 5px 14px; font-size: 0.8rem;">
+              Log In →
+            </button>
+            <span style="opacity: 0.4;">•</span>
+            <a href="javascript:void(0)" onclick="switchAuthTab('business')" class="auth-text-link" style="color: #fdba74; font-weight: 700;">Hotel Employer Register</a>
           </div>
         </div>
       </form>
@@ -7644,8 +7709,13 @@ function switchAuthTab(tab) {
             </div>
           </div>
 
-          <div style="text-align: center; margin-top: 6px; font-size: 0.82rem; color: var(--text-muted);">
-            Already have a hotel account? <a href="javascript:void(0)" onclick="switchAuthTab('signin')" style="color: var(--white); font-weight: 700; text-decoration: underline;">Log In to Recruiter Desk</a> &nbsp;•&nbsp; Looking for hospitality jobs? <a href="javascript:void(0)" onclick="switchAuthTab('candidate')" style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">Create Candidate Profile</a>
+          <div class="signup-login-prompt-banner" style="margin-top: 14px; font-size: 0.84rem;">
+            <span>Already have a hotel account?</span>
+            <button type="button" class="btn-signup-login-action" onclick="switchAuthTab('signin')" style="padding: 5px 14px; font-size: 0.8rem;">
+              Log In to Recruiter Desk →
+            </button>
+            <span style="opacity: 0.4;">•</span>
+            <a href="javascript:void(0)" onclick="switchAuthTab('candidate')" class="auth-text-link" style="color: var(--orange-primary); font-weight: 700;">Candidate Signup</a>
           </div>
         </div>
       </form>
@@ -10116,38 +10186,108 @@ async function openConversationForJob(jobId, businessId) {
   navigateTo('inbox');
 }
 
+// Clean and shorten toast text to concise, punchy 2-4 word notifications
+function formatShortToast(message) {
+  if (!message) return '';
+  let msg = String(message).trim();
+
+  const map = {
+    'Switched perspective to Job Seeker (Rahim Ahmed)': 'Job Seeker mode',
+    'Switched perspective to Hotel Employer (Business Admin)': 'Employer mode',
+    'Administrative console requires verified credentials.': 'Admin login required',
+    'Browsing as Public Guest. Log-in required to apply or view candidate CVs.': 'Guest mode',
+    'Demo data re-initialized to initial fresh state!': 'Demo reset!',
+    'Authentication required: Root Administrator clearance is required.': 'Admin required',
+    'Opened AHLEI Certification guide': 'AHLEI Guide',
+    'Opened Marriott Partner Program details': 'Partner Program',
+    'Hospitality job post successfully posted and live in the job feed!': 'Job post live!',
+    'Hospitality vacancy successfully posted and live in the job feed!': 'Job post live!',
+    'Job added to your saved bookmarks!': 'Job saved!',
+    'Job removed from saved bookmarks.': 'Bookmark removed',
+    'Article link copied to clipboard!': 'Link copied!',
+    'Please enter a valid candidate email address.': 'Valid email required',
+    'Please enter your password.': 'Password required',
+    'Please enter a valid official business email.': 'Valid business email required',
+    'Please enter your personal work email address.': 'Work email required',
+    'Candidate log in failed.': 'Login failed',
+    'Image file size must be under 5MB': 'Max image size: 5MB',
+    'Please select a valid image file (JPG, PNG, or WebP)': 'Invalid image format',
+    'Profile picture reset to default': 'Photo removed',
+    'Logged out of administrative console.': 'Admin logged out',
+    'Log in as candidate to apply': 'Candidate login required',
+    'Please fill out all required fields': 'Required fields missing',
+    'Please select your current CV': 'Please select CV'
+  };
+  if (map[msg]) return map[msg];
+
+  msg = msg.replace(/^Switched perspective to\s+/i, '');
+  msg = msg.replace(/^Application submitted with .*! Recruiter has been notified\./i, 'Application sent!');
+  msg = msg.replace(/^Open to Work is now ON.*$/i, 'Open to Work: ON');
+  msg = msg.replace(/^Open to Work turned OFF.*$/i, 'Open to Work: OFF');
+  msg = msg.replace(/^Hotel followed!.*$/i, 'Hotel followed!');
+  msg = msg.replace(/^Unfollowed hotel\..*$/i, 'Hotel unfollowed');
+  msg = msg.replace(/^Failed to send message:\s*/i, 'Send failed: ');
+  msg = msg.replace(/^Failed to connect to authentication server:\s*/i, 'Server error: ');
+  msg = msg.replace(/^Failed to reset demo data:\s*/i, 'Reset failed: ');
+  msg = msg.replace(/^Job post link copied to clipboard:.*$/i, 'Link copied!');
+  msg = msg.replace(/^Article link:\s*/i, 'Link: ');
+  msg = msg.replace(/^Profile picture attached:.*$/i, 'Photo attached');
+  msg = msg.replace(/^Business verified:.*$/i, 'Business verified!');
+
+  if (msg.length > 36) {
+    const firstPart = msg.split(/[.!?:]/)[0];
+    if (firstPart && firstPart.length <= 36 && firstPart.length >= 6) {
+      msg = firstPart.trim() + '!';
+    } else {
+      msg = msg.slice(0, 33).trim() + '...';
+    }
+  }
+  return msg;
+}
+
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+  const shortMessage = formatShortToast(message);
 
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+
+  // Enforce solid, non-transparent background
   if (type === 'danger') {
+    toast.style.background = '#1c0e12';
     toast.style.borderColor = 'var(--danger)';
-    toast.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.3)';
+    toast.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.95), 0 0 16px rgba(239, 68, 68, 0.35)';
   } else if (type === 'orange' || type === 'warning') {
+    toast.style.background = '#211307';
     toast.style.borderColor = 'var(--orange-primary)';
-    toast.style.boxShadow = '0 0 20px var(--orange-glow)';
+    toast.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.95), 0 0 16px rgba(255, 107, 0, 0.35)';
   } else if (type === 'success') {
-    toast.style.borderColor = 'var(--blue-primary)';
-    toast.style.boxShadow = '0 0 20px var(--blue-glow)';
+    toast.style.background = '#0a1c14';
+    toast.style.borderColor = 'var(--success)';
+    toast.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.95), 0 0 16px rgba(16, 185, 129, 0.35)';
+  } else {
+    toast.style.background = '#0d1527';
+    toast.style.borderColor = 'rgba(255, 255, 255, 0.22)';
+    toast.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.5)';
   }
+  toast.style.opacity = '1';
 
   const icon = type === 'danger' ? svgIcon('alertCircle', '', 18) 
     : ((type === 'orange' || type === 'warning') ? svgIcon('clock', '', 18) 
     : (type === 'success' ? svgIcon('checkCircle', '', 18) 
     : svgIcon('info', '', 18)));
 
-  toast.innerHTML = `<span style="display: inline-flex; align-items: center;">${icon}</span> <span>${message}</span>`;
+  toast.innerHTML = `<span style="display: inline-flex; align-items: center;">${icon}</span> <span>${shortMessage}</span>`;
   container.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateY(10px)';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 250);
+  }, 2800);
 }
 
 // Notifications Drawer & Action Modal

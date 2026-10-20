@@ -2656,17 +2656,22 @@ select option {
 }
 
 .toast {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--blue-primary);
-  color: var(--white);
-  padding: 14px 20px;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg), 0 0 20px var(--blue-glow);
+  background: #0d1527 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  padding: 10px 18px !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95), 0 0 1px rgba(255, 255, 255, 0.2) !important;
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.92rem;
-  animation: slideIn 0.3s ease;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  max-width: 380px;
+  animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideIn {
@@ -5470,13 +5475,20 @@ select option {
 
   .toast {
     pointer-events: auto !important;
-    padding: 8px 16px !important;
-    font-size: 0.78rem !important;
+    background: #0d1527 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    color: #ffffff !important;
+    padding: 8px 18px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
     border-radius: 999px !important;
     max-width: 90% !important;
     text-align: center !important;
     justify-content: center !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9) !important;
   }
 }
 
@@ -7070,4 +7082,134 @@ body.screen-inbox .main-wrapper {
     padding: 16px !important;
     border-radius: 16px !important;
   }
+}
+
+/* ==========================================================================
+   Highlighted Login Redirect inside Sign Up Processes
+   ========================================================================== */
+.btn-signup-login-highlight {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: rgba(255, 107, 0, 0.15) !important;
+  border: 1.5px solid var(--orange-primary) !important;
+  color: #ffffff !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  padding: 6px 16px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 16px rgba(255, 107, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none !important;
+}
+
+.btn-signup-login-highlight strong {
+  color: #ffaa40 !important;
+  font-weight: 800 !important;
+  text-decoration: underline !important;
+}
+
+.btn-signup-login-highlight:hover {
+  background: var(--orange-primary) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 22px rgba(255, 107, 0, 0.45) !important;
+}
+
+.btn-signup-login-highlight:hover strong {
+  color: #ffffff !important;
+}
+
+.btn-signup-login-highlight-sm {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  background: rgba(255, 107, 0, 0.15) !important;
+  border: 1px solid var(--orange-primary) !important;
+  color: #ffffff !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  padding: 4px 12px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 10px rgba(255, 107, 0, 0.22) !important;
+  transition: all 0.18s ease !important;
+}
+
+.btn-signup-login-highlight-sm:hover {
+  background: var(--orange-primary) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.signup-login-prompt-banner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  margin-top: 22px !important;
+  padding: 12px 18px !important;
+  background: rgba(255, 107, 0, 0.08) !important;
+  border: 1px solid rgba(255, 107, 0, 0.35) !important;
+  border-radius: 14px !important;
+  font-size: 0.86rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-align: center !important;
+}
+
+.btn-signup-login-action {
+  background: var(--orange-primary) !important;
+  color: #ffffff !important;
+  border: 1px solid #ff7a18 !important;
+  font-size: 0.84rem !important;
+  font-weight: 700 !important;
+  padding: 6px 18px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35) !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+}
+
+.btn-signup-login-action:hover {
+  background: var(--orange-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(255, 107, 0, 0.5) !important;
+}
+
+/* ==========================================================================
+   Solid Background Alert Notifications & Toasts
+   ========================================================================== */
+.toast.toast-danger {
+  background: #1c0e12 !important;
+  border: 1.5px solid #ef4444 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95), 0 0 16px rgba(239, 68, 68, 0.3) !important;
+}
+
+.toast.toast-warning,
+.toast.toast-orange {
+  background: #211307 !important;
+  border: 1.5px solid #ff6b00 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95), 0 0 16px rgba(255, 107, 0, 0.3) !important;
+}
+
+.toast.toast-success {
+  background: #0a1c14 !important;
+  border: 1.5px solid #10b981 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95), 0 0 16px rgba(16, 185, 129, 0.3) !important;
+}
+
+.toast.toast-info {
+  background: #0d1527 !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Navbar Search Button Removal */
+.btn-nav-search {
+  display: none !important;
 }
