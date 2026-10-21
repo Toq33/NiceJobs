@@ -2427,29 +2427,6 @@ async function renderProfileScreen(viewport) {
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 6px;">
               ${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || 'Dhaka, Bangladesh')} • ${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')} • ${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}
             </div>
-
-            <!-- Open to Work Status Banner & Switch -->
-            <div class="open-to-work-panel" style="margin-top: 14px; padding: 12px 16px; background: ${isOpen ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isOpen ? 'rgba(34, 197, 94, 0.3)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 34px; height: 34px; border-radius: 50%; background: ${isOpen ? 'rgba(34, 197, 94, 0.18)' : 'rgba(148, 163, 184, 0.12)'}; display: flex; align-items: center; justify-content: center; color: ${isOpen ? '#4ade80' : '#94a3b8'}; flex-shrink: 0;">
-                  ${isOpen ? svgIcon('checkCircle', '', 18) : svgIcon('clock', '', 18)}
-                </div>
-                <div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <strong style="color: var(--white); font-size: 0.88rem;">Open to Work Status</strong>
-                    <span class="status-pill status-${isOpen ? 'interview_scheduled' : 'rejected'}" style="font-size: 0.7rem; padding: 2px 7px;">
-                      ${isOpen ? 'Active (ON)' : 'Paused (OFF)'}
-                    </span>
-                  </div>
-                  <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">
-                    ${isOpen ? '5-Star hotel HR and recruiters can discover your profile for hospitality roles.' : 'Your profile is hidden from active recruiter searches. You can still apply for job posts manually.'}
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="${isOpen ? 'btn-secondary' : 'btn-orange'}" onclick="toggleOpenToWork()" style="font-size: 0.8rem; padding: 6px 14px; font-weight: 700; white-space: nowrap;">
-                ${isOpen ? 'Turn Off Open to Work' : 'Turn On Open to Work'}
-              </button>
-            </div>
           </div>
 
           <!-- Privacy & Completion Indicator -->
