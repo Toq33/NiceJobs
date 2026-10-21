@@ -760,6 +760,23 @@ async function toggleDemoData(forceState = null) {
       }
     }
 
+    // Clear or reset login inputs for demo removal
+    if (state.demoDataHidden) {
+      loginState.email = '';
+      loginState.password = '';
+      loginState.businessEmail = '';
+      loginState.userEmail = '';
+      loginState.businessPassword = '';
+      loginState.verifiedBusiness = null;
+      loginState.businessStep = 1;
+    } else {
+      loginState.email = 'rahim.ahmed@example.bd';
+      loginState.password = 'Password123!';
+      loginState.businessEmail = 'hr@radissondhaka.com';
+      loginState.userEmail = 'hr@radissondhaka.com';
+      loginState.businessPassword = 'Password123!';
+    }
+
     showToast(data.message, 'info');
     updateRoleStatusText();
     await loadInitialData();
@@ -946,6 +963,14 @@ async function loadInitialData() {
             toggleBtn.style.color = '';
             toggleBtn.style.borderColor = '';
           }
+        if (state.demoDataHidden) {
+          loginState.email = '';
+          loginState.password = '';
+          loginState.businessEmail = '';
+          loginState.userEmail = '';
+          loginState.businessPassword = '';
+          loginState.verifiedBusiness = null;
+          loginState.businessStep = 1;
         }
       }
     } catch (e) {}
@@ -4651,13 +4676,22 @@ function startLoginFlow(role = 'candidate') {
   loginState.businessStep = 1;
   loginState.errorMessage = null;
   loginState.errorType = null;
-  if (role === 'candidate') {
-    loginState.email = 'rahim.ahmed@example.bd';
-    loginState.password = 'Password123!';
+  if (state.demoDataHidden) {
+    loginState.email = '';
+    loginState.password = '';
+    loginState.businessEmail = '';
+    loginState.userEmail = '';
+    loginState.businessPassword = '';
+    loginState.verifiedBusiness = null;
   } else {
-    loginState.businessEmail = 'hr@radissondhaka.com';
-    loginState.userEmail = 'hr@radissondhaka.com';
-    loginState.businessPassword = 'Password123!';
+    if (role === 'candidate') {
+      loginState.email = 'rahim.ahmed@example.bd';
+      loginState.password = 'Password123!';
+    } else {
+      loginState.businessEmail = 'hr@radissondhaka.com';
+      loginState.userEmail = 'hr@radissondhaka.com';
+      loginState.businessPassword = 'Password123!';
+    }
   }
   navigateTo('login', { role });
 }
@@ -4680,6 +4714,23 @@ function setLoginRole(role) {
   loginState.businessStep = 1;
   loginState.errorMessage = null;
   loginState.errorType = null;
+  if (state.demoDataHidden) {
+    loginState.email = '';
+    loginState.password = '';
+    loginState.businessEmail = '';
+    loginState.userEmail = '';
+    loginState.businessPassword = '';
+    loginState.verifiedBusiness = null;
+  } else {
+    if (role === 'candidate') {
+      loginState.email = loginState.email || 'rahim.ahmed@example.bd';
+      loginState.password = loginState.password || 'Password123!';
+    } else {
+      loginState.businessEmail = loginState.businessEmail || 'hr@radissondhaka.com';
+      loginState.userEmail = loginState.userEmail || 'hr@radissondhaka.com';
+      loginState.businessPassword = loginState.businessPassword || 'Password123!';
+    }
+  }
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderLoginPage(viewport);
 }
@@ -4734,9 +4785,9 @@ function renderLoginPage(viewport) {
               <input type="email" 
                 id="login-candidate-email" 
                 class="auth-input" 
-                placeholder="name@example.com" 
+                placeholder="Enter your registered email" 
                 required 
-                value="${loginState.email || ''}" 
+                value="${escapeHtml(state.demoDataHidden ? (loginState.email || '') : (loginState.email || 'rahim.ahmed@example.bd'))}" 
                 autocomplete="username" autofocus>
             </div>
 
@@ -4746,9 +4797,9 @@ function renderLoginPage(viewport) {
                 <input type="password" 
                   id="login-candidate-pwd" 
                   class="auth-input" 
-                  placeholder="••••••••" 
+                  placeholder="Enter your password" 
                   required 
-                  value="${loginState.password || 'Password123!'}" 
+                  value="${escapeHtml(state.demoDataHidden ? (loginState.password || '') : (loginState.password || 'Password123!'))}" 
                   autocomplete="current-password">
                 <button type="button" class="auth-eye-toggle" id="cand-pwd-toggle" 
                   onclick="togglePasswordVisibility('login-candidate-pwd', 'cand-pwd-toggle')" 
@@ -4770,9 +4821,9 @@ function renderLoginPage(viewport) {
                 <input type="email" 
                   id="biz-login-email-part1" 
                   class="auth-input" 
-                  placeholder="hotel@domain.com" 
+                  placeholder="Enter official business email" 
                   required 
-                  value="${loginState.businessEmail || ''}" 
+                  value="${escapeHtml(state.demoDataHidden ? (loginState.businessEmail || '') : (loginState.businessEmail || 'hr@radissondhaka.com'))}" 
                   autocomplete="organization" autofocus>
               </div>
 
@@ -4798,8 +4849,8 @@ function renderLoginPage(viewport) {
               <!-- Matched Business Info -->
               <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong style="color: var(--white); font-size: 0.92rem;">${loginState.verifiedBusiness?.brand_name || 'Business'}</strong>
-                  <div style="font-size: 0.78rem; color: var(--text-dim);">${loginState.businessEmail}</div>
+                  <strong style="color: var(--white); font-size: 0.92rem;">${escapeHtml(loginState.verifiedBusiness?.brand_name || 'Business')}</strong>
+                  <div style="font-size: 0.78rem; color: var(--text-dim);">${escapeHtml(loginState.businessEmail || '')}</div>
                 </div>
                 <button type="button" class="auth-text-link" style="font-size: 0.78rem;" onclick="loginState.businessStep = 1; renderLoginPage(document.getElementById('app-viewport'))">
                   Change
@@ -4811,9 +4862,9 @@ function renderLoginPage(viewport) {
                 <input type="email" 
                   id="biz-login-user-email" 
                   class="auth-input" 
-                  placeholder="name@hotel.com" 
+                  placeholder="Enter your account email" 
                   required 
-                  value="${loginState.userEmail || ''}" 
+                  value="${escapeHtml(state.demoDataHidden ? (loginState.userEmail || '') : (loginState.userEmail || 'hr@radissondhaka.com'))}" 
                   autocomplete="username" autofocus>
               </div>
 
@@ -4823,9 +4874,9 @@ function renderLoginPage(viewport) {
                   <input type="password" 
                     id="biz-login-password" 
                     class="auth-input" 
-                    placeholder="••••••••" 
+                    placeholder="Enter your password" 
                     required 
-                    value="${loginState.businessPassword || 'Password123!'}" 
+                    value="${escapeHtml(state.demoDataHidden ? (loginState.businessPassword || '') : (loginState.businessPassword || 'Password123!'))}" 
                     autocomplete="current-password">
                   <button type="button" class="auth-eye-toggle" id="biz-pwd-toggle" 
                     onclick="togglePasswordVisibility('biz-login-password', 'biz-pwd-toggle')" 
@@ -5112,13 +5163,13 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Full Name</label>
                   <input type="text" id="cand-name" class="auth-input" required 
-                    placeholder="e.g. Rahim Ahmed" 
+                    placeholder="Enter your full name" 
                     value="${signupState.name || ''}" autofocus>
                 </div>
                 <div class="auth-field">
                   <label class="auth-label">Personal Email Address</label>
                   <input type="email" id="cand-email" class="auth-input" required 
-                    placeholder="rahim.ahmed@example.bd" 
+                    placeholder="Enter personal email address" 
                     value="${signupState.email || ''}">
                 </div>
               </div>
@@ -5133,7 +5184,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">NID / Passport (Optional)</label>
                   <input type="text" id="cand-nid" class="auth-input" 
-                    placeholder="e.g. 1998269123456" 
+                    placeholder="Enter 10/17 digit NID or passport number" 
                     value="${signupState.nid_passport || ''}">
                 </div>
               </div>
@@ -5147,7 +5198,7 @@ function renderSignupPage(viewport) {
                     <input type="tel" 
                       id="cand-phone" 
                       class="phone-number-field" 
-                      placeholder="01711234567" 
+                      placeholder="01XXXXXXXXX (11 digits)" 
                       maxlength="11" 
                       minlength="11" 
                       pattern="01[0-9]{9}" 
@@ -5166,7 +5217,7 @@ function renderSignupPage(viewport) {
                     <input type="tel" 
                       id="cand-phone-secondary" 
                       class="phone-number-field" 
-                      placeholder="01811234567" 
+                      placeholder="01XXXXXXXXX (optional secondary)" 
                       maxlength="11" 
                       minlength="11" 
                       inputmode="numeric" 
@@ -5227,7 +5278,7 @@ function renderSignupPage(viewport) {
               <div class="auth-field">
                 <label class="auth-label">Professional Bio</label>
                 <textarea id="cand-bio" class="auth-input" rows="2" required 
-                  placeholder="Tell hotel employers about your hospitality background and guest service standards...">${signupState.bio || ''}</textarea>
+                  placeholder="Write a brief professional summary of your hospitality background and key skills...">${signupState.bio || ''}</textarea>
               </div>
 
               <!-- Main CV Upload (Drag and Drop + Device Browse) -->
@@ -5264,7 +5315,7 @@ function renderSignupPage(viewport) {
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Desired Role / Title</label>
-                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="e.g. Front Office Supervisor" value="${signupState.job_preferences?.desired_role || ''}">
+                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="Enter target job title or role" value="${signupState.job_preferences?.desired_role || ''}">
                   </div>
                 </div>
                 <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
@@ -5279,7 +5330,7 @@ function renderSignupPage(viewport) {
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Expected Salary</label>
-                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="e.g. ৳55,000" value="${signupState.job_preferences?.expected_salary || ''}">
+                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="Enter expected monthly salary in ৳" value="${signupState.job_preferences?.expected_salary || ''}">
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Location</label>
@@ -5316,7 +5367,7 @@ function renderSignupPage(viewport) {
                       </div>
                       <div class="auth-field">
                         <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
-                        <input type="text" class="auth-input edu-inst" placeholder="e.g. National Hotel & Tourism Training Institute (NHTTI)" 
+                        <input type="text" class="auth-input edu-inst" placeholder="Enter school, college, or training institute name" 
                           value="${edu.institution || ''}" required>
                       </div>
                       <div class="auth-field-grid">
@@ -5330,7 +5381,7 @@ function renderSignupPage(viewport) {
                         </div>
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">GPA / Result</label>
-                          <input type="text" class="auth-input edu-gpa" placeholder="e.g. 3.85 / 5.0" 
+                          <input type="text" class="auth-input edu-gpa" placeholder="Enter GPA, division, or grade" 
                             value="${edu.gpa || ''}">
                         </div>
                       </div>
@@ -5349,7 +5400,7 @@ function renderSignupPage(viewport) {
                 <div class="schema-box-wrapper">
                   <!-- Search inside skills -->
                   <input type="text" class="schema-search-input" id="skills-search" 
-                    placeholder="Search hotel, resort, and operations skills..." 
+                    placeholder="Type to search or add hospitality skills..." 
                     value="${signupState.skillsSearchQuery || ''}" 
                     oninput="filterSkillsSchema(this.value)">
 
@@ -5396,7 +5447,7 @@ function renderSignupPage(viewport) {
                 <div class="schema-box-wrapper">
                   <!-- Search inside languages -->
                   <input type="text" class="schema-search-input" id="languages-search" 
-                    placeholder="Search languages..." 
+                    placeholder="Type to search or add languages..." 
                     value="${signupState.languagesSearchQuery || ''}" 
                     oninput="filterLanguagesSchema(this.value)">
 
@@ -5470,12 +5521,12 @@ function renderSignupPage(viewport) {
                       <div class="auth-field-grid">
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
-                          <input type="text" class="auth-input exp-comp" placeholder="e.g. Radisson Blu Dhaka Water Garden" 
+                          <input type="text" class="auth-input exp-comp" placeholder="Enter hotel, resort, or organization name" 
                             value="${exp.company || ''}" required>
                         </div>
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
-                          <input type="text" class="auth-input exp-role" placeholder="e.g. Front Desk Associate" 
+                          <input type="text" class="auth-input exp-role" placeholder="Enter your job title or designation" 
                             value="${exp.role || ''}" required>
                         </div>
                       </div>
@@ -5483,12 +5534,12 @@ function renderSignupPage(viewport) {
                       <div class="auth-field-grid">
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Years of Service / Period</label>
-                          <input type="text" class="auth-input exp-period" placeholder="e.g. 2 Years (2023 - 2025)" 
+                          <input type="text" class="auth-input exp-period" placeholder="Enter duration or service period (e.g. 2022 - 2024)" 
                             value="${exp.period || ''}">
                         </div>
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
-                          <input type="text" class="auth-input exp-skills" placeholder="e.g. Opera PMS 5.5, VIP concierge" 
+                          <input type="text" class="auth-input exp-skills" placeholder="Enter responsibilities or systems used (e.g. Opera PMS)" 
                             value="${exp.skills_acquired || ''}">
                         </div>
                       </div>
@@ -5525,7 +5576,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.password || ''}" autofocus>
+                      placeholder="Enter account password (min 6 characters)" value="${signupState.password || ''}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
                       onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -5536,7 +5587,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Confirm Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-confirm-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.confirm_password || ''}">
+                      placeholder="Re-type password to confirm" value="${signupState.confirm_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
                       onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -5569,7 +5620,7 @@ function renderSignupPage(viewport) {
             <form id="form-cand-part4" onsubmit="handleCandidateFinalSignup(event)">
               <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                 <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
-                  placeholder="••••••" value="${signupState.otp_code || signupState.lastSentOtp || '258330'}" autofocus required>
+                  placeholder="Enter 6-digit OTP code" value="${state.demoDataHidden ? (signupState.otp_code || '') : (signupState.otp_code || signupState.lastSentOtp || '258330')}" autofocus required>
               </div>
 
               <div class="auth-demo-otp-bar" onclick="autoFillCandidateOtp()" title="Click to auto-fill demo OTP">
@@ -5677,14 +5728,14 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Business Name (Brand Name)</label>
                     <input type="text" id="biz-new-brand" class="auth-input" required 
-                      placeholder="e.g. Radisson Blu Dhaka Water Garden" 
+                      placeholder="Enter property or brand name" 
                       value="${signupState.brand_name || ''}" autofocus>
                   </div>
 
                   <div class="auth-field">
                     <label class="auth-label">Legal Registered Name</label>
                     <input type="text" id="biz-new-legal" class="auth-input" required 
-                      placeholder="e.g. Sena Hotel Developments Ltd." 
+                      placeholder="Enter legal registered corporate entity name" 
                       value="${signupState.legal_name || ''}">
                   </div>
                 </div>
@@ -5696,7 +5747,7 @@ function renderSignupPage(viewport) {
                     <input type="text" 
                       class="schema-search-input" 
                       id="biz-type-search" 
-                      placeholder="Search hotel & resort type..." 
+                      placeholder="Search or select property type..." 
                       value="${signupState.bizTypeSearchQuery || ''}" 
                       oninput="filterHotelTypes(this.value)">
                     <select id="biz-new-type" class="auth-input" style="margin-top: 8px;" onchange="signupState.property_type = this.value">
@@ -5720,15 +5771,15 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Exact Location (Segmented Address)</label>
                   <div class="location-segments-grid">
                     <div>
-                      <input type="text" id="biz-new-plot" class="auth-input" placeholder="Plot Number (e.g. 7)" 
+                      <input type="text" id="biz-new-plot" class="auth-input" placeholder="Enter plot or holding number" 
                         value="${signupState.plot_number || ''}">
                     </div>
                     <div>
-                      <input type="text" id="biz-new-road" class="auth-input" placeholder="Road Number / Name (e.g. Airport Road)" 
+                      <input type="text" id="biz-new-road" class="auth-input" placeholder="Enter road number, street, or sector" 
                         value="${signupState.road_number || ''}">
                     </div>
                     <div>
-                      <input type="text" id="biz-new-thana" class="auth-input" placeholder="Thana / Upazila (e.g. Cantonment)" 
+                      <input type="text" id="biz-new-thana" class="auth-input" placeholder="Enter thana or upazila name" 
                         value="${signupState.thana_upazila || ''}">
                     </div>
                     <div>
@@ -5745,13 +5796,13 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Official Website</label>
                     <input type="url" id="biz-new-website" class="auth-input" 
-                      placeholder="https://www.examplehotel.com" 
+                      placeholder="Enter official website URL (https://...)" 
                       value="${signupState.website || ''}">
                   </div>
                   <div class="auth-field">
                     <label class="auth-label">Official Mail of Business</label>
                     <input type="email" id="biz-new-email" class="auth-input" required 
-                      placeholder="hr@radissondhaka.com" 
+                      placeholder="Enter official hotel contact email" 
                       value="${signupState.official_email || ''}">
                   </div>
                 </div>
@@ -5759,7 +5810,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field" style="margin-top: 14px;">
                   <label class="auth-label">Official Telephone Number <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Landline / Reception Hotline)</span></label>
                   <input type="tel" id="biz-new-telephone" class="auth-input" 
-                    placeholder="e.g. +880 2 9834555 or 02-9834555" 
+                    placeholder="Enter landline or reception desk hotline" 
                     value="${signupState.official_telephone || ''}">
                   <span class="auth-hint">Official landline, PABX reception desk, or corporate hotline.</span>
                 </div>
@@ -5788,7 +5839,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <div class="schema-box-wrapper">
                     <input type="text" class="schema-search-input" id="features-search" 
-                      placeholder="Search or type facility (spa, pool, gym, etc.) and press Enter..." 
+                      placeholder="Type facility (e.g. Swimming Pool, Spa) and press Enter to add..." 
                       value="${signupState.featuresSearchQuery || ''}" 
                       oninput="filterFeaturesSchema(this.value)"
                       onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomFeature(this.value);}">
@@ -5882,7 +5933,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Full Name</label>
                   <input type="text" id="biz-rep-name" class="auth-input" required 
-                    placeholder="e.g. Fatima Khan" 
+                    placeholder="Enter representative full name" 
                     value="${signupState.rep_name || ''}" autofocus>
                 </div>
 
@@ -5894,7 +5945,7 @@ function renderSignupPage(viewport) {
                     <input type="tel" 
                       id="biz-rep-phone" 
                       class="phone-number-field" 
-                      placeholder="01819876543" 
+                      placeholder="01XXXXXXXXX (11 digits)" 
                       maxlength="11" 
                       minlength="11" 
                       pattern="01[0-9]{9}" 
@@ -5910,7 +5961,7 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Email of Person on Behalf <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Representative Work Email)</span></label>
                     <input type="email" id="biz-rep-email" class="auth-input" required 
-                      placeholder="fatima.khan@radissondhaka.com" 
+                      placeholder="Enter representative work email address" 
                       value="${signupState.rep_email || ''}">
                     <span class="auth-field-hint">Official login and contact email for the authorized person managing the property.</span>
                   </div>
@@ -5924,7 +5975,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Designation / Role in Business</label>
                   <input type="text" id="biz-rep-desig" class="auth-input" required 
-                    placeholder="e.g. Director of Human Resources / General Manager" 
+                    placeholder="Enter official job designation (e.g. HR Director)" 
                     value="${signupState.rep_designation || ''}">
                 </div>
 
@@ -5952,7 +6003,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Set Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-pwd-part4" class="auth-input" required 
-                        placeholder="••••••••" value="${signupState.biz_password || ''}" autofocus>
+                        placeholder="Enter password (min 6 characters)" value="${signupState.biz_password || ''}" autofocus>
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
                         onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
                     </div>
@@ -5962,7 +6013,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Confirm Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-confirm-pwd-part4" class="auth-input" required 
-                        placeholder="••••••••" value="${signupState.biz_confirm_password || ''}">
+                        placeholder="Re-type password to confirm" value="${signupState.biz_confirm_password || ''}">
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t2" 
                         onclick="togglePasswordVisibility('biz-confirm-pwd-part4', 'biz-p4-t2')">${svgIcon('eye', '', 16)}</button>
                     </div>
@@ -5994,7 +6045,7 @@ function renderSignupPage(viewport) {
               <form id="form-biz-new-part5" onsubmit="handleNewBusinessOtpSubmit(event)">
                 <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                   <input type="text" id="biz-new-otp" maxlength="6" class="auth-otp-input" 
-                    placeholder="••••••" value="${signupState.biz_otp_code || signupState.biz_lastSentOtp || '258330'}" autofocus required>
+                    placeholder="Enter 6-digit OTP code" value="${state.demoDataHidden ? (signupState.biz_otp_code || '') : (signupState.biz_otp_code || signupState.biz_lastSentOtp || '258330')}" autofocus required>
                 </div>
 
                 <div class="auth-demo-otp-bar" onclick="autoFillBizNewOtp()" title="Click to auto-fill demo OTP">
@@ -6089,7 +6140,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Official Business Email</label>
                   <input type="email" id="biz-join-email" class="auth-input" required 
-                    placeholder="e.g. hr@radissondhaka.com" 
+                    placeholder="Enter registered official business email" 
                     value="${signupState.join_business_email || ''}" autofocus>
                   <span class="auth-field-hint">The registered email of the hotel or business you wish to join</span>
                 </div>
@@ -6136,7 +6187,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Your Personal Work Email</label>
                   <input type="email" id="join-rep-email" class="auth-input" required 
-                    placeholder="e.g. name@radissondhaka.com" 
+                    placeholder="Enter your personal work email" 
                     value="${signupState.join_user_email || ''}" autofocus>
                 </div>
 
@@ -6144,7 +6195,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Account Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="join-rep-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.join_user_password || ''}">
+                      placeholder="Enter password (min 6 characters)" value="${signupState.join_user_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="join-p3-t1" 
                       onclick="togglePasswordVisibility('join-rep-pwd', 'join-p3-t1')">${svgIcon('eye', '', 16)}</button>
                   </div>
@@ -6197,7 +6248,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Full Name</label>
                   <input type="text" id="join-rep-name" class="auth-input" required 
-                    placeholder="e.g. Tanvir Hossain" 
+                    placeholder="Enter your full name" 
                     value="${signupState.join_name || ''}" autofocus>
                 </div>
 
@@ -6209,7 +6260,7 @@ function renderSignupPage(viewport) {
                     <input type="tel" 
                       id="join-rep-phone" 
                       class="phone-number-field" 
-                      placeholder="01912345678" 
+                      placeholder="01XXXXXXXXX (11 digits)" 
                       maxlength="11" 
                       minlength="11" 
                       pattern="01[0-9]{9}" 
@@ -6230,7 +6281,7 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Designation</label>
                     <input type="text" id="join-rep-desig" class="auth-input" required 
-                      placeholder="e.g. Assistant HR Manager" 
+                      placeholder="Enter your job title or designation" 
                       value="${signupState.join_designation || ''}">
                   </div>
                 </div>
@@ -6258,7 +6309,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Confirm Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="join-confirm-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.join_confirm_password || ''}" autofocus>
+                      placeholder="Re-type password to confirm" value="${signupState.join_confirm_password || ''}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="join-p5-t1" 
                       onclick="togglePasswordVisibility('join-confirm-pwd', 'join-p5-t1')">${svgIcon('eye', '', 16)}</button>
                   </div>
@@ -6286,7 +6337,7 @@ function renderSignupPage(viewport) {
               <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)">
                 <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                   <input type="text" id="join-otp-code" maxlength="6" class="auth-otp-input" 
-                    placeholder="••••••" value="${signupState.join_otp_code || signupState.join_lastSentOtp || '258330'}" autofocus required>
+                    placeholder="Enter 6-digit OTP code" value="${state.demoDataHidden ? (signupState.join_otp_code || '') : (signupState.join_otp_code || signupState.join_lastSentOtp || '258330')}" autofocus required>
                 </div>
 
                 <div class="auth-demo-otp-bar" onclick="autoFillJoinOtp()" title="Click to auto-fill demo OTP">
@@ -8609,10 +8660,6 @@ function renderLoginWizard() {
 }
 
 // Backward compatible aliases
-function setLoginRole(role) {
-  selectLoginPortal(role);
-}
-
 function setLoginMethod(method) {
   setLoginWizardMethod(method);
 }
