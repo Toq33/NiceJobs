@@ -967,6 +967,7 @@ async function loadInitialData() {
             toggleBtn.style.color = '';
             toggleBtn.style.borderColor = '';
           }
+        }
         if (state.demoDataHidden) {
           loginState.email = '';
           loginState.password = '';
