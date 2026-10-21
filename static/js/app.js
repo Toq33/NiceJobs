@@ -1118,17 +1118,24 @@ function updateNavigation() {
     const initials = (state.currentUser.name || 'HR').split(' ').map(n=>n[0]).join('').slice(0,2);
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 8px;">
-        <div class="user-profile-badge">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1.5px solid rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>
+        <div class="user-profile-badge" id="nav-biz-user-profile-badge" onclick="openBusinessUserEditProfileModal()" style="cursor: pointer;" title="Edit My Profile">
+          ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--orange-primary);">` : `<div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1.5px solid rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
           <div class="user-badge-info">
-            <span class="user-badge-name">${state.currentUser.name}</span>
-            <span class="user-badge-role">${state.currentUser.title || 'Recruiter'}</span>
+            <span class="user-badge-name">${escapeHtml(state.currentUser.name)}</span>
+            <span class="user-badge-role">${escapeHtml(state.currentUser.title || 'Recruiter')}</span>
           </div>
         </div>
         <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
       </div>
     `;
     mobileActionsHtml = `
+      <div class="mobile-user-card" onclick="openBusinessUserEditProfileModal(); closeMobileMenu();" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); margin-bottom: 8px;">
+        ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">` : `<div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 2px solid var(--orange-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
+        <div>
+          <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${escapeHtml(state.currentUser.name)}</div>
+          <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 600;">${escapeHtml(state.currentUser.title || 'Recruiter')} • Edit Profile →</div>
+        </div>
+      </div>
       <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest'); closeMobileMenu();">Sign Out</button>
     `;
   } else if (role === 'admin' && state.currentUser && state.currentUser.role === 'admin') {
@@ -2160,7 +2167,12 @@ async function renderHotelDetailScreen(viewport, hotelId) {
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+          ${(state.currentUser?.role === 'recruiter' && (state.currentUser?.business_id === hotel.id || !state.currentUser?.business_id)) ? `
+            <button class="btn-secondary" id="btn-hotel-detail-edit-profile" onclick="openEditBusinessProfileModal('${hotel.id}')" style="background: rgba(7, 13, 30, 0.75); backdrop-filter: blur(8px);">
+              ${svgIcon('edit', '', 14)} Edit Hotel Profile
+            </button>
+          ` : ''}
           <button class="btn-${hotel.is_followed ? 'secondary' : 'orange'}" onclick="toggleFollowHotel('${hotel.id}')">
             ${hotel.is_followed ? '✓ Following' : '+ Follow'} (${hotel.follower_count})
           </button>
@@ -2669,12 +2681,19 @@ async function renderRecruiterDashboard(viewport) {
   const shortlistedCount = apps.filter(a => a.status === 'shortlisted').length;
 
   viewport.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-      <div>
-        <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">${biz.brand_name}</h1>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Manage job posts, applications, and interview pipelines.</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <img src="${biz.logo_url || DEFAULT_HOTEL_LOGO}" alt="${escapeHtml(biz.brand_name || '')}" style="width: 56px; height: 56px; border-radius: 12px; object-fit: contain; border: 1.5px solid var(--border-subtle); background: #070d1e; padding: 4px;">
+        <div>
+          <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">${escapeHtml(biz.brand_name || '')}</h1>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">Manage job posts, applications, and establishment profile.</p>
+        </div>
       </div>
-      <button class="btn-orange" id="btn-dashboard-post-job" onclick="openCreateJobModal()">+ Job Post</button>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <button class="btn-secondary" id="btn-edit-my-profile" onclick="openBusinessUserEditProfileModal()">${svgIcon('user', '', 14)} Edit My Profile</button>
+        <button class="btn-secondary" id="btn-edit-hotel-profile" onclick="openEditBusinessProfileModal('${biz.id}')">${svgIcon('edit', '', 14)} Edit Hotel Profile</button>
+        <button class="btn-orange" id="btn-dashboard-post-job" onclick="openCreateJobModal()">+ Job Post</button>
+      </div>
     </div>
 
     <!-- Header Metrics -->
@@ -6781,9 +6800,15 @@ function compressImageFile(file, maxDimension = 1600, quality = 0.92) {
   });
 }
 
+const editPfpState = {
+  candidate: { raw: null, pfp: null, crop: null },
+  bizUser: { raw: null, pfp: null, crop: null },
+  bizLogo: { raw: null, pfp: null, crop: null }
+};
+
 let pfpCropState = {
   imgSrc: '',
-  target: 'candidate', // 'candidate' | 'biz_rep' | 'biz_join'
+  target: 'candidate', // 'candidate' | 'biz_rep' | 'biz_join' | 'edit_candidate' | 'edit_biz_user' | 'edit_biz_logo'
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -6794,14 +6819,25 @@ let pfpCropState = {
   startY: 0
 };
 
+function closeCropModal() {
+  window.removeEventListener('pointermove', onPfpPointerMove);
+  window.removeEventListener('pointerup', onPfpPointerUp);
+  const el = document.getElementById('modal-pfp-crop');
+  if (el) el.remove();
+}
+
 function openPfpSettingModal(imageSrc, target = 'candidate') {
   pfpCropState.imgSrc = imageSrc;
   pfpCropState.target = target;
   pfpCropState.isDragging = false;
 
-  const prevCrop = target === 'biz_rep'
-    ? signupState.rep_pfp_crop
-    : (target === 'biz_join' ? signupState.join_pfp_crop : signupState.pfp_crop);
+  let prevCrop = null;
+  if (target === 'biz_rep') prevCrop = signupState.rep_pfp_crop;
+  else if (target === 'biz_join') prevCrop = signupState.join_pfp_crop;
+  else if (target === 'candidate') prevCrop = signupState.pfp_crop;
+  else if (target === 'edit_candidate') prevCrop = editPfpState.candidate.crop;
+  else if (target === 'edit_biz_user') prevCrop = editPfpState.bizUser.crop;
+  else if (target === 'edit_biz_logo') prevCrop = editPfpState.bizLogo.crop;
 
   if (prevCrop && prevCrop.imgSrc === imageSrc) {
     pfpCropState.scale = prevCrop.scale || 1;
@@ -6813,25 +6849,35 @@ function openPfpSettingModal(imageSrc, target = 'candidate') {
     pfpCropState.offsetY = 0;
   }
 
-  const modalTitle = target === 'biz_rep'
-    ? 'Position Representative Photo'
-    : (target === 'biz_join' ? 'Position Team Member Photo' : 'Position Profile Photo');
-  const modalSub = 'Drag to frame face and use the slider to zoom';
+  let modalTitle = 'Position Profile Photo';
+  if (target === 'biz_rep') modalTitle = 'Position Representative Photo';
+  else if (target === 'biz_join') modalTitle = 'Position Team Member Photo';
+  else if (target === 'edit_biz_user') modalTitle = 'Position Representative Photo';
+  else if (target === 'edit_biz_logo') modalTitle = 'Position Hotel Logo';
+
+  const modalSub = target === 'edit_biz_logo'
+    ? 'Drag to position logo and use the slider to zoom'
+    : 'Drag to frame face and use the slider to zoom';
 
   const container = document.getElementById('modal-container');
-  container.innerHTML = `
-    <div class="modal-backdrop open" id="modal-pfp-crop" onclick="closeModal('modal-pfp-crop')">
+  const existingCrop = document.getElementById('modal-pfp-crop');
+  if (existingCrop) existingCrop.remove();
+
+  const isSquareViewport = (target === 'edit_biz_logo');
+
+  const cropModalHtml = `
+    <div class="modal-backdrop open" id="modal-pfp-crop" onclick="closeCropModal()" style="z-index: 10500;">
       <div class="modal-dialog" style="max-width: 480px; text-align: center;" onclick="event.stopPropagation()">
         <div class="modal-header">
           <div>
             <h2 class="modal-title">${modalTitle}</h2>
             <div style="font-size: 0.8rem; color: var(--text-muted);">${modalSub}</div>
           </div>
-          <button class="modal-close" onclick="closeModal('modal-pfp-crop')" aria-label="Close">${svgIcon('x', '', 18)}</button>
+          <button class="modal-close" onclick="closeCropModal()" aria-label="Close">${svgIcon('x', '', 18)}</button>
         </div>
 
         <div class="modal-body" style="padding: 24px 20px;">
-          <div id="pfp-crop-viewport" onpointerdown="startPfpDrag(event)" onwheel="handlePfpWheel(event)">
+          <div id="pfp-crop-viewport" style="${isSquareViewport ? 'border-radius: 20px;' : 'border-radius: 50%;'}" onpointerdown="startPfpDrag(event)" onwheel="handlePfpWheel(event)">
             <img id="pfp-crop-img" src="${imageSrc}" alt="Crop preview" draggable="false">
           </div>
 
@@ -6844,12 +6890,18 @@ function openPfpSettingModal(imageSrc, target = 'candidate') {
         </div>
 
         <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
-          <button type="button" class="btn-secondary" onclick="closeModal('modal-pfp-crop')">Cancel</button>
+          <button type="button" class="btn-secondary" onclick="closeCropModal()">Cancel</button>
           <button type="button" class="btn-orange" onclick="applyPfpCroppedImage()">Apply &amp; Set Photo ✓</button>
         </div>
       </div>
     </div>
   `;
+
+  if (target.startsWith('edit_')) {
+    container.insertAdjacentHTML('beforeend', cropModalHtml);
+  } else {
+    container.innerHTML = cropModalHtml;
+  }
 
   const imgElement = document.getElementById('pfp-crop-img');
   function setupCropImage() {
@@ -6996,21 +7048,176 @@ function applyPfpCroppedImage() {
       signupState.join_pfp_crop = cropMeta;
       const previewImg = document.getElementById('biz-join-pfp-img');
       if (previewImg) previewImg.src = croppedDataUrl;
-    } else {
+    } else if (pfpCropState.target === 'candidate') {
       signupState.pfp = croppedDataUrl;
       signupState.pfp_crop = cropMeta;
       const previewImg = document.getElementById('cand-pfp-part2-img');
       if (previewImg) previewImg.src = croppedDataUrl;
+    } else if (pfpCropState.target === 'edit_candidate') {
+      editPfpState.candidate.pfp = croppedDataUrl;
+      editPfpState.candidate.crop = cropMeta;
+      const previewImg = document.getElementById('edit-cand-pfp-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+      const urlInput = document.getElementById('edit-profile-avatar-url');
+      if (urlInput) urlInput.value = croppedDataUrl;
+      const adjustBtn = document.getElementById('btn-adjust-cand-pfp');
+      if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+      const removeBtn = document.getElementById('btn-remove-cand-pfp');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else if (pfpCropState.target === 'edit_biz_user') {
+      editPfpState.bizUser.pfp = croppedDataUrl;
+      editPfpState.bizUser.crop = cropMeta;
+      const previewImg = document.getElementById('edit-biz-user-pfp-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+      const urlInput = document.getElementById('edit-biz-user-avatar-url');
+      if (urlInput) urlInput.value = croppedDataUrl;
+      const adjustBtn = document.getElementById('btn-adjust-biz-user-pfp');
+      if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+      const removeBtn = document.getElementById('btn-remove-biz-user-pfp');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else if (pfpCropState.target === 'edit_biz_logo') {
+      editPfpState.bizLogo.pfp = croppedDataUrl;
+      editPfpState.bizLogo.crop = cropMeta;
+      const previewImg = document.getElementById('edit-biz-logo-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+      const urlInput = document.getElementById('edit-biz-logo-url');
+      if (urlInput) urlInput.value = croppedDataUrl;
+      const adjustBtn = document.getElementById('btn-adjust-biz-logo');
+      if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+      const removeBtn = document.getElementById('btn-remove-biz-logo');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
     }
 
-    window.removeEventListener('pointermove', onPfpPointerMove);
-    window.removeEventListener('pointerup', onPfpPointerUp);
-    closeModal('modal-pfp-crop');
-    showToast('Profile photo adjusted and saved!', 'success');
-    saveSignupProgress();
-    renderSignupPage(document.getElementById('app-viewport'));
+    closeCropModal();
+    showToast(pfpCropState.target === 'edit_biz_logo' ? 'Hotel logo adjusted and set!' : 'Profile photo adjusted and set!', 'success');
+
+    if (pfpCropState.target === 'candidate' || pfpCropState.target === 'biz_rep' || pfpCropState.target === 'biz_join') {
+      saveSignupProgress();
+      renderSignupPage(document.getElementById('app-viewport'));
+    }
   };
   img.src = pfpCropState.imgSrc;
+}
+
+function openEditPfpModal(target = 'edit_candidate') {
+  let src = null;
+  if (target === 'edit_biz_user') {
+    src = editPfpState.bizUser.raw || editPfpState.bizUser.pfp || document.getElementById('edit-biz-user-avatar-url')?.value;
+  } else if (target === 'edit_biz_logo') {
+    src = editPfpState.bizLogo.raw || editPfpState.bizLogo.pfp || document.getElementById('edit-biz-logo-url')?.value;
+  } else {
+    src = editPfpState.candidate.raw || editPfpState.candidate.pfp || document.getElementById('edit-profile-avatar-url')?.value;
+  }
+  if (!src) {
+    showToast('No picture uploaded yet. Please upload a photo first.', 'warning');
+    return;
+  }
+  openPfpSettingModal(src, target);
+}
+
+function removeEditPfp(target = 'edit_candidate') {
+  if (target === 'edit_biz_user') {
+    editPfpState.bizUser.raw = null;
+    editPfpState.bizUser.crop = null;
+    editPfpState.bizUser.pfp = '';
+    const previewImg = document.getElementById('edit-biz-user-pfp-img');
+    if (previewImg) previewImg.src = DEFAULT_AVATAR_PREVIEW;
+    const urlInput = document.getElementById('edit-biz-user-avatar-url');
+    if (urlInput) urlInput.value = '';
+    const adjustBtn = document.getElementById('btn-adjust-biz-user-pfp');
+    if (adjustBtn) adjustBtn.style.display = 'none';
+    const removeBtn = document.getElementById('btn-remove-biz-user-pfp');
+    if (removeBtn) removeBtn.style.display = 'none';
+    showToast('Representative photo removed');
+  } else if (target === 'edit_biz_logo') {
+    editPfpState.bizLogo.raw = null;
+    editPfpState.bizLogo.crop = null;
+    editPfpState.bizLogo.pfp = '';
+    const previewImg = document.getElementById('edit-biz-logo-img');
+    if (previewImg) previewImg.src = DEFAULT_HOTEL_LOGO;
+    const urlInput = document.getElementById('edit-biz-logo-url');
+    if (urlInput) urlInput.value = '';
+    const adjustBtn = document.getElementById('btn-adjust-biz-logo');
+    if (adjustBtn) adjustBtn.style.display = 'none';
+    const removeBtn = document.getElementById('btn-remove-biz-logo');
+    if (removeBtn) removeBtn.style.display = 'none';
+    showToast('Hotel logo removed');
+  } else {
+    editPfpState.candidate.raw = null;
+    editPfpState.candidate.crop = null;
+    editPfpState.candidate.pfp = '';
+    const previewImg = document.getElementById('edit-cand-pfp-img');
+    if (previewImg) previewImg.src = DEFAULT_AVATAR_PREVIEW;
+    const urlInput = document.getElementById('edit-profile-avatar-url');
+    if (urlInput) urlInput.value = '';
+    const adjustBtn = document.getElementById('btn-adjust-cand-pfp');
+    if (adjustBtn) adjustBtn.style.display = 'none';
+    const removeBtn = document.getElementById('btn-remove-cand-pfp');
+    if (removeBtn) removeBtn.style.display = 'none';
+    showToast('Profile photo removed');
+  }
+}
+
+async function handleEditPfpFileSelected(event, target = 'edit_candidate') {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (JPG, PNG, or WebP)', 'danger');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Image file size must be under 5MB', 'danger');
+    return;
+  }
+
+  let dataUrl;
+  if (file.size >= 1024 * 1024) {
+    dataUrl = await compressImageFile(file, 1600, 0.92);
+  } else {
+    dataUrl = await readFileAsDataURL(file);
+  }
+
+  if (target === 'edit_biz_user') {
+    editPfpState.bizUser.raw = dataUrl;
+    editPfpState.bizUser.crop = null;
+    editPfpState.bizUser.pfp = dataUrl;
+    const previewImg = document.getElementById('edit-biz-user-pfp-img');
+    if (previewImg) previewImg.src = dataUrl;
+    const urlInput = document.getElementById('edit-biz-user-avatar-url');
+    if (urlInput) urlInput.value = dataUrl;
+    const adjustBtn = document.getElementById('btn-adjust-biz-user-pfp');
+    if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+    const removeBtn = document.getElementById('btn-remove-biz-user-pfp');
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  } else if (target === 'edit_biz_logo') {
+    editPfpState.bizLogo.raw = dataUrl;
+    editPfpState.bizLogo.crop = null;
+    editPfpState.bizLogo.pfp = dataUrl;
+    const previewImg = document.getElementById('edit-biz-logo-img');
+    if (previewImg) previewImg.src = dataUrl;
+    const urlInput = document.getElementById('edit-biz-logo-url');
+    if (urlInput) urlInput.value = dataUrl;
+    const adjustBtn = document.getElementById('btn-adjust-biz-logo');
+    if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+    const removeBtn = document.getElementById('btn-remove-biz-logo');
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  } else {
+    editPfpState.candidate.raw = dataUrl;
+    editPfpState.candidate.crop = null;
+    editPfpState.candidate.pfp = dataUrl;
+    const previewImg = document.getElementById('edit-cand-pfp-img');
+    if (previewImg) previewImg.src = dataUrl;
+    const urlInput = document.getElementById('edit-profile-avatar-url');
+    if (urlInput) urlInput.value = dataUrl;
+    const adjustBtn = document.getElementById('btn-adjust-cand-pfp');
+    if (adjustBtn) adjustBtn.style.display = 'inline-flex';
+    const removeBtn = document.getElementById('btn-remove-cand-pfp');
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  }
+
+  showToast(`Image loaded: ${file.name}. Adjust zoom and position now.`, 'success');
+  openPfpSettingModal(dataUrl, target);
 }
 
 function removeCandidatePfp() {
@@ -10418,6 +10625,12 @@ async function openComprehensiveEditProfileModal() {
   const profile = await res.json();
   state.profile = profile;
 
+  editPfpState.candidate = {
+    raw: profile.avatar_url || null,
+    pfp: profile.avatar_url || null,
+    crop: null
+  };
+
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-profile-comp">
@@ -10432,6 +10645,29 @@ async function openComprehensiveEditProfileModal() {
 
         <form id="form-edit-profile-comp" onsubmit="handleSaveComprehensiveProfile(event)">
           <div class="modal-body">
+            <!-- Avatar / PFP Section -->
+            <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
+              <div style="position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--orange-primary); flex-shrink: 0; background: #070d1e;">
+                <img id="edit-cand-pfp-img" src="${profile.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="Profile avatar" style="width: 100%; height: 100%; object-fit: cover;">
+              </div>
+              <input type="hidden" id="edit-profile-avatar-url" name="avatar_url" value="${profile.avatar_url || ''}">
+              <input type="file" id="edit-cand-pfp-file-input" accept="image/*" style="display: none;" onchange="handleEditPfpFileSelected(event, 'edit_candidate')">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--white);">Profile Picture</div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="document.getElementById('edit-cand-pfp-file-input').click()">
+                    ${svgIcon('upload', '', 14)} Upload Picture
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-adjust-cand-pfp" style="padding: 6px 12px; font-size: 0.8rem; ${profile.avatar_url ? 'display: inline-flex;' : 'display: none;'}" onclick="openEditPfpModal('edit_candidate')">
+                    ${svgIcon('crop', '', 14)} Adjust Face &amp; Zoom
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-remove-cand-pfp" style="padding: 6px 12px; font-size: 0.8rem; color: #f87171; border-color: rgba(239, 68, 68, 0.3); ${profile.avatar_url ? 'display: inline-flex;' : 'display: none;'}" onclick="removeEditPfp('edit_candidate')">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Basic Details -->
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
               <div>
@@ -10573,6 +10809,7 @@ async function handleSaveComprehensiveProfile(event) {
   const newEmail = form.email.value.trim();
   const newPhone = form.phone.value.trim();
   const otpCode = document.getElementById('contact-otp-code')?.value.trim() || null;
+  const avatarUrl = document.getElementById('edit-profile-avatar-url')?.value || null;
 
   const skillsArr = form.skills_csv.value.split(',').map(s => s.trim()).filter(Boolean);
 
@@ -10582,6 +10819,7 @@ async function handleSaveComprehensiveProfile(event) {
     email: newEmail,
     phone: newPhone,
     otp_code: otpCode,
+    avatar_url: avatarUrl,
     headline: form.headline.value,
     summary: form.summary.value,
     location: form.location.value,
@@ -10608,10 +10846,359 @@ async function handleSaveComprehensiveProfile(event) {
 
     if (!res.ok) throw new Error(data.detail || 'Profile update failed');
 
+    if (state.currentUser) {
+      state.currentUser.avatar = avatarUrl || DEFAULT_AVATAR_PREVIEW;
+      state.currentUser.name = payload.name;
+    }
+    if (state.profile) {
+      state.profile.avatar_url = avatarUrl;
+      state.profile.name = payload.name;
+    }
+
+    updateNavigation();
     closeModal('modal-edit-profile-comp');
-    showToast('Hospitality profile updated successfully!', 'success');
+    showToast('Candidate profile updated successfully!', 'success');
     await loadInitialData();
     renderProfileScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+// Business User Edit Profile Modal
+async function openBusinessUserEditProfileModal() {
+  const user = state.currentUser;
+  if (!user || state.currentRole !== 'recruiter') {
+    showToast('Please sign in as a business user/recruiter.', 'danger');
+    return;
+  }
+
+  let freshProfile = user;
+  try {
+    const res = await fetch(`/api/profile?user_id=${user.id}`);
+    if (res.ok) {
+      freshProfile = await res.json();
+    }
+  } catch (e) {
+    console.error('Error fetching fresh user profile:', e);
+  }
+
+  const currentAvatar = freshProfile.avatar_url || user.avatar || '';
+  const currentName = freshProfile.name || user.name || '';
+  const currentTitle = freshProfile.designation || user.title || user.org_role || 'Talent Acquisition Manager';
+  const currentPhone = freshProfile.phone || user.phone || '';
+  const currentEmail = freshProfile.email || user.email || '';
+
+  editPfpState.bizUser = {
+    raw: currentAvatar || null,
+    pfp: currentAvatar || null,
+    crop: null
+  };
+
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-biz-user">
+      <div class="modal-dialog" style="max-width: 580px;">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Edit Business User Profile</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage your personal recruiter profile and representative photo</div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-edit-biz-user')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+
+        <form id="form-edit-biz-user" onsubmit="handleSaveBusinessUserProfile(event)">
+          <div class="modal-body">
+            <!-- PFP Upload & Adjust Section -->
+            <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
+              <div style="position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--orange-primary); flex-shrink: 0; background: #070d1e;">
+                <img id="edit-biz-user-pfp-img" src="${currentAvatar || DEFAULT_AVATAR_PREVIEW}" alt="Representative avatar" style="width: 100%; height: 100%; object-fit: cover;">
+              </div>
+              <input type="hidden" id="edit-biz-user-avatar-url" name="avatar_url" value="${currentAvatar || ''}">
+              <input type="file" id="edit-biz-user-pfp-input" accept="image/*" style="display: none;" onchange="handleEditPfpFileSelected(event, 'edit_biz_user')">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--white);">Representative Photo</div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="document.getElementById('edit-biz-user-pfp-input').click()">
+                    ${svgIcon('upload', '', 14)} Upload Picture
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-adjust-biz-user-pfp" style="padding: 6px 12px; font-size: 0.8rem; ${currentAvatar ? 'display: inline-flex;' : 'display: none;'}" onclick="openEditPfpModal('edit_biz_user')">
+                    ${svgIcon('crop', '', 14)} Adjust Face &amp; Zoom
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-remove-biz-user-pfp" style="padding: 6px 12px; font-size: 0.8rem; color: #f87171; border-color: rgba(239, 68, 68, 0.3); ${currentAvatar ? 'display: inline-flex;' : 'display: none;'}" onclick="removeEditPfp('edit_biz_user')">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Full Name -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Full Name</label>
+              <input type="text" name="name" value="${escapeHtml(currentName)}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+
+            <!-- Role / Designation -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Role in Organization / Designation</label>
+              <input type="text" name="designation" value="${escapeHtml(currentTitle)}" required placeholder="e.g. Talent Acquisition Director, General Manager" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+
+            <!-- Contact Credentials -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Phone Number</label>
+                <input type="tel" name="phone" value="${escapeHtml(currentPhone)}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Work Email Address</label>
+                <input type="email" name="email" value="${escapeHtml(currentEmail)}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-biz-user')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleSaveBusinessUserProfile(event) {
+  event.preventDefault();
+  const user = state.currentUser;
+  if (!user) {
+    showToast('User session expired. Please sign in again.', 'danger');
+    return;
+  }
+  const form = event.target;
+  const newName = form.name.value.trim();
+  const newDesignation = form.designation.value.trim();
+  const newPhone = form.phone.value.trim();
+  const newEmail = form.email.value.trim();
+  const newAvatar = document.getElementById('edit-biz-user-avatar-url')?.value || null;
+
+  const payload = {
+    user_id: user.id,
+    name: newName,
+    designation: newDesignation,
+    phone: newPhone,
+    email: newEmail,
+    avatar_url: newAvatar
+  };
+
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to update business user profile');
+
+    state.currentUser.name = newName;
+    state.currentUser.title = newDesignation;
+    state.currentUser.phone = newPhone;
+    state.currentUser.email = newEmail;
+    state.currentUser.avatar = newAvatar;
+
+    try {
+      const activeSessStr = localStorage.getItem('nicejobs_active_session');
+      if (activeSessStr) {
+        const sess = JSON.parse(activeSessStr);
+        if (sess && sess.user && sess.user.id === user.id) {
+          sess.user.name = newName;
+          sess.user.title = newDesignation;
+          sess.user.phone = newPhone;
+          sess.user.email = newEmail;
+          sess.user.avatar = newAvatar;
+          localStorage.setItem('nicejobs_active_session', JSON.stringify(sess));
+        }
+      }
+    } catch (e) {}
+
+    updateNavigation();
+    closeModal('modal-edit-biz-user');
+    showToast('Business user profile updated successfully!', 'success');
+
+    if (window.location.hash.includes('recruiter-dashboard') || window.location.hash === '') {
+      renderRecruiterDashboard(document.getElementById('app-viewport'));
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+// Business (Hotel) Profile Edit Modal
+async function openEditBusinessProfileModal(bizId) {
+  const bId = bizId || state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  const res = await fetch(`/api/businesses/${bId}`);
+  if (!res.ok) {
+    showToast('Business profile not found', 'danger');
+    return;
+  }
+  const biz = await res.json();
+
+  const currentLogo = biz.logo_url || DEFAULT_HOTEL_LOGO;
+  editPfpState.bizLogo = {
+    raw: biz.logo_url || null,
+    pfp: biz.logo_url || null,
+    crop: null
+  };
+
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-biz-profile">
+      <div class="modal-dialog" style="max-width: 680px;">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Edit Hotel / Business Profile</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Update hotel details, logo, star rating, and amenities</div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-edit-biz-profile')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+
+        <form id="form-edit-biz-profile" onsubmit="handleSaveBusinessProfile(event, '${bId}')">
+          <div class="modal-body">
+            <!-- Logo Section -->
+            <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
+              <div style="position: relative; width: 72px; height: 72px; border-radius: 16px; overflow: hidden; border: 2.5px solid var(--orange-primary); flex-shrink: 0; background: #070d1e;">
+                <img id="edit-biz-logo-img" src="${currentLogo}" alt="Business logo" style="width: 100%; height: 100%; object-fit: contain; padding: 4px;">
+              </div>
+              <input type="hidden" id="edit-biz-logo-url" name="logo_url" value="${biz.logo_url || ''}">
+              <input type="file" id="edit-biz-logo-input" accept="image/*" style="display: none;" onchange="handleEditPfpFileSelected(event, 'edit_biz_logo')">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--white);">Hotel / Property Logo</div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="document.getElementById('edit-biz-logo-input').click()">
+                    ${svgIcon('upload', '', 14)} Upload Logo
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-adjust-biz-logo" style="padding: 6px 12px; font-size: 0.8rem; ${biz.logo_url ? 'display: inline-flex;' : 'display: none;'}" onclick="openEditPfpModal('edit_biz_logo')">
+                    ${svgIcon('crop', '', 14)} Adjust &amp; Zoom
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-remove-biz-logo" style="padding: 6px 12px; font-size: 0.8rem; color: #f87171; border-color: rgba(239, 68, 68, 0.3); ${biz.logo_url ? 'display: inline-flex;' : 'display: none;'}" onclick="removeEditPfp('edit_biz_logo')">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Brand Name & Star Rating -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Brand / Display Name</label>
+                <input type="text" name="brand_name" value="${escapeHtml(biz.brand_name || '')}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Star Rating</label>
+                <select name="star_rating" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <option value="5" ${biz.star_rating == 5 ? 'selected' : ''}>5-Star Luxury</option>
+                  <option value="4" ${biz.star_rating == 4 ? 'selected' : ''}>4-Star Premium</option>
+                  <option value="3" ${biz.star_rating == 3 ? 'selected' : ''}>3-Star Boutique</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Property Type & City -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Property Type</label>
+                <input type="text" name="property_type" value="${escapeHtml(biz.property_type || 'Luxury Hotel')}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">City</label>
+                <input type="text" name="city" value="${escapeHtml(biz.city || 'Dhaka')}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+            </div>
+
+            <!-- Address -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Address</label>
+              <input type="text" name="address" value="${escapeHtml(biz.address || '')}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+
+            <!-- Website & Official Email -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Website</label>
+                <input type="url" name="website" value="${escapeHtml(biz.website || '')}" placeholder="https://..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Official Email</label>
+                <input type="email" name="email" value="${escapeHtml(biz.email || '')}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              </div>
+            </div>
+
+            <!-- Description -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Description / Overview</label>
+              <textarea name="description" rows="3" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${escapeHtml(biz.description || '')}</textarea>
+            </div>
+
+            <!-- Amenities -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Amenities (comma-separated)</label>
+              <input type="text" name="amenities_csv" value="${escapeHtml((biz.amenities || []).join(', '))}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-biz-profile')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleSaveBusinessProfile(event, bizId) {
+  event.preventDefault();
+  const form = event.target;
+  const brandName = form.brand_name.value.trim();
+  const starRating = parseInt(form.star_rating.value);
+  const propertyType = form.property_type.value.trim();
+  const city = form.city.value.trim();
+  const address = form.address.value.trim();
+  const website = form.website.value.trim();
+  const email = form.email.value.trim();
+  const description = form.description.value.trim();
+  const logoUrl = document.getElementById('edit-biz-logo-url')?.value || null;
+  const amenities = form.amenities_csv.value.split(',').map(s => s.trim()).filter(Boolean);
+
+  const payload = {
+    brand_name: brandName,
+    star_rating: starRating,
+    property_type: propertyType,
+    city: city,
+    address: address,
+    website: website,
+    email: email,
+    description: description,
+    logo_url: logoUrl,
+    amenities: amenities
+  };
+
+  try {
+    const res = await fetch(`/api/businesses/${bizId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to update business profile');
+
+    closeModal('modal-edit-biz-profile');
+    showToast('Hotel profile updated successfully!', 'success');
+
+    if (window.location.hash.includes('recruiter-dashboard') || window.location.hash === '') {
+      renderRecruiterDashboard(document.getElementById('app-viewport'));
+    } else if (window.location.hash.includes('hotels')) {
+      renderHotelDetailScreen(document.getElementById('app-viewport'), bizId);
+    }
   } catch (err) {
     showToast(err.message, 'danger');
   }
@@ -11086,6 +11673,10 @@ async function submitNewJob(event) {
 
 // Close Modal Helper
 function closeModal(modalId) {
+  if (modalId === 'modal-pfp-crop') {
+    closeCropModal();
+    return;
+  }
   const el = document.getElementById(modalId);
   if (el) el.classList.remove('open');
 }

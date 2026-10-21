@@ -466,6 +466,77 @@ def get_business_detail(business_id: str, user_id: Optional[str] = "user_rahim")
     conn.close()
     return biz
 
+class BusinessUpdatePayload(BaseModel):
+    brand_name: Optional[str] = None
+    legal_name: Optional[str] = None
+    property_type: Optional[str] = None
+    star_rating: Optional[int] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    logo_url: Optional[str] = None
+    description: Optional[str] = None
+    amenities: Optional[List[str]] = None
+    benefits: Optional[List[str]] = None
+
+@app.put("/api/businesses/{business_id}")
+@app.post("/api/businesses/{business_id}")
+@app.post("/api/businesses/{business_id}/edit")
+def update_business_profile(business_id: str, payload: BusinessUpdatePayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM businesses WHERE id = ?", (business_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Hotel/Business not found")
+
+    updates = []
+    params = []
+    if payload.brand_name is not None:
+        updates.append("brand_name = ?")
+        params.append(payload.brand_name)
+    if payload.legal_name is not None:
+        updates.append("legal_name = ?")
+        params.append(payload.legal_name)
+    if payload.property_type is not None:
+        updates.append("property_type = ?")
+        params.append(payload.property_type)
+    if payload.star_rating is not None:
+        updates.append("star_rating = ?")
+        params.append(payload.star_rating)
+    if payload.city is not None:
+        updates.append("city = ?")
+        params.append(payload.city)
+    if payload.address is not None:
+        updates.append("address = ?")
+        params.append(payload.address)
+    if payload.website is not None:
+        updates.append("website = ?")
+        params.append(payload.website)
+    if payload.email is not None:
+        updates.append("email = ?")
+        params.append(payload.email)
+    if payload.logo_url is not None:
+        updates.append("logo_url = ?")
+        params.append(payload.logo_url)
+    if payload.description is not None:
+        updates.append("description = ?")
+        params.append(payload.description)
+    if payload.amenities is not None:
+        updates.append("amenities = ?")
+        params.append(json.dumps(payload.amenities))
+    if payload.benefits is not None:
+        updates.append("benefits = ?")
+        params.append(json.dumps(payload.benefits))
+
+    if updates:
+        params.append(business_id)
+        cursor.execute(f"UPDATE businesses SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    conn.close()
+    return {"success": True, "message": "Business profile updated successfully."}
+
 # ==========================================================================
 # Hospitality Blog / Articles System
 # ==========================================================================
@@ -1468,7 +1539,7 @@ def get_profile(user_id: str = "user_rahim"):
         raise HTTPException(status_code=404, detail="Demo profile is hidden because demo data has been removed.")
 
     cursor.execute("""
-        SELECT u.name, u.email, u.phone, u.avatar_url, p.*
+        SELECT u.name, u.email, u.phone, u.avatar_url, u.designation, p.*
         FROM users u
         LEFT JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -1491,6 +1562,8 @@ class ProfileUpdatePayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    designation: Optional[str] = None
     otp_code: Optional[str] = None
     headline: Optional[str] = None
     location: Optional[str] = None
@@ -1555,8 +1628,15 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
         if phone_changed:
             cursor.execute("UPDATE users SET phone = ? WHERE id = ?", (payload.phone.strip(), effective_user_id))
 
+    if payload.avatar_url is not None:
+        cursor.execute("UPDATE users SET avatar_url = ? WHERE id = ?", (payload.avatar_url, effective_user_id))
+
     if payload.name:
         cursor.execute("UPDATE users SET name = ? WHERE id = ?", (payload.name, effective_user_id))
+
+    if payload.designation is not None:
+        cursor.execute("UPDATE users SET designation = ? WHERE id = ?", (payload.designation, effective_user_id))
+        cursor.execute("UPDATE business_memberships SET org_role = ? WHERE user_id = ?", (payload.designation, effective_user_id))
 
     updates = []
     params = []
