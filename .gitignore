@@ -22,3 +22,6 @@ ENV/
 
 # Local runtime logs
 *.log
+
+# Scratch scripts
+scratch/

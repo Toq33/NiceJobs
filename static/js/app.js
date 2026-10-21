@@ -6965,6 +6965,30 @@ async function nextBizStage(targetStep) {
       return;
     }
 
+    // Check if official business email or telephone is already used by another account
+    try {
+      const chkRes = await fetch('/api/auth/check-business-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          official_email: email,
+          official_telephone: telephone
+        })
+      });
+      const chkData = await chkRes.json();
+      if (!chkData.available) {
+        showToast(chkData.message, 'danger');
+        if (chkData.field === 'official_email') {
+          document.getElementById('biz-new-email')?.focus();
+        } else if (chkData.field === 'official_telephone') {
+          document.getElementById('biz-new-telephone')?.focus();
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('Availability check error:', e);
+    }
+
     signupState.brand_name = brand;
     signupState.legal_name = legal || (brand + ' Ltd.');
     signupState.property_type = pType;
@@ -6997,6 +7021,25 @@ async function nextBizStage(targetStep) {
     if (!email || !email.includes('@')) {
       showToast('Please enter the email of the person on behalf of the business.', 'danger');
       return;
+    }
+
+    // Check if an account is already open with the email on behalf of business
+    try {
+      const chkRes = await fetch('/api/auth/check-business-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          representative_email: email
+        })
+      });
+      const chkData = await chkRes.json();
+      if (!chkData.available) {
+        showToast(chkData.message, 'danger');
+        document.getElementById('biz-rep-email')?.focus();
+        return;
+      }
+    } catch (e) {
+      console.warn('Representative email check error:', e);
     }
 
     signupState.rep_name = name;
@@ -7212,6 +7255,26 @@ async function nextJoinStage(targetStep) {
       showToast('Password must be at least 6 characters.', 'danger');
       return;
     }
+
+    // Check if an account is already open with the email on behalf of business
+    try {
+      const chkRes = await fetch('/api/auth/check-business-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          representative_email: userEmail
+        })
+      });
+      const chkData = await chkRes.json();
+      if (!chkData.available) {
+        showToast(chkData.message, 'danger');
+        document.getElementById('join-rep-email')?.focus();
+        return;
+      }
+    } catch (e) {
+      console.warn('Representative email check error:', e);
+    }
+
     signupState.join_user_email = userEmail;
     signupState.join_user_password = pwd;
   }
@@ -10397,7 +10460,11 @@ function formatShortToast(message) {
     'Logged out of administrative console.': 'Admin logged out',
     'Log in as candidate to apply': 'Candidate login required',
     'Please fill out all required fields': 'Required fields missing',
-    'Please select your current CV': 'Please select CV'
+    'Please select your current CV': 'Please select CV',
+    'This official business email is already registered to an existing account. Please log in or use a different official email.': 'Official email already registered',
+    'This official business telephone is already registered to an existing account. Please use a different telephone number.': 'Official telephone already registered',
+    'An account with this email address is already open. Please log in or use a different work email.': 'Account with email already open',
+    'This email is registered as an official business email. Please use your personal work email.': 'Registered as business email'
   };
   if (map[msg]) return map[msg];
 

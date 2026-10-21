@@ -618,6 +618,87 @@ def check_business(payload: CheckBusinessPayload):
         }
     }
 
+class CheckBusinessAvailabilityPayload(BaseModel):
+    official_email: Optional[str] = None
+    official_telephone: Optional[str] = None
+    representative_email: Optional[str] = None
+
+@app.post("/api/auth/check-business-availability")
+def check_business_availability(payload: CheckBusinessAvailabilityPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    try:
+        # 1. Check official email
+        if payload.official_email and payload.official_email.strip():
+            em = payload.official_email.strip().lower()
+            cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "official_email",
+                    "message": "This official business email is already registered to an existing account. Please log in or use a different official email."
+                }
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "official_email",
+                    "message": "This official business email is already registered to an existing account. Please log in or use a different official email."
+                }
+
+        # 2. Check official telephone
+        if payload.official_telephone and payload.official_telephone.strip():
+            tel = payload.official_telephone.strip()
+            norm_tel = normalize_phone(tel)
+            if norm_tel and len(norm_tel) >= 5:
+                # Check businesses
+                cursor.execute("SELECT id, brand_name, telephone, official_telephone FROM businesses")
+                for b_row in cursor.fetchall():
+                    for f_tel in [b_row["telephone"], b_row["official_telephone"]]:
+                        if f_tel and f_tel.strip():
+                            if f_tel.strip() == tel or normalize_phone(f_tel.strip()) == norm_tel:
+                                return {
+                                    "available": False,
+                                    "field": "official_telephone",
+                                    "message": "This official business telephone is already registered to an existing account. Please use a different telephone number."
+                                }
+                # Check users
+                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != ''")
+                for u_row in cursor.fetchall():
+                    u_phone = u_row["phone"]
+                    if u_phone and u_phone.strip():
+                        if u_phone.strip() == tel or normalize_phone(u_phone.strip()) == norm_tel:
+                            return {
+                                "available": False,
+                                "field": "official_telephone",
+                                "message": "This official business telephone is already registered to an existing account. Please use a different telephone number."
+                            }
+
+        # 3. Check representative email
+        if payload.representative_email and payload.representative_email.strip():
+            rep_em = payload.representative_email.strip().lower()
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (rep_em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "representative_email",
+                    "message": "An account with this email address is already open. Please log in or use a different work email."
+                }
+            cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (rep_em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "representative_email",
+                    "message": "This email is registered as an official business email. Please use your personal work email."
+                }
+
+        return {
+            "available": True,
+            "message": "Available"
+        }
+    finally:
+        conn.close()
+
 class CandidateRegisterPayload(BaseModel):
     name: str
     email: str
@@ -819,6 +900,62 @@ def register_business(payload: BusinessRegisterPayload):
     conn = database.get_db()
     cursor = conn.cursor()
     try:
+        # 1. Check official business email uniqueness
+        official_email_clean = payload.email.strip().lower()
+        cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (official_email_clean,))
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=400,
+                detail="This official business email is already registered to an existing account. Please log in or use a different official email."
+            )
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (official_email_clean,))
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=400,
+                detail="This official business email is already registered to an existing account. Please log in or use a different official email."
+            )
+
+        # 2. Check official telephone uniqueness
+        official_tel = (payload.official_telephone or payload.telephone or "").strip()
+        if official_tel:
+            norm_tel = normalize_phone(official_tel)
+            if norm_tel and len(norm_tel) >= 5:
+                # Check in businesses
+                cursor.execute("SELECT id, brand_name, telephone, official_telephone FROM businesses")
+                for b_row in cursor.fetchall():
+                    for f_tel in [b_row["telephone"], b_row["official_telephone"]]:
+                        if f_tel and f_tel.strip():
+                            if f_tel.strip() == official_tel or normalize_phone(f_tel.strip()) == norm_tel:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail="This official business telephone is already registered to an existing account. Please use a different telephone number."
+                                )
+                # Check in users
+                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != ''")
+                for u_row in cursor.fetchall():
+                    u_phone = u_row["phone"]
+                    if u_phone and u_phone.strip():
+                        if u_phone.strip() == official_tel or normalize_phone(u_phone.strip()) == norm_tel:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="This official business telephone is already registered to an existing account. Please use a different telephone number."
+                            )
+
+        # 3. Check representative email (person on behalf of business) uniqueness
+        rep_email = (payload.representative_email or payload.email).strip().lower()
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (rep_email,))
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=400,
+                detail="An account with this email address is already open. Please log in or use a different work email."
+            )
+        cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (rep_email,))
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=400,
+                detail="This email is registered as an official business email. Please use your personal work email."
+            )
+
         norm_p = normalize_phone(payload.phone)
         raw_p = payload.phone.strip()
         with_prefix = f"+88{norm_p}" if norm_p else ""
@@ -847,96 +984,55 @@ def register_business(payload: BusinessRegisterPayload):
         composite_addr = payload.address or f"Plot {payload.plot_number}, Road {payload.road_number}, {payload.thana_upazila}, {payload.district}"
         city_val = payload.district or payload.thana_upazila or "Dhaka"
 
-        # Check if user already exists
-        user_email = (payload.representative_email or payload.email).strip().lower()
         designation_val = payload.designation or "Director of Human Resources"
         avatar = payload.avatar_url or "/static/images/candidate_rahim.jpg"
 
-        cursor.execute("SELECT id FROM users WHERE lower(email) = ?", (user_email,))
-        existing_u = cursor.fetchone()
-        if existing_u:
-            user_id = existing_u["id"]
-            cursor.execute("""
-                UPDATE users 
-                SET name = ?, phone = ?, role = 'recruiter', avatar_url = ?, dob = ?, designation = ?, status = 'active', is_business_admin = 1
-                WHERE id = ?
-            """, (payload.representative_name, payload.phone, avatar, payload.dob or "", designation_val, user_id))
-        else:
-            cursor.execute("""
-                INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, payload.representative_name, user_email, payload.phone, payload.password or "Password123!", "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
+        # Insert representative user as Business Administrator
+        cursor.execute("""
+            INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, payload.representative_name, rep_email, payload.phone, payload.password or "Password123!", "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
 
-        # Check if business already exists
-        cursor.execute("SELECT id FROM businesses WHERE lower(email) = ? OR lower(brand_name) = ?", (payload.email.strip().lower(), payload.brand_name.strip().lower()))
-        existing_biz = cursor.fetchone()
-        official_tel = (payload.official_telephone or payload.telephone or "").strip()
-        if existing_biz:
-            biz_id = existing_biz["id"]
-            cursor.execute("""
-                UPDATE businesses
-                SET legal_name = ?, brand_name = ?, property_type = ?, city = ?, address = ?,
-                    website = ?, plot_number = ?, road_number = ?, thana_upazila = ?, district = ?,
-                    amenities = ?, features = ?, admin_user_id = ?, telephone = ?, official_telephone = ?
-                WHERE id = ?
-            """, (
-                payload.legal_name,
-                payload.brand_name,
-                payload.property_type,
-                city_val,
-                composite_addr,
-                payload.website or "",
-                payload.plot_number or "",
-                payload.road_number or "",
-                payload.thana_upazila or "",
-                payload.district or "",
-                json.dumps(feature_list),
-                json.dumps(feature_list),
-                user_id,
-                official_tel,
-                official_tel,
-                biz_id
-            ))
-        else:
-            cursor.execute("""
-                INSERT INTO businesses (
-                    id, legal_name, brand_name, property_type, star_rating, city, address, country,
-                    website, email, logo_url, cover_image, description, verification_status,
-                    verification_notes, departments, amenities, benefits, follower_count,
-                    parent_group, property_size, plot_number, road_number, thana_upazila, district,
-                    features, admin_user_id, telephone, official_telephone
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                biz_id,
-                payload.legal_name,
-                payload.brand_name,
-                payload.property_type,
-                5,
-                city_val,
-                composite_addr,
-                "Bangladesh",
-                payload.website or "",
-                payload.email,
-                "/static/images/hero_lobby.jpg",
-                "/static/images/hero_lobby.jpg",
-                f"{payload.property_type} property: {payload.brand_name}. Providing world-class hospitality services.",
-                "pending",
-                f"Awaiting Trust Desk verification for official business listing.",
-                json.dumps(dept_list),
-                json.dumps(feature_list),
-                json.dumps(benefits_list),
-                0,
-                "",
-                "150+ Luxury Rooms",
-                payload.plot_number or "",
-                payload.road_number or "",
-                payload.thana_upazila or "",
-                payload.district or "",
-                json.dumps(feature_list),
-                user_id,
-                official_tel,
-                official_tel
-            ))
+        # Insert business
+        cursor.execute("""
+            INSERT INTO businesses (
+                id, legal_name, brand_name, property_type, star_rating, city, address, country,
+                website, email, logo_url, cover_image, description, verification_status,
+                verification_notes, departments, amenities, benefits, follower_count,
+                parent_group, property_size, plot_number, road_number, thana_upazila, district,
+                features, admin_user_id, telephone, official_telephone
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            biz_id,
+            payload.legal_name,
+            payload.brand_name,
+            payload.property_type,
+            5,
+            city_val,
+            composite_addr,
+            "Bangladesh",
+            payload.website or "",
+            official_email_clean,
+            "/static/images/hero_lobby.jpg",
+            "/static/images/hero_lobby.jpg",
+            f"{payload.property_type} property: {payload.brand_name}. Providing world-class hospitality services.",
+            "pending",
+            f"Awaiting Trust Desk verification for official business listing.",
+            json.dumps(dept_list),
+            json.dumps(feature_list),
+            json.dumps(benefits_list),
+            0,
+            "",
+            "150+ Luxury Rooms",
+            payload.plot_number or "",
+            payload.road_number or "",
+            payload.thana_upazila or "",
+            payload.district or "",
+            json.dumps(feature_list),
+            user_id,
+            official_tel,
+            official_tel
+        ))
 
         # Check business membership
         cursor.execute("SELECT id FROM business_memberships WHERE business_id = ? AND user_id = ?", (biz_id, user_id))
@@ -1035,11 +1131,16 @@ def register_business_user(payload: RegisterBusinessUserPayload):
     if otp_row:
         cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
 
-    # 3. Check uniqueness of user email
-    cursor.execute("SELECT id FROM users WHERE email = ?", (payload.email.strip().lower(),))
+    # 3. Check uniqueness of user email on behalf
+    user_email_clean = payload.email.strip().lower()
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (user_email_clean,))
     if cursor.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="An account with this user email address already exists.")
+        raise HTTPException(status_code=400, detail="An account with this email address is already open. Please log in or use a different work email.")
+    cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (user_email_clean,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="This email is registered as an official business email. Please use your personal work email.")
 
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"

@@ -301,6 +301,13 @@ def init_db():
         except Exception:
             pass
 
+    try:
+        cursor.execute("UPDATE businesses SET telephone = '+880 2 9834555', official_telephone = '+880 2 9834555' WHERE id = 'biz_radisson' AND (telephone IS NULL OR telephone = '')")
+        cursor.execute("UPDATE businesses SET telephone = '+880 2 9891988', official_telephone = '+880 2 9891988' WHERE id = 'biz_westin' AND (telephone IS NULL OR telephone = '')")
+        cursor.execute("UPDATE businesses SET telephone = '+880 341 51301', official_telephone = '+880 341 51301' WHERE id = 'biz_sayeman' AND (telephone IS NULL OR telephone = '')")
+    except Exception:
+        pass
+
     for col, typ in [
         ("membership_role", "TEXT DEFAULT 'admin'"),
         ("approval_status", "TEXT DEFAULT 'approved'"),
