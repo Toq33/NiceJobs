@@ -6928,6 +6928,9 @@ body.screen-inbox .main-wrapper {
   top: 50%;
   transform-origin: center center;
   pointer-events: none;
+  max-width: none !important;
+  max-height: none !important;
+  display: block;
 }
 
 /* 6. Wider Signup Card with Gaps on Both Sides (Candidate & Business) */

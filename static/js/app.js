@@ -426,6 +426,8 @@ function getFreshSignupState(role = 'candidate') {
 
     // Candidate Fields
     pfp: DEFAULT_AVATAR_PREVIEW,
+    raw_pfp: null,
+    pfp_crop: null,
     name: '',
     dob: '',
     nid_passport: '',
@@ -481,6 +483,8 @@ function getFreshSignupState(role = 'candidate') {
     rep_email: '',
     rep_dob: '',
     rep_pfp: DEFAULT_AVATAR_PREVIEW,
+    raw_rep_pfp: null,
+    rep_pfp_crop: null,
     rep_designation: '',
     biz_password: '',
     biz_confirm_password: '',
@@ -499,6 +503,8 @@ function getFreshSignupState(role = 'candidate') {
     join_cell: '',
     join_dob: '',
     join_pfp: DEFAULT_AVATAR_PREVIEW,
+    raw_join_pfp: null,
+    join_pfp_crop: null,
     join_designation: '',
     join_otp_code: '',
     join_lastSentOtp: '258330',
@@ -511,7 +517,12 @@ const signupState = getFreshSignupState('candidate');
 function saveSignupProgress() {
   try {
     sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(signupState));
-  } catch (e) {}
+  } catch (e) {
+    try {
+      const copy = { ...signupState, raw_pfp: null, raw_rep_pfp: null, raw_join_pfp: null };
+      sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(copy));
+    } catch (e2) {}
+  }
 }
 
 function restoreSignupProgress() {
@@ -5269,7 +5280,7 @@ function renderSignupPage(viewport) {
                     </button>
                     <input type="file" id="cand-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event)">
                     ${signupState.pfp && signupState.pfp !== DEFAULT_AVATAR_PREVIEW ? `
-                      <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.pfp)">
+                      <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.raw_pfp || signupState.pfp, 'candidate')">
                         ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                       </button>
                       <button type="button" class="btn-icon" id="cand-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeCandidatePfp()">
@@ -5952,7 +5963,7 @@ function renderSignupPage(viewport) {
                       </button>
                       <input type="file" id="biz-rep-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_rep')">
                       ${signupState.rep_pfp && signupState.rep_pfp !== DEFAULT_AVATAR_PREVIEW ? `
-                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.rep_pfp, 'biz_rep')">
+                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.raw_rep_pfp || signupState.rep_pfp, 'biz_rep')">
                           ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                         </button>
                         <button type="button" class="btn-icon" id="biz-rep-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeBizRepPfp()">
@@ -6270,7 +6281,7 @@ function renderSignupPage(viewport) {
                       </button>
                       <input type="file" id="biz-join-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_join')">
                       ${signupState.join_pfp && signupState.join_pfp !== DEFAULT_AVATAR_PREVIEW ? `
-                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.join_pfp, 'biz_join')">
+                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.raw_join_pfp || signupState.join_pfp, 'biz_join')">
                           ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                         </button>
                         <button type="button" class="btn-icon" id="biz-join-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeBizJoinPfp()">
@@ -6776,6 +6787,8 @@ let pfpCropState = {
   scale: 1,
   offsetX: 0,
   offsetY: 0,
+  baseW: 240,
+  baseH: 240,
   isDragging: false,
   startX: 0,
   startY: 0
@@ -6784,9 +6797,21 @@ let pfpCropState = {
 function openPfpSettingModal(imageSrc, target = 'candidate') {
   pfpCropState.imgSrc = imageSrc;
   pfpCropState.target = target;
-  pfpCropState.scale = 1;
-  pfpCropState.offsetX = 0;
-  pfpCropState.offsetY = 0;
+  pfpCropState.isDragging = false;
+
+  const prevCrop = target === 'biz_rep'
+    ? signupState.rep_pfp_crop
+    : (target === 'biz_join' ? signupState.join_pfp_crop : signupState.pfp_crop);
+
+  if (prevCrop && prevCrop.imgSrc === imageSrc) {
+    pfpCropState.scale = prevCrop.scale || 1;
+    pfpCropState.offsetX = prevCrop.offsetX || 0;
+    pfpCropState.offsetY = prevCrop.offsetY || 0;
+  } else {
+    pfpCropState.scale = 1;
+    pfpCropState.offsetX = 0;
+    pfpCropState.offsetY = 0;
+  }
 
   const modalTitle = target === 'biz_rep'
     ? 'Position Representative Photo'
@@ -6806,13 +6831,14 @@ function openPfpSettingModal(imageSrc, target = 'candidate') {
         </div>
 
         <div class="modal-body" style="padding: 24px 20px;">
-          <div id="pfp-crop-viewport" onpointerdown="startPfpDrag(event)">
-            <img id="pfp-crop-img" src="${imageSrc}" alt="Crop preview" style="transform: translate(-50%, -50%) translate(0px, 0px) scale(1);" draggable="false">
+          <div id="pfp-crop-viewport" onpointerdown="startPfpDrag(event)" onwheel="handlePfpWheel(event)">
+            <img id="pfp-crop-img" src="${imageSrc}" alt="Crop preview" draggable="false">
           </div>
 
           <div style="margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 12px;">
             <span style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">Zoom:</span>
-            <input type="range" id="pfp-crop-zoom" min="1" max="3" step="0.05" value="1" oninput="handlePfpZoomChange(this.value)" style="width: 200px; accent-color: var(--orange-primary);">
+            <input type="range" id="pfp-crop-zoom" min="0.5" max="4" step="0.02" value="${pfpCropState.scale}" oninput="handlePfpZoomChange(this.value)" style="width: 200px; accent-color: var(--orange-primary);">
+            <span id="pfp-crop-zoom-label" style="font-size: 0.8rem; color: var(--text-dim); min-width: 44px; text-align: left;">${Math.round(pfpCropState.scale * 100)}%</span>
             <button type="button" class="btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;" onclick="resetPfpCropPosition()">Reset</button>
           </div>
         </div>
@@ -6825,11 +6851,44 @@ function openPfpSettingModal(imageSrc, target = 'candidate') {
     </div>
   `;
 
+  const imgElement = document.getElementById('pfp-crop-img');
+  function setupCropImage() {
+    const nw = imgElement.naturalWidth || 240;
+    const nh = imgElement.naturalHeight || 240;
+    const aspect = nw / nh;
+    const vpSize = 240;
+    let baseW = vpSize;
+    let baseH = vpSize;
+    if (aspect >= 1) {
+      baseW = vpSize;
+      baseH = vpSize / aspect;
+    } else {
+      baseH = vpSize;
+      baseW = vpSize * aspect;
+    }
+    pfpCropState.baseW = baseW;
+    pfpCropState.baseH = baseH;
+    imgElement.style.width = `${baseW}px`;
+    imgElement.style.height = `${baseH}px`;
+    imgElement.style.maxWidth = 'none';
+    imgElement.style.maxHeight = 'none';
+    updatePfpCropTransform();
+  }
+
+  if (imgElement.complete && imgElement.naturalWidth > 0) {
+    setupCropImage();
+  } else {
+    imgElement.onload = setupCropImage;
+  }
+
+  window.removeEventListener('pointermove', onPfpPointerMove);
+  window.removeEventListener('pointerup', onPfpPointerUp);
   window.addEventListener('pointermove', onPfpPointerMove);
   window.addEventListener('pointerup', onPfpPointerUp);
 }
 
 function startPfpDrag(e) {
+  e.preventDefault();
   pfpCropState.isDragging = true;
   pfpCropState.startX = e.clientX - pfpCropState.offsetX;
   pfpCropState.startY = e.clientY - pfpCropState.offsetY;
@@ -6848,6 +6907,20 @@ function onPfpPointerUp() {
 
 function handlePfpZoomChange(val) {
   pfpCropState.scale = parseFloat(val);
+  const label = document.getElementById('pfp-crop-zoom-label');
+  if (label) label.textContent = `${Math.round(pfpCropState.scale * 100)}%`;
+  updatePfpCropTransform();
+}
+
+function handlePfpWheel(e) {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 0.05 : -0.05;
+  const newScale = Math.min(4, Math.max(0.5, pfpCropState.scale + delta));
+  pfpCropState.scale = parseFloat(newScale.toFixed(2));
+  const slider = document.getElementById('pfp-crop-zoom');
+  if (slider) slider.value = pfpCropState.scale;
+  const label = document.getElementById('pfp-crop-zoom-label');
+  if (label) label.textContent = `${Math.round(pfpCropState.scale * 100)}%`;
   updatePfpCropTransform();
 }
 
@@ -6857,6 +6930,8 @@ function resetPfpCropPosition() {
   pfpCropState.offsetY = 0;
   const slider = document.getElementById('pfp-crop-zoom');
   if (slider) slider.value = 1;
+  const label = document.getElementById('pfp-crop-zoom-label');
+  if (label) label.textContent = '100%';
   updatePfpCropTransform();
 }
 
@@ -6877,7 +6952,9 @@ function applyPfpCroppedImage() {
     img.crossOrigin = 'anonymous';
   }
   img.onload = () => {
-    ctx.clearRect(0, 0, 320, 320);
+    // Fill canvas background to match circular viewport dark tone
+    ctx.fillStyle = '#070d1e';
+    ctx.fillRect(0, 0, 320, 320);
 
     const vpSize = 240;
     const factor = 320 / vpSize;
@@ -6885,35 +6962,49 @@ function applyPfpCroppedImage() {
     ctx.translate(160 + pfpCropState.offsetX * factor, 160 + pfpCropState.offsetY * factor);
     ctx.scale(pfpCropState.scale * factor, pfpCropState.scale * factor);
 
-    const aspect = img.width / img.height;
-    let renderW = vpSize;
-    let renderH = vpSize;
-    if (aspect > 1) {
-      renderH = vpSize;
-      renderW = vpSize * aspect;
+    const nw = img.naturalWidth || img.width || 240;
+    const nh = img.naturalHeight || img.height || 240;
+    const aspect = nw / nh;
+    let baseW = vpSize;
+    let baseH = vpSize;
+    if (aspect >= 1) {
+      baseW = vpSize;
+      baseH = vpSize / aspect;
     } else {
-      renderW = vpSize;
-      renderH = vpSize / aspect;
+      baseH = vpSize;
+      baseW = vpSize * aspect;
     }
 
-    ctx.drawImage(img, -renderW / 2, -renderH / 2, renderW, renderH);
+    ctx.drawImage(img, -baseW / 2, -baseH / 2, baseW, baseH);
     ctx.restore();
 
     const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.94);
+    const cropMeta = {
+      imgSrc: pfpCropState.imgSrc,
+      scale: pfpCropState.scale,
+      offsetX: pfpCropState.offsetX,
+      offsetY: pfpCropState.offsetY
+    };
+
     if (pfpCropState.target === 'biz_rep') {
       signupState.rep_pfp = croppedDataUrl;
+      signupState.rep_pfp_crop = cropMeta;
       const previewImg = document.getElementById('biz-rep-pfp-img');
       if (previewImg) previewImg.src = croppedDataUrl;
     } else if (pfpCropState.target === 'biz_join') {
       signupState.join_pfp = croppedDataUrl;
+      signupState.join_pfp_crop = cropMeta;
       const previewImg = document.getElementById('biz-join-pfp-img');
       if (previewImg) previewImg.src = croppedDataUrl;
     } else {
       signupState.pfp = croppedDataUrl;
+      signupState.pfp_crop = cropMeta;
       const previewImg = document.getElementById('cand-pfp-part2-img');
       if (previewImg) previewImg.src = croppedDataUrl;
     }
 
+    window.removeEventListener('pointermove', onPfpPointerMove);
+    window.removeEventListener('pointerup', onPfpPointerUp);
     closeModal('modal-pfp-crop');
     showToast('Profile photo adjusted and saved!', 'success');
     saveSignupProgress();
@@ -6923,6 +7014,8 @@ function applyPfpCroppedImage() {
 }
 
 function removeCandidatePfp() {
+  signupState.raw_pfp = null;
+  signupState.pfp_crop = null;
   signupState.pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
   showToast('Profile photo reset to default.');
@@ -6930,6 +7023,8 @@ function removeCandidatePfp() {
 }
 
 function removeBizRepPfp() {
+  signupState.raw_rep_pfp = null;
+  signupState.rep_pfp_crop = null;
   signupState.rep_pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
   showToast('Representative photo reset to default.');
@@ -6937,6 +7032,8 @@ function removeBizRepPfp() {
 }
 
 function removeBizJoinPfp() {
+  signupState.raw_join_pfp = null;
+  signupState.join_pfp_crop = null;
   signupState.join_pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
   showToast('Photo reset to default.');
@@ -6965,14 +7062,20 @@ async function handlePfpFileSelected(event, target = 'candidate') {
 
   // Immediately attach to signupState and DOM preview so the photo is guaranteed attached
   if (target === 'biz_rep') {
+    signupState.raw_rep_pfp = dataUrl;
+    signupState.rep_pfp_crop = null;
     signupState.rep_pfp = dataUrl;
     const previewImg = document.getElementById('biz-rep-pfp-img');
     if (previewImg) previewImg.src = dataUrl;
   } else if (target === 'biz_join') {
+    signupState.raw_join_pfp = dataUrl;
+    signupState.join_pfp_crop = null;
     signupState.join_pfp = dataUrl;
     const previewImg = document.getElementById('biz-join-pfp-img');
     if (previewImg) previewImg.src = dataUrl;
   } else {
+    signupState.raw_pfp = dataUrl;
+    signupState.pfp_crop = null;
     signupState.pfp = dataUrl;
     const previewImg = document.getElementById('cand-pfp-part2-img');
     if (previewImg) previewImg.src = dataUrl;
