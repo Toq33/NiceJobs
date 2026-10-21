@@ -1,8 +1,14 @@
 {
+  "version": 2,
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "static/**,nicejobs.db"
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     }
   ]
 }
