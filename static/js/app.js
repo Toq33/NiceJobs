@@ -5105,7 +5105,7 @@ function renderSignupPage(viewport) {
         <div class="auth-card-top-nav">
           ${isCandidate ? `
             <div style="display: flex; align-items: center; gap: 8px;">
-              ${signupState.stage > 1 ? `
+              ${(signupState.stage > 1 || signupState.stage === 'terms') ? `
                 <button type="button" class="auth-back-btn" onclick="prevSignupStage()">← Back</button>
               ` : ''}
               <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('candidate')" title="Sign In with Existing Account">
@@ -5116,7 +5116,7 @@ function renderSignupPage(viewport) {
           ` : `
             <div style="display: flex; align-items: center; gap: 8px;">
               ${signupState.biz_route !== 'choose' ? `
-                <button type="button" class="auth-back-btn" onclick="prevBizStage()">← Back</button>
+                <button type="button" class="auth-back-btn" onclick="${signupState.biz_route === 'join' ? 'prevJoinStage()' : 'prevBizStage()'}">← Back</button>
               ` : ''}
               <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('business')" title="Log In to Recruiter Desk">
                 ${svgIcon('hotel', '', 14)} <span>Already have business account? <strong>Log In</strong></span>
@@ -5628,9 +5628,14 @@ function renderSignupPage(viewport) {
                 <span class="auth-fill-pill">Auto-Fill</span>
               </div>
 
-              <button type="submit" class="auth-btn-primary" style="margin-top: 14px;">
-                Verify Code &amp; Review Terms →
-              </button>
+              <div class="auth-nav-row" style="margin-top: 14px;">
+                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
+                  ← Back
+                </button>
+                <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                  Verify Code &amp; Review Terms →
+                </button>
+              </div>
             </form>
 
             <div class="auth-otp-footer">
@@ -5657,14 +5662,14 @@ function renderSignupPage(viewport) {
               <p style="margin-bottom: 12px;">Direct candidate-employer messaging must adhere to professional hospitality standards. Harassment, misrepresentation, or abuse of messaging channels will result in immediate termination of account access.</p>
 
               <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">4. Acceptance Requirement</h4>
-              <p style="margin-bottom: 0;">You must accept these terms to activate your candidate profile and participate in hotel talent matching. Declining will prevent access to the platform.</p>
+              <p style="margin-bottom: 0;">You must accept these terms to activate your candidate profile and participate in hotel talent matching.</p>
             </div>
 
-            <div class="auth-nav-row" style="gap: 12px;">
-              <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineCandidateTerms()">
-                Decline Terms
+            <div class="auth-nav-row" style="display: flex; gap: 12px;">
+              <button type="button" class="btn-secondary" style="padding: 12px 24px;" onclick="prevSignupStage()">
+                ← Back
               </button>
-              <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptCandidateTerms()">
+              <button type="button" class="btn-orange" style="flex: 1; padding: 12px; font-weight: 800;" onclick="acceptCandidateTerms()">
                 Accept &amp; Continue →
               </button>
             </div>
@@ -6087,10 +6092,10 @@ function renderSignupPage(viewport) {
               </div>
 
               <div class="auth-nav-row" style="display: flex; gap: 12px;">
-                <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineHotelTerms()">
-                  Decline Terms
+                <button type="button" class="btn-secondary" style="padding: 12px 24px;" onclick="prevBizStage()">
+                  ← Back
                 </button>
-                <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptHotelTerms()">
+                <button type="button" class="btn-orange" style="flex: 1; padding: 12px; font-weight: 800;" onclick="acceptHotelTerms()">
                   Accept Terms &amp; Submit Registration ✓
                 </button>
               </div>
@@ -6375,10 +6380,10 @@ function renderSignupPage(viewport) {
               </div>
 
               <div class="auth-nav-row" style="display: flex; gap: 12px;">
-                <button type="button" class="btn-secondary" style="flex: 1; padding: 12px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="declineJoinTerms()">
-                  Decline Terms
+                <button type="button" class="btn-secondary" style="padding: 12px 24px;" onclick="prevJoinStage()">
+                  ← Back
                 </button>
-                <button type="button" class="btn-orange" style="flex: 2; padding: 12px; font-weight: 800;" onclick="acceptJoinTerms()">
+                <button type="button" class="btn-orange" style="flex: 1; padding: 12px; font-weight: 800;" onclick="acceptJoinTerms()">
                   Accept Terms &amp; Submit Request ✓
                 </button>
               </div>
@@ -7219,8 +7224,7 @@ async function handleCandidateFinalSignup(event) {
 }
 
 function declineCandidateTerms() {
-  signupState.terms_accepted = false;
-  showToast('You must accept the Terms & Conditions to activate your candidate profile and participate in hotel talent matching.', 'warning');
+  prevSignupStage();
 }
 
 async function acceptCandidateTerms() {
@@ -7448,14 +7452,20 @@ async function nextBizStage(targetStep) {
 function prevBizStage() {
   if (signupState.biz_step === 'terms') {
     signupState.biz_step = 5;
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
     return;
   }
+  if (signupState.biz_step === 'terms_join') {
+    return prevJoinStage();
+  }
   if (signupState.biz_step > 1) {
     signupState.biz_step -= 1;
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   } else {
     signupState.biz_route = 'choose';
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   }
 }
@@ -7480,6 +7490,7 @@ function handleNewBusinessOtpSubmit(event) {
   }
   signupState.biz_otp_code = code;
   signupState.biz_step = 'terms';
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
   showToast('OTP verified! Please review and accept Hotel Partner Terms & Conditions.', 'info');
 }
@@ -7487,8 +7498,7 @@ function handleNewBusinessOtpSubmit(event) {
 const handleNewBusinessFinalSignup = handleNewBusinessOtpSubmit;
 
 function declineHotelTerms() {
-  signupState.hotel_terms_accepted = false;
-  showToast('You must accept the Terms & Conditions to register your hotel and publish job posts.', 'warning');
+  prevBizStage();
 }
 
 async function acceptHotelTerms() {
@@ -7701,14 +7711,17 @@ async function nextJoinStage(targetStep) {
 function prevJoinStage() {
   if (signupState.biz_step === 'terms_join') {
     signupState.biz_step = 5;
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
     return;
   }
   if (signupState.biz_step > 1) {
     signupState.biz_step -= 1;
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   } else {
     signupState.biz_route = 'choose';
+    saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
   }
 }
@@ -7733,6 +7746,7 @@ function handleJoinBusinessOtpSubmit(event) {
   }
   signupState.join_otp_code = code;
   signupState.biz_step = 'terms_join';
+  saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
   showToast('OTP verified! Please review and accept Terms & Conditions.', 'info');
 }
@@ -7740,8 +7754,7 @@ function handleJoinBusinessOtpSubmit(event) {
 const handleJoinBusinessFinalSignup = handleJoinBusinessOtpSubmit;
 
 function declineJoinTerms() {
-  signupState.join_terms_accepted = false;
-  showToast('You must accept the Terms & Conditions to submit your moderator join request.', 'warning');
+  prevJoinStage();
 }
 
 async function acceptJoinTerms() {
