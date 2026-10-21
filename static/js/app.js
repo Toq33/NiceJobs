@@ -5555,17 +5555,27 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-new-part3" onsubmit="event.preventDefault(); nextBizStage(4);">
-                <!-- PFP Avatar -->
-                <div class="pfp-selector-wrap">
-                  <img src="${signupState.rep_pfp || '/static/images/candidate_rahim.jpg'}" alt="Avatar" class="pfp-preview-img" id="rep-pfp-img">
+                <!-- Profile Picture Upload (Person on behalf of the business) -->
+                <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
+                  <div class="pfp-avatar-preview-box">
+                    <img src="${signupState.rep_pfp || '/static/images/candidate_rahim.jpg'}" alt="Representative Photo Preview" class="pfp-preview-img" id="biz-rep-pfp-img">
+                  </div>
                   <div style="flex: 1;">
-                    <label class="auth-label" style="margin-bottom: 4px;">Representative Photo</label>
-                    <div class="pfp-presets-list">
-                      ${PRESET_AVATARS.map(a => `
-                        <div class="pfp-thumb-chip ${signupState.rep_pfp === a ? 'active' : ''}" onclick="selectRepAvatar('${a}')">
-                          <img src="${a}" alt="preset">
-                        </div>
-                      `).join('')}
+                    <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Representative Photo</label>
+                    <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload professional photo of the person on behalf of the business (Only compressed if &ge; 1MB)</p>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('biz-rep-pfp-file-input').click()">
+                        ${svgIcon('upload', '', 14)} Upload Picture
+                      </button>
+                      <input type="file" id="biz-rep-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_rep')">
+                      ${signupState.rep_pfp && signupState.rep_pfp !== '/static/images/candidate_rahim.jpg' ? `
+                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.rep_pfp, 'biz_rep')">
+                          ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
+                        </button>
+                        <button type="button" class="btn-icon" id="biz-rep-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeBizRepPfp()">
+                          ${svgIcon('x', '', 14)}
+                        </button>
+                      ` : ''}
                     </div>
                   </div>
                 </div>
@@ -5599,10 +5609,11 @@ function renderSignupPage(viewport) {
 
                 <div class="auth-field-grid">
                   <div class="auth-field">
-                    <label class="auth-label">Personal Work Email</label>
+                    <label class="auth-label">Email of Person on Behalf <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Representative Work Email)</span></label>
                     <input type="email" id="biz-rep-email" class="auth-input" required 
                       placeholder="fatima.khan@radissondhaka.com" 
                       value="${signupState.rep_email || ''}">
+                    <span class="auth-field-hint">Official login and contact email for the authorized person managing the property.</span>
                   </div>
                   <div class="auth-field">
                     <label class="auth-label">Date of Birth (DOB)</label>
@@ -5859,17 +5870,27 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-join-part4" onsubmit="event.preventDefault(); nextJoinStage(4);">
-                <!-- PFP Avatar -->
-                <div class="pfp-selector-wrap">
-                  <img src="${signupState.join_pfp || '/static/images/candidate_rahim.jpg'}" alt="Avatar" class="pfp-preview-img" id="join-pfp-img">
+                <!-- Profile Picture Upload (Adding new user for business) -->
+                <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
+                  <div class="pfp-avatar-preview-box">
+                    <img src="${signupState.join_pfp || '/static/images/candidate_rahim.jpg'}" alt="Photo Preview" class="pfp-preview-img" id="biz-join-pfp-img">
+                  </div>
                   <div style="flex: 1;">
-                    <label class="auth-label" style="margin-bottom: 4px;">Photo (PFP)</label>
-                    <div class="pfp-presets-list">
-                      ${PRESET_AVATARS.map(a => `
-                        <div class="pfp-thumb-chip ${signupState.join_pfp === a ? 'active' : ''}" onclick="selectJoinAvatar('${a}')">
-                          <img src="${a}" alt="preset">
-                        </div>
-                      `).join('')}
+                    <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Photo</label>
+                    <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload professional photo of the team member (Only compressed if &ge; 1MB)</p>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('biz-join-pfp-file-input').click()">
+                        ${svgIcon('upload', '', 14)} Upload Picture
+                      </button>
+                      <input type="file" id="biz-join-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_join')">
+                      ${signupState.join_pfp && signupState.join_pfp !== '/static/images/candidate_rahim.jpg' ? `
+                        <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.join_pfp, 'biz_join')">
+                          ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
+                        </button>
+                        <button type="button" class="btn-icon" id="biz-join-pfp-remove-btn" title="Remove photo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeBizJoinPfp()">
+                          ${svgIcon('x', '', 14)}
+                        </button>
+                      ` : ''}
                     </div>
                   </div>
                 </div>
@@ -6391,6 +6412,7 @@ function compressImageFile(file, maxDimension = 1600, quality = 0.92) {
 
 let pfpCropState = {
   imgSrc: '',
+  target: 'candidate', // 'candidate' | 'biz_rep' | 'biz_join'
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -6399,11 +6421,17 @@ let pfpCropState = {
   startY: 0
 };
 
-function openPfpSettingModal(imageSrc) {
+function openPfpSettingModal(imageSrc, target = 'candidate') {
   pfpCropState.imgSrc = imageSrc;
+  pfpCropState.target = target;
   pfpCropState.scale = 1;
   pfpCropState.offsetX = 0;
   pfpCropState.offsetY = 0;
+
+  const modalTitle = target === 'biz_rep'
+    ? 'Position Representative Photo'
+    : (target === 'biz_join' ? 'Position Team Member Photo' : 'Position Profile Photo');
+  const modalSub = 'Drag to frame face and use the slider to zoom';
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
@@ -6411,15 +6439,15 @@ function openPfpSettingModal(imageSrc) {
       <div class="modal-dialog" style="max-width: 480px; text-align: center;" onclick="event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title">Position Profile Photo</h2>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Drag to frame your face and use the slider to zoom</div>
+            <h2 class="modal-title">${modalTitle}</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">${modalSub}</div>
           </div>
           <button class="modal-close" onclick="closeModal('modal-pfp-crop')" aria-label="Close">${svgIcon('x', '', 18)}</button>
         </div>
 
         <div class="modal-body" style="padding: 24px 20px;">
           <div id="pfp-crop-viewport" onpointerdown="startPfpDrag(event)">
-            <img id="pfp-crop-img" src="${imageSrc}" alt="Candidate face crop preview" style="transform: translate(-50%, -50%) translate(0px, 0px) scale(1);" draggable="false">
+            <img id="pfp-crop-img" src="${imageSrc}" alt="Crop preview" style="transform: translate(-50%, -50%) translate(0px, 0px) scale(1);" draggable="false">
           </div>
 
           <div style="margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 12px;">
@@ -6510,29 +6538,50 @@ function applyPfpCroppedImage() {
     ctx.restore();
 
     const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.94);
-    signupState.pfp = croppedDataUrl;
-
-    const previewImg = document.getElementById('cand-pfp-part2-img');
-    if (previewImg) previewImg.src = croppedDataUrl;
+    if (pfpCropState.target === 'biz_rep') {
+      signupState.rep_pfp = croppedDataUrl;
+      const previewImg = document.getElementById('biz-rep-pfp-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+    } else if (pfpCropState.target === 'biz_join') {
+      signupState.join_pfp = croppedDataUrl;
+      const previewImg = document.getElementById('biz-join-pfp-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+    } else {
+      signupState.pfp = croppedDataUrl;
+      const previewImg = document.getElementById('cand-pfp-part2-img');
+      if (previewImg) previewImg.src = croppedDataUrl;
+    }
 
     closeModal('modal-pfp-crop');
     showToast('Profile photo adjusted and saved!', 'success');
     saveSignupProgress();
+    renderSignupPage(document.getElementById('app-viewport'));
   };
   img.src = pfpCropState.imgSrc;
 }
 
 function removeCandidatePfp() {
   signupState.pfp = '/static/images/candidate_rahim.jpg';
-  const img = document.getElementById('cand-pfp-part2-img');
-  if (img) img.src = signupState.pfp;
-  const remBtn = document.getElementById('cand-pfp-remove-btn');
-  if (remBtn) remBtn.style.display = 'none';
   saveSignupProgress();
   showToast('Profile photo removed.');
+  renderSignupPage(document.getElementById('app-viewport'));
 }
 
-async function handlePfpFileSelected(event) {
+function removeBizRepPfp() {
+  signupState.rep_pfp = '/static/images/candidate_rahim.jpg';
+  saveSignupProgress();
+  showToast('Representative photo removed.');
+  renderSignupPage(document.getElementById('app-viewport'));
+}
+
+function removeBizJoinPfp() {
+  signupState.join_pfp = '/static/images/candidate_rahim.jpg';
+  saveSignupProgress();
+  showToast('Photo removed.');
+  renderSignupPage(document.getElementById('app-viewport'));
+}
+
+async function handlePfpFileSelected(event, target = 'candidate') {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
@@ -6542,7 +6591,7 @@ async function handlePfpFileSelected(event) {
   } else {
     dataUrl = await readFileAsDataURL(file);
   }
-  openPfpSettingModal(dataUrl);
+  openPfpSettingModal(dataUrl, target);
 }
 
 function handleCvFileSelected(event) {
@@ -6936,13 +6985,17 @@ async function nextBizStage(targetStep) {
     const dob = document.getElementById('biz-rep-dob')?.value || '';
     const desig = (document.getElementById('biz-rep-desig')?.value || '').trim();
 
+    if (!name) {
+      showToast('Please enter representative name.', 'danger');
+      return;
+    }
     const cleanPhone = phoneRaw.replace(/[^0-9]/g, '');
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('01')) {
       showToast('Representative cell must be strictly 11 digits starting with 01.', 'danger');
       return;
     }
-    if (!name) {
-      showToast('Please enter representative name.', 'danger');
+    if (!email || !email.includes('@')) {
+      showToast('Please enter the email of the person on behalf of the business.', 'danger');
       return;
     }
 
@@ -6951,6 +7004,7 @@ async function nextBizStage(targetStep) {
     signupState.rep_email = email;
     signupState.rep_dob = dob;
     signupState.rep_designation = desig;
+    saveSignupProgress();
   }
 
   if (current === 4) {
