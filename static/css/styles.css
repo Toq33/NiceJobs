@@ -7214,3 +7214,113 @@ body.screen-inbox .main-wrapper {
 .btn-nav-search {
   display: none !important;
 }
+
+/* ==========================================================================
+   Candidate Review Modal Executive Layout - Zero Inner Scroll
+   ========================================================================== */
+#modal-cand-review .modal-dialog {
+  max-width: 1040px !important;
+  width: 95vw !important;
+  max-height: 94vh !important;
+  overflow: visible !important;
+}
+
+#modal-cand-review .modal-body {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 18px 24px !important;
+}
+
+.cand-review-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cand-review-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.cand-status-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.cand-status-pill-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 7px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.cand-status-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.cand-status-pill-btn.active[data-status="under_review"] {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: #3b82f6;
+  color: #60a5fa;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.35);
+}
+
+.cand-status-pill-btn.active[data-status="shortlisted"] {
+  background: rgba(168, 85, 247, 0.22);
+  border-color: #a855f7;
+  color: #c084fc;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+}
+
+.cand-status-pill-btn.active[data-status="interview_scheduled"] {
+  background: rgba(249, 115, 22, 0.22);
+  border-color: var(--orange-primary);
+  color: #fdba74;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.35);
+}
+
+.cand-status-pill-btn.active[data-status="offer"] {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #6ee7b7;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+.cand-status-pill-btn.active[data-status="hired"] {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: #22c55e;
+  color: #86efac;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.cand-status-pill-btn.active[data-status="rejected"] {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+  color: #fca5a5;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+}
+
+@media (max-width: 900px) {
+  #modal-cand-review .modal-dialog {
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+  .cand-review-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+}

@@ -1718,7 +1718,9 @@ def get_applications(
                j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
                b.id as business_id, b.brand_name, b.logo_url, b.property_type,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
-               ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills
+               ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills,
+               ep.education as candidate_education, ep.experience as candidate_experience, ep.location as candidate_location,
+               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
         JOIN businesses b ON j.business_id = b.id
@@ -1757,6 +1759,8 @@ def get_applications(
         d = dict(r)
         d["screening_answers"] = json.loads(d["screening_answers"]) if d["screening_answers"] else {}
         d["candidate_skills"] = json.loads(d["candidate_skills"]) if d.get("candidate_skills") else []
+        d["candidate_education"] = json.loads(d["candidate_education"]) if d.get("candidate_education") else []
+        d["candidate_experience"] = json.loads(d["candidate_experience"]) if d.get("candidate_experience") else []
 
         # Fetch status event timeline
         cursor.execute("SELECT * FROM application_events WHERE application_id = ? ORDER BY id ASC", (d["id"],))
@@ -1882,7 +1886,7 @@ class ApplicationStatusUpdatePayload(BaseModel):
     status: str
     recruiter_notes: Optional[str] = None
     interview_time: Optional[str] = None
-    actor_name: str = "Fatima Khan (HR Manager)"
+    actor_name: Optional[str] = "Hotel Recruiter"
 
 @app.post("/api/applications/{app_id}/status")
 @app.patch("/api/applications/{app_id}/status")
