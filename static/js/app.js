@@ -86,7 +86,8 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-const DEFAULT_AVATAR_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+const DEFAULT_AVATAR_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' fill='%23ffffff'/><circle cx='50' cy='36' r='16' fill='%23000000'/><path d='M22 84 C22 66, 35 60, 50 60 C65 60, 78 66, 78 84 Z' fill='%23000000'/></svg>";
+const DEFAULT_HOTEL_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%23ffffff'/><path d='M28 80 V22 H72 V80 H28 Z M38 32 H46 V40 H38 V32 Z M38 46 H46 V54 H38 V46 Z M38 60 H46 V68 H38 V60 Z M54 32 H62 V40 H54 V32 Z M54 46 H62 V54 H54 V46 Z M54 60 H62 V68 H54 V60 Z' fill='%23000000'/></svg>";
 
 // Application State Store
 const state = {
@@ -424,7 +425,7 @@ function getFreshSignupState(role = 'candidate') {
     stage: 1,
 
     // Candidate Fields
-    pfp: '',
+    pfp: DEFAULT_AVATAR_PREVIEW,
     name: '',
     dob: '',
     nid_passport: '',
@@ -461,6 +462,7 @@ function getFreshSignupState(role = 'candidate') {
     // Route A: New Business Account
     brand_name: '',
     legal_name: '',
+    logo_url: DEFAULT_HOTEL_LOGO,
     property_type: '5-Star International Luxury Hotel',
     bizTypeSearchQuery: '',
     customBizTypesPool: [],
@@ -478,7 +480,7 @@ function getFreshSignupState(role = 'candidate') {
     rep_cell: '',
     rep_email: '',
     rep_dob: '',
-    rep_pfp: '',
+    rep_pfp: DEFAULT_AVATAR_PREVIEW,
     rep_designation: '',
     biz_password: '',
     biz_confirm_password: '',
@@ -496,7 +498,7 @@ function getFreshSignupState(role = 'candidate') {
     join_name: '',
     join_cell: '',
     join_dob: '',
-    join_pfp: '',
+    join_pfp: DEFAULT_AVATAR_PREVIEW,
     join_designation: '',
     join_otp_code: '',
     join_lastSentOtp: '258330',
@@ -520,8 +522,10 @@ function restoreSignupProgress() {
       // Clean out obsolete demo values if present from prior sessions
       if (parsed.email === 'rahim.ahmed@example.bd') parsed.email = '';
       if (parsed.name === 'Rahim Ahmed') parsed.name = '';
-      if (parsed.phone === '01711234567') parsed.phone = '';
-      if (parsed.pfp === '/static/images/candidate_rahim.jpg') parsed.pfp = '';
+      if (parsed.pfp === '/static/images/candidate_rahim.jpg' || !parsed.pfp) parsed.pfp = DEFAULT_AVATAR_PREVIEW;
+      if (parsed.rep_pfp === '/static/images/candidate_rahim.jpg' || !parsed.rep_pfp) parsed.rep_pfp = DEFAULT_AVATAR_PREVIEW;
+      if (parsed.join_pfp === '/static/images/candidate_rahim.jpg' || !parsed.join_pfp) parsed.join_pfp = DEFAULT_AVATAR_PREVIEW;
+      if (!parsed.logo_url) parsed.logo_url = DEFAULT_HOTEL_LOGO;
       if (parsed.cv_name === 'Rahim_Ahmed_Hospitality_CV.pdf') parsed.cv_name = '';
       if (parsed.brand_name === 'Radisson Blu Dhaka Water Garden') parsed.brand_name = '';
       if (parsed.official_email === 'hr@radissondhaka.com') parsed.official_email = '';
@@ -1060,7 +1064,7 @@ function updateNavigation() {
           ${totalUnreadNotifs > 0 ? `<span class="badge-count" style="position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; font-size: 0.65rem; padding: 0 4px; display: flex; align-items: center; justify-content: center;">${totalUnreadNotifs}</span>` : ''}
         </button>
         <div class="user-profile-badge" id="nav-candidate-profile-badge" onclick="navigateTo('profile')" style="cursor: pointer;" title="View Candidate Profile">
-          <img src="${state.currentUser.avatar || '/static/images/candidate_rahim.jpg'}" alt="${state.currentUser.name}">
+          <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}">
           <div class="user-badge-info">
             <span class="user-badge-name">${state.currentUser.name}</span>
             <span class="user-badge-role">${state.currentUser.title || 'Candidate'}</span>
@@ -1072,7 +1076,7 @@ function updateNavigation() {
 
     mobileActionsHtml = `
       <div class="mobile-user-card" onclick="navigateTo('profile'); closeMobileMenu();" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);">
-        <img src="${state.currentUser.avatar || '/static/images/candidate_rahim.jpg'}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">
+        <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">
         <div>
           <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${state.currentUser.name}</div>
           <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 600;">${state.currentUser.title || 'Candidate'} • View Profile →</div>
@@ -1334,42 +1338,6 @@ async function renderHomeScreen(viewport) {
         </div>
       </div>
     </section>
-
-    <!-- Frosted Glass Feature Cards Below Guest Search Bar -->
-    <div class="feature-glass-grid">
-      <div class="feature-glass-card" onclick="document.getElementById('jobs-feed-anchor')?.scrollIntoView({behavior: 'smooth'})" role="button" tabindex="0">
-        <div>
-          <div class="feature-icon-box">${svgIcon('briefcase', '', 20)}</div>
-          <div class="feature-card-title">Find Jobs</div>
-          <div class="feature-card-desc">Explore verified opportunities in hospitality.</div>
-        </div>
-        <div class="feature-card-arrow">→</div>
-      </div>
-      <div class="feature-glass-card" onclick="startSignupFlow('business', 1, 'new')" role="button" tabindex="0">
-        <div>
-          <div class="feature-icon-box">${svgIcon('users', '', 20)}</div>
-          <div class="feature-card-title">Hire Talent</div>
-          <div class="feature-card-desc">Connect with skilled professionals.</div>
-        </div>
-        <div class="feature-card-arrow">→</div>
-      </div>
-      <div class="feature-glass-card" onclick="navigateTo('blog')" role="button" tabindex="0">
-        <div>
-          <div class="feature-icon-box">${svgIcon('trendingUp', '', 20)}</div>
-          <div class="feature-card-title">Grow Together</div>
-          <div class="feature-card-desc">Build a stronger hospitality future.</div>
-        </div>
-        <div class="feature-card-arrow">→</div>
-      </div>
-      <div class="feature-glass-card" onclick="startSignupFlow('candidate')" role="button" tabindex="0">
-        <div>
-          <div class="feature-icon-box">${svgIcon('star', '', 20)}</div>
-          <div class="feature-card-title">Premium Access</div>
-          <div class="feature-card-desc">Unlock exclusive opportunities.</div>
-        </div>
-        <div class="feature-card-arrow">→</div>
-      </div>
-    </div>
 
     <div id="jobs-feed-anchor"></div>
     ` : `
@@ -2678,26 +2646,40 @@ async function renderRecruiterDashboard(viewport) {
   const biz = await bizRes.json();
   state.currentBusiness = biz;
 
-  const isPending = biz.verification_status !== 'verified';
+  const isPending = (biz.verification_status || 'pending') !== 'verified';
+  if (isPending) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 24px; text-align: center; max-width: 620px; margin: 40px auto; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: 0 16px 40px rgba(0,0,0,0.4);">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); color: var(--orange-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+          ${svgIcon('clock', '', 32)}
+        </div>
+        <h2 style="font-weight: 800; font-size: 1.5rem; color: var(--white); margin-bottom: 12px;">Business Verification Pending</h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 24px;">
+          The business account for <strong style="color: var(--white);">${escapeHtml(biz.brand_name)}</strong> is awaiting verification by NiceJobs platform administration. New accounts cannot access recruiter workspace, view applicants, or post vacancies until verified.
+        </p>
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 24px; text-align: left;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: #fdba74; margin-bottom: 6px;">Need fast-track verification?</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 12px;">Contact the Trust &amp; Safety Desk via WhatsApp or Email:</div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="https://wa.me/8801819876543" target="_blank" class="auth-contact-pill" style="background: rgba(37, 211, 102, 0.15); color: #86efac; border: 1px solid rgba(37, 211, 102, 0.4); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+              ${svgIcon('whatsapp', '', 14)} WhatsApp: +880 1819-876543
+            </a>
+            <a href="mailto:trust@nicejobs.bd" class="auth-contact-pill" style="background: rgba(255, 255, 255, 0.06); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.15); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+              ${svgIcon('mail', '', 14)} trust@nicejobs.bd
+            </a>
+          </div>
+        </div>
+        <button class="btn-secondary" onclick="navigateTo('home')">Return to Home</button>
+      </div>
+    `;
+    return;
+  }
+
   const totalApplicants = apps.length;
   const scheduledInterviews = apps.filter(a => a.status === 'interview_scheduled').length;
   const shortlistedCount = apps.filter(a => a.status === 'shortlisted').length;
 
   viewport.innerHTML = `
-    ${isPending ? `
-      <div style="background: rgba(249, 115, 22, 0.12); border: 1px solid var(--orange-primary); border-radius: var(--radius-md); padding: 14px 20px; margin-bottom: 24px; display: flex; align-items: center; gap: 14px;">
-        <div style="color: var(--orange-primary); display: flex; align-items: center; flex-shrink: 0;">
-          ${svgIcon('clock', '', 24)}
-        </div>
-        <div>
-          <div style="font-weight: 700; font-size: 0.95rem; color: #fdba74;">Verification Pending</div>
-          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">
-            Job posts and messaging unlock once verified by admin.
-          </div>
-        </div>
-      </div>
-    ` : ''}
-
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
       <div>
         <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">${biz.brand_name}</h1>
@@ -2804,6 +2786,22 @@ async function renderATSBoard(viewport) {
     try { state.currentBusiness = await bizRes.json(); } catch(e) {}
   }
 
+  if (state.currentBusiness && (state.currentBusiness.verification_status || 'pending') !== 'verified') {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 24px; text-align: center; max-width: 620px; margin: 40px auto; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); color: var(--orange-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+          ${svgIcon('clock', '', 32)}
+        </div>
+        <h2 style="font-weight: 800; font-size: 1.5rem; color: var(--white); margin-bottom: 12px;">Verification Required</h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 20px;">
+          Applicant tracking is restricted until your business account is verified by platform administrators.
+        </p>
+        <button class="btn-secondary" onclick="navigateTo('home')">Return to Home</button>
+      </div>
+    `;
+    return;
+  }
+
   viewport.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
       <div>
@@ -2842,7 +2840,7 @@ function renderCandidatesTableHTML(apps) {
             <tr>
               <td>
                 <div class="candidate-cell">
-                  <img src="${app.candidate_avatar || '/static/images/candidate_rahim.jpg'}" alt="${app.candidate_name}" class="candidate-avatar">
+                  <img src="${app.candidate_avatar || DEFAULT_AVATAR_PREVIEW}" alt="${app.candidate_name}" class="candidate-avatar">
                   <div>
                     <div class="candidate-name">${app.candidate_name}</div>
                     <div class="candidate-sub">${app.candidate_email} • ${app.candidate_phone}</div>
@@ -2931,7 +2929,7 @@ async function renderInboxScreen(viewport) {
             ` : convs.map(c => `
               <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? c.candidate_name : c.brand_name).toLowerCase()}" data-job="${escapeHtml(c.job_title).toLowerCase()}">
                 <div class="thread-avatar-wrap">
-                  <img src="${isRecruiter ? (c.candidate_avatar || '/static/images/candidate_rahim.jpg') : (c.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="thread-avatar-img">
+                  <img src="${isRecruiter ? (c.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (c.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="thread-avatar-img">
                   <span class="thread-role-badge">${isRecruiter ? svgIcon('user', '', 14) : svgIcon('hotel', '', 14)}</span>
                 </div>
                 <div class="thread-meta-body">
@@ -2956,7 +2954,7 @@ async function renderInboxScreen(viewport) {
                 <button type="button" class="btn-chat-back-to-threads" onclick="closeMobileChat()" title="Back to conversations">
                   ${svgIcon('chevronLeft', '', 20)}
                 </button>
-                <img src="${isRecruiter ? (activeConv.candidate_avatar || '/static/images/candidate_rahim.jpg') : (activeConv.logo_url || '/static/images/hero_lobby.jpg')}" alt="Avatar" class="chat-recipient-avatar">
+                <img src="${isRecruiter ? (activeConv.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (activeConv.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="chat-recipient-avatar">
                 <div style="min-width: 0;">
                   <div class="chat-recipient-name">${isRecruiter ? activeConv.candidate_name : activeConv.brand_name}</div>
                   <div class="chat-job-context-pill">
@@ -3713,7 +3711,7 @@ async function renderAdminScreen(viewport) {
                   <tr>
                     <td>
                       <div class="admin-user-cell">
-                        <img src="${u.avatar_url || '/static/images/candidate_rahim.jpg'}" alt="${u.name}">
+                        <img src="${u.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${u.name}">
                         <div>
                           <strong style="color: var(--white);">${u.name}</strong>
                           <div style="font-size: 0.74rem; color: var(--text-dim);">${u.id}</div>
@@ -3958,7 +3956,7 @@ async function renderAdminScreen(viewport) {
                   <tr>
                     <td>
                       <div class="admin-user-cell">
-                        <img src="${m.avatar_url || '/static/images/candidate_rahim.jpg'}" alt="${m.name}">
+                        <img src="${m.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${m.name}">
                         <div>
                           <strong style="color: var(--white);">${m.name}</strong>
                           <div style="font-size: 0.72rem; color: var(--text-dim);">Submitted: ${m.created_at}</div>
@@ -4839,6 +4837,22 @@ function renderLoginPage(viewport) {
                 </div>
               ` : ''}
 
+              ${loginState.errorType === 'unverified_business' ? `
+                <div class="auth-notice-card" style="margin-top: 14px; border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.08);">
+                  <div style="font-size: 0.88rem; color: #fbbf24; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    ${svgIcon('clock', '', 16)} Business Verification Required
+                  </div>
+                  <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 10px;">
+                    The establishment <strong>${escapeHtml(loginState.unverifiedBusinessName || 'this business')}</strong> is pending administrator verification. Accounts cannot log in or view workspace until verified.
+                  </div>
+                  <div class="auth-contact-links" style="margin-top: 8px;">
+                    <a href="https://wa.me/8801819876543" target="_blank" class="auth-contact-pill" style="background: rgba(37, 211, 102, 0.15); color: #86efac; border: 1px solid rgba(37, 211, 102, 0.4); font-size: 0.75rem; padding: 4px 8px;">
+                      ${svgIcon('whatsapp', '', 13)} WhatsApp: +880 1819-876543
+                    </a>
+                  </div>
+                </div>
+              ` : ''}
+
               <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
                 Continue →
               </button>
@@ -4992,6 +5006,13 @@ async function handleBusinessCheckPart1(event) {
       return;
     }
 
+    if ((data.business.verification_status || 'pending') !== 'verified') {
+      loginState.errorType = 'unverified_business';
+      loginState.unverifiedBusinessName = data.business.brand_name;
+      renderLoginPage(document.getElementById('app-viewport'));
+      return;
+    }
+
     loginState.verifiedBusiness = data.business;
     loginState.businessStep = 2;
     loginState.errorType = null;
@@ -5037,6 +5058,13 @@ async function handleBusinessLoginPart2(event) {
     if (!res.ok) {
       if (res.status === 404 && data.detail && data.detail.includes('not listed')) {
         loginState.errorType = 'unlisted_user';
+        renderLoginPage(document.getElementById('app-viewport'));
+        return;
+      }
+      if (res.status === 403 && data.detail && (data.detail.includes('verification') || data.detail.includes('pending'))) {
+        loginState.businessStep = 1;
+        loginState.errorType = 'unverified_business';
+        loginState.unverifiedBusinessName = loginState.verifiedBusiness?.brand_name || 'Business';
         renderLoginPage(document.getElementById('app-viewport'));
         return;
       }
@@ -5729,6 +5757,28 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-new-part1" onsubmit="event.preventDefault(); nextBizStage(2);">
+                <!-- Business Logo Upload System -->
+                <div class="logo-upload-wrap" style="display: flex; align-items: center; gap: 18px; padding: 14px 18px; background: rgba(255, 255, 255, 0.025); border: 1px dashed var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 20px;">
+                  <div class="logo-avatar-preview-box" style="width: 68px; height: 68px; min-width: 68px; border-radius: 12px; background: #ffffff; border: 2px solid var(--orange-primary); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);">
+                    <img src="${signupState.logo_url || DEFAULT_HOTEL_LOGO}" alt="Property Logo Preview" id="biz-logo-img" style="width: 100%; height: 100%; object-fit: contain; padding: 4px;">
+                  </div>
+                  <div style="flex: 1;">
+                    <label class="auth-label" style="margin-bottom: 4px; font-weight: 700; color: var(--white);">Establishment Logo</label>
+                    <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload official hotel or property brand logo (PNG, JPG, WebP, SVG up to 5MB)</p>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('biz-logo-file-input').click()">
+                        ${svgIcon('upload', '', 14)} Upload Logo
+                      </button>
+                      <input type="file" id="biz-logo-file-input" accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml" style="display: none;" onchange="handleBizLogoFileSelected(event)">
+                      ${signupState.logo_url && signupState.logo_url !== DEFAULT_HOTEL_LOGO ? `
+                        <button type="button" class="btn-icon" id="biz-logo-remove-btn" title="Remove logo" style="width: 32px; height: 32px; color: #f87171;" onclick="removeBizLogo()">
+                          ${svgIcon('x', '', 14)}
+                        </button>
+                      ` : ''}
+                    </div>
+                  </div>
+                </div>
+
                 <div class="auth-field-grid">
                   <div class="auth-field">
                     <label class="auth-label">Business Name (Brand Name)</label>
@@ -6123,8 +6173,11 @@ function renderSignupPage(viewport) {
                   </div>
                 </div>
 
-                <button type="button" class="auth-btn-primary" onclick="navigateTo('recruiter-dashboard')">
-                  Go to Business Workspace →
+                <div style="font-size: 0.85rem; color: #fbbf24; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  ${svgIcon('alertCircle', '', 16)} Business verification is required before signing in or accessing the workspace.
+                </div>
+                <button type="button" class="auth-btn-primary" onclick="navigateTo('home')">
+                  Return to Home →
                 </button>
               </div>
             ` : ''}
@@ -6422,62 +6475,40 @@ function renderSignupPage(viewport) {
 // HELPER SUBROUTINES FOR SCHEMAS, ADDERS & AVATARS
 // -------------------------------------------------------------
 
-function handlePfpFileSelected(event) {
-  const file = event.target.files?.[0];
+async function handleBizLogoFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
   if (!file) return;
-  if (!file.type.startsWith('image/')) {
-    showToast('Please select a valid image file (JPG, PNG, or WebP)', 'danger');
+
+  if (!file.type.startsWith('image/') && !file.type.includes('svg')) {
+    showToast('Please select a valid image file (PNG, JPG, WebP, SVG)', 'danger');
     return;
   }
   if (file.size > 5 * 1024 * 1024) {
-    showToast('Image file size must be under 5MB', 'danger');
+    showToast('Logo file size must be under 5MB', 'danger');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const dataUrl = e.target.result;
-    signupState.pfp = dataUrl;
-    const previewImg = document.getElementById('cand-pfp-img');
-    if (previewImg) previewImg.src = dataUrl;
-    showToast(`Profile picture attached: ${file.name}`, 'success');
-    renderSignupPage(document.getElementById('app-viewport'));
-  };
-  reader.readAsDataURL(file);
-}
 
-function resetCandidatePfp() {
-  signupState.pfp = '/static/images/candidate_rahim.jpg';
-  const previewImg = document.getElementById('cand-pfp-img');
-  if (previewImg) previewImg.src = signupState.pfp;
-  showToast('Profile picture reset to default', 'info');
+  let dataUrl;
+  if (file.size >= 1024 * 1024 && !file.type.includes('svg')) {
+    dataUrl = await compressImageFile(file, 1600, 0.92);
+  } else {
+    dataUrl = await readFileAsDataURL(file);
+  }
+  signupState.logo_url = dataUrl;
+  const logoImg = document.getElementById('biz-logo-img');
+  if (logoImg) logoImg.src = dataUrl;
+  saveSignupProgress();
+  showToast(`Business logo attached: ${file.name}`, 'success');
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
-function selectAvatar(url) {
-  signupState.pfp = url;
-  const img = document.getElementById('cand-pfp-img');
-  if (img) img.src = url;
-  document.querySelectorAll('.pfp-thumb-chip').forEach(c => {
-    c.classList.toggle('active', c.querySelector('img')?.getAttribute('src') === url);
-  });
-}
-
-function selectRepAvatar(url) {
-  signupState.rep_pfp = url;
-  const img = document.getElementById('rep-pfp-img');
-  if (img) img.src = url;
-  document.querySelectorAll('.pfp-thumb-chip').forEach(c => {
-    c.classList.toggle('active', c.querySelector('img')?.getAttribute('src') === url);
-  });
-}
-
-function selectJoinAvatar(url) {
-  signupState.join_pfp = url;
-  const img = document.getElementById('join-pfp-img');
-  if (img) img.src = url;
-  document.querySelectorAll('.pfp-thumb-chip').forEach(c => {
-    c.classList.toggle('active', c.querySelector('img')?.getAttribute('src') === url);
-  });
+function removeBizLogo() {
+  signupState.logo_url = DEFAULT_HOTEL_LOGO;
+  const logoImg = document.getElementById('biz-logo-img');
+  if (logoImg) logoImg.src = DEFAULT_HOTEL_LOGO;
+  saveSignupProgress();
+  showToast('Logo reset to default.');
+  renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function handleCvFileSelected(event) {
@@ -6864,7 +6895,9 @@ function applyPfpCroppedImage() {
   const ctx = canvas.getContext('2d');
 
   const img = new Image();
-  img.crossOrigin = 'anonymous';
+  if (!pfpCropState.imgSrc.startsWith('data:')) {
+    img.crossOrigin = 'anonymous';
+  }
   img.onload = () => {
     ctx.clearRect(0, 0, 320, 320);
 
@@ -6912,23 +6945,23 @@ function applyPfpCroppedImage() {
 }
 
 function removeCandidatePfp() {
-  signupState.pfp = '/static/images/candidate_rahim.jpg';
+  signupState.pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
-  showToast('Profile photo removed.');
+  showToast('Profile photo reset to default.');
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function removeBizRepPfp() {
-  signupState.rep_pfp = '/static/images/candidate_rahim.jpg';
+  signupState.rep_pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
-  showToast('Representative photo removed.');
+  showToast('Representative photo reset to default.');
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function removeBizJoinPfp() {
-  signupState.join_pfp = '/static/images/candidate_rahim.jpg';
+  signupState.join_pfp = DEFAULT_AVATAR_PREVIEW;
   saveSignupProgress();
-  showToast('Photo removed.');
+  showToast('Photo reset to default.');
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
@@ -6936,12 +6969,40 @@ async function handlePfpFileSelected(event, target = 'candidate') {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (JPG, PNG, or WebP)', 'danger');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Image file size must be under 5MB', 'danger');
+    return;
+  }
+
   let dataUrl;
   if (file.size >= 1024 * 1024) {
     dataUrl = await compressImageFile(file, 1600, 0.92);
   } else {
     dataUrl = await readFileAsDataURL(file);
   }
+
+  // Immediately attach to signupState and DOM preview so the photo is guaranteed attached
+  if (target === 'biz_rep') {
+    signupState.rep_pfp = dataUrl;
+    const previewImg = document.getElementById('biz-rep-pfp-img');
+    if (previewImg) previewImg.src = dataUrl;
+  } else if (target === 'biz_join') {
+    signupState.join_pfp = dataUrl;
+    const previewImg = document.getElementById('biz-join-pfp-img');
+    if (previewImg) previewImg.src = dataUrl;
+  } else {
+    signupState.pfp = dataUrl;
+    const previewImg = document.getElementById('cand-pfp-part2-img');
+    if (previewImg) previewImg.src = dataUrl;
+  }
+  saveSignupProgress();
+  showToast(`Profile photo attached: ${file.name}`, 'success');
+
+  // Open adjustment modal to allow zoom and face framing
   openPfpSettingModal(dataUrl, target);
 }
 
@@ -7283,10 +7344,13 @@ async function finalizeCandidateRegistration() {
       sessionStorage.removeItem('nicejobs_signup_state');
     } catch (e) {}
 
+    document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('btn-role-seeker')?.classList.add('active');
     updateRoleStatusText();
-    showToast(data.message || 'Candidate account activated successfully!', 'success');
+    updateNavigation();
+    showToast(data.message || 'Terms accepted! Logged in successfully.', 'success');
     await loadInitialData();
-    navigateTo('profile');
+    navigateTo('home');
   } catch (err) {
     showToast(err.message, 'danger');
   }
@@ -7521,6 +7585,7 @@ async function finalizeNewBusinessRegistration() {
       official_telephone: signupState.official_telephone || '',
       telephone: signupState.official_telephone || '',
       features: signupState.features,
+      logo_url: signupState.logo_url || DEFAULT_HOTEL_LOGO,
       representative_name: signupState.rep_name,
       phone: signupState.rep_cell,
       representative_email: signupState.rep_email,
@@ -7540,37 +7605,24 @@ async function finalizeNewBusinessRegistration() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Business registration failed');
 
-    state.currentUser = {
-      id: data.user_id,
-      name: payload.representative_name,
-      email: payload.representative_email,
-      phone: payload.phone,
-      role: 'recruiter',
-      business_id: data.business_id,
-      title: `${payload.designation} (${payload.brand_name})`,
-      avatar: payload.avatar_url,
-      is_business_admin: true
-    };
-    state.currentRole = 'recruiter';
-    state.activeHotelId = data.business_id;
+    // Business accounts must be verified by admin before login or viewing workspace
+    state.currentUser = null;
+    state.currentRole = 'guest';
+    state.activeHotelId = null;
 
     try {
-      const sessPayload = JSON.stringify({
-        user: state.currentUser,
-        role: 'recruiter',
-        activeHotelId: data.business_id
-      });
-      sessionStorage.setItem('nicejobs_active_session', sessPayload);
-      sessionStorage.setItem('nicejobs_employer_session', sessPayload);
+      sessionStorage.removeItem('nicejobs_active_session');
+      sessionStorage.removeItem('nicejobs_employer_session');
       sessionStorage.removeItem('nicejobs_signup_state');
     } catch (e) {}
 
     updateRoleStatusText();
+    updateNavigation();
 
     // Show Verification Screen (Step 6)
     signupState.biz_step = 6;
     renderSignupPage(document.getElementById('app-viewport'));
-    showToast('Establishment registered! Administrator designated.', 'success');
+    showToast('Establishment registered! Awaiting platform admin verification.', 'success');
     await loadInitialData();
   } catch (err) {
     showToast(err.message, 'danger');
@@ -9334,7 +9386,7 @@ async function openCandidateReviewModal(appId) {
               <!-- 1. Identity & Contact Card -->
               <div class="cand-review-card">
                 <div style="display: flex; gap: 14px; align-items: center;">
-                  <img src="${app.candidate_avatar || '/static/images/candidate_rahim.jpg'}" alt="${escapeHtml(app.candidate_name)}" 
+                  <img src="${app.candidate_avatar || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(app.candidate_name)}" 
                        style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.15); flex-shrink: 0;">
                   <div style="flex: 1; min-width: 0;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">

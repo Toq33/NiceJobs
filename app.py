@@ -103,8 +103,8 @@ def dispatch_system_email(to_email: str, subject: str, body_text: str, event_typ
 # API ENDPOINTS & DEMO DATA MANAGEMENT
 # =======================
 
-DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>"
-DEFAULT_HOTEL_LOGO_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M19 2H5a2 2 0 0 0-2 2v18h18V4a2 2 0 0 0-2-2zm-7 2h2v2h-2V4zm0 4h2v2h-2V8zm0 4h2v2h-2v-2zm-4-8h2v2H8V4zm0 4h2v2H8V8zm0 4h2v2H8v-2zm-4-8h2v2H4V4zm0 4h2v2H4V8zm0 4h2v2H4v-2zm14 8h-4v-4h4v4z'/></svg>"
+DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' fill='%23ffffff'/><circle cx='50' cy='36' r='16' fill='%23000000'/><path d='M22 84 C22 66, 35 60, 50 60 C65 60, 78 66, 78 84 Z' fill='%23000000'/></svg>"
+DEFAULT_HOTEL_LOGO_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%23ffffff'/><path d='M28 80 V22 H72 V80 H28 Z M38 32 H46 V40 H38 V32 Z M38 46 H46 V54 H38 V46 Z M38 60 H46 V68 H38 V60 Z M54 32 H62 V40 H54 V32 Z M54 46 H62 V54 H54 V46 Z M54 60 H62 V68 H54 V60 Z' fill='%23000000'/></svg>"
 
 def is_demo_hidden() -> bool:
     try:
@@ -149,8 +149,13 @@ def get_jobs(
     if status and status != "all":
         query += " AND j.status = ?"
         params.append(status)
+        query += " AND (b.verification_status = 'verified' OR b.verification_status IS NULL)"
 
     if business_id:
+        chk_b = cursor.execute("SELECT verification_status FROM businesses WHERE id = ?", (business_id,)).fetchone()
+        if chk_b and (chk_b["verification_status"] or "pending") != "verified":
+            conn.close()
+            return []
         query += " AND j.business_id = ?"
         params.append(business_id)
 
@@ -633,6 +638,7 @@ def check_business(payload: CheckBusinessPayload):
             "property_type": b_dict["property_type"],
             "email": b_dict["email"],
             "city": b_dict["city"],
+            "verification_status": b_dict.get("verification_status") or "pending",
             "admin_user_id": b_dict.get("admin_user_id"),
             "admin_name": b_dict.get("admin_name") or "Business Administrator",
             "has_admin": bool(b_dict.get("admin_user_id"))
@@ -730,7 +736,7 @@ class CandidateRegisterPayload(BaseModel):
     # Part 1 fields
     dob: Optional[str] = None
     nid_passport: Optional[str] = None
-    avatar_url: Optional[str] = "/static/images/candidate_rahim.jpg"
+    avatar_url: Optional[str] = None
     # Part 2 fields
     bio: Optional[str] = None
     summary: Optional[str] = None
@@ -894,16 +900,18 @@ class BusinessRegisterPayload(BaseModel):
     district: Optional[str] = ""
     address: Optional[str] = ""
     website: Optional[str] = ""
-    email: str # Official business email
+    email: Optional[str] = None # Official business email
+    official_email: Optional[str] = None
     official_telephone: Optional[str] = ""
     telephone: Optional[str] = ""
     features: Optional[List[str]] = None
+    logo_url: Optional[str] = None
     # Representative Info (Part 3)
     representative_name: str
     phone: str
     representative_email: Optional[str] = None
     dob: Optional[str] = ""
-    avatar_url: Optional[str] = "/static/images/candidate_rahim.jpg"
+    avatar_url: Optional[str] = None
     designation: Optional[str] = "Director of Human Resources"
     # Credentials & Role (Part 4 & 5)
     password: Optional[str] = "Password123!"
@@ -917,7 +925,9 @@ def register_business(payload: BusinessRegisterPayload):
     cursor = conn.cursor()
     try:
         # 1. Check official business email uniqueness
-        official_email_clean = payload.email.strip().lower()
+        official_email_clean = (payload.email or payload.official_email or "").strip().lower()
+        if not official_email_clean:
+            raise HTTPException(status_code=400, detail="Official business email is required.")
         cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (official_email_clean,))
         if cursor.fetchone():
             raise HTTPException(
@@ -1029,7 +1039,7 @@ def register_business(payload: BusinessRegisterPayload):
             "Bangladesh",
             payload.website or "",
             official_email_clean,
-            DEFAULT_HOTEL_LOGO_SVG,
+            payload.logo_url or DEFAULT_HOTEL_LOGO_SVG,
             "/static/images/hero_lobby.jpg",
             f"{payload.property_type} property: {payload.brand_name}. Providing world-class hospitality services.",
             "pending",
@@ -1110,7 +1120,7 @@ class RegisterBusinessUserPayload(BaseModel):
     phone: str
     email: str # User email on behalf
     dob: Optional[str] = ""
-    avatar_url: Optional[str] = "/static/images/candidate_rahim.jpg"
+    avatar_url: Optional[str] = None
     designation: str = "Assistant HR Manager"
     password: str = "Password123!"
     otp_code: str
@@ -1234,6 +1244,15 @@ def login(payload: LoginPayload):
             raise HTTPException(
                 status_code=404,
                 detail="This business doesn't have an account in our directory. Please register your hotel or establishment."
+            )
+
+        # Check business verification status immediately
+        biz_verif = biz["verification_status"] or "pending"
+        if biz_verif != "verified":
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Business account for '{biz['brand_name']}' is pending verification. You cannot log in or view workspace until your establishment is verified by administration."
             )
 
         # Part 2: Verify person on behalf of the business
@@ -1391,6 +1410,18 @@ def login(payload: LoginPayload):
         """, (user["id"],))
         b_row = cursor.fetchone()
         if b_row:
+            if (b_row["verification_status"] or "pending") != "verified":
+                conn.close()
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Business account for '{b_row['brand_name']}' is pending verification. You cannot log in or view workspace until your establishment is verified by administration."
+                )
+            if b_row["approval_status"] == "pending_admin_approval":
+                conn.close()
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your account is waiting for Business Admin approval. You cannot access the workspace until approved."
+                )
             business_info = dict(b_row)
 
     profile_info = None
@@ -1738,6 +1769,10 @@ def get_applications(
         params.append(user_id)
 
     if business_id:
+        chk_b = cursor.execute("SELECT verification_status FROM businesses WHERE id = ?", (business_id,)).fetchone()
+        if chk_b and (chk_b["verification_status"] or "pending") != "verified":
+            conn.close()
+            return []
         query += " AND j.business_id = ?"
         params.append(business_id)
 
