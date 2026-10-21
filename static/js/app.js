@@ -86,6 +86,36 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return 'Open';
+  if (typeof dateStr !== 'string') return String(dateStr);
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const y = match[1];
+    const m = months[parseInt(match[2], 10) - 1] || match[2];
+    const d = parseInt(match[3], 10);
+    return `${d} ${m} ${y}`;
+  }
+  return dateStr;
+}
+
+function formatStatusLabel(status) {
+  if (!status) return '';
+  const map = {
+    'under_review': 'Under Review',
+    'shortlisted': 'Shortlisted',
+    'interview_scheduled': 'Interview Scheduled',
+    'rejected': 'Rejected',
+    'hired': 'Hired',
+    'active': 'Active',
+    'closed': 'Closed',
+    'pending': 'Pending'
+  };
+  if (map[status]) return map[status];
+  return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 const DEFAULT_AVATAR_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' fill='%23ffffff'/><circle cx='50' cy='36' r='16' fill='%23000000'/><path d='M22 84 C22 66, 35 60, 50 60 C65 60, 78 66, 78 84 Z' fill='%23000000'/></svg>";
 const DEFAULT_HOTEL_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%23ffffff'/><path d='M28 80 V22 H72 V80 H28 Z M38 32 H46 V40 H38 V32 Z M38 46 H46 V54 H38 V46 Z M38 60 H46 V68 H38 V60 Z M54 32 H62 V40 H54 V32 Z M54 46 H62 V54 H54 V46 Z M54 60 H62 V68 H54 V60 Z' fill='%23000000'/></svg>";
 
@@ -155,9 +185,9 @@ const HOTEL_ALL_DEPARTMENTS = [
 ];
 
 const SEARCH_LOCATIONS = [
-  { value: '', label: 'All Locations in Bangladesh', shortLabel: 'All Locations' },
+  { value: '', label: 'All Locations', shortLabel: 'All Locations' },
   { value: 'Dhaka', label: 'Dhaka', shortLabel: 'Dhaka' },
-  { value: 'Chattogram', label: 'Chattogram (Chittagong)', shortLabel: 'Chattogram' },
+  { value: 'Chattogram', label: 'Chattogram', shortLabel: 'Chattogram' },
   { value: "Cox's Bazar", label: "Cox's Bazar", shortLabel: "Cox's Bazar" },
   { value: 'Sylhet', label: 'Sylhet', shortLabel: 'Sylhet' },
   { value: 'Rajshahi', label: 'Rajshahi', shortLabel: 'Rajshahi' },
@@ -253,7 +283,7 @@ const SEARCH_DESIGNATIONS = [
 
 function getSearchLocationLabel(val, isCandidate = true) {
   const match = SEARCH_LOCATIONS.find(l => l.value === val);
-  if (!match) return isCandidate ? 'All Locations in Bangladesh' : 'Location';
+  if (!match) return isCandidate ? 'All Locations' : 'Location';
   return isCandidate ? match.label : match.shortLabel;
 }
 
@@ -699,23 +729,22 @@ function updateRoleStatusText() {
   if (!statusText) return;
   if (state.demoDataHidden) {
     if (state.currentUser && state.currentUser.role !== 'admin') {
-      statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${state.currentRole === 'jobseeker' ? 'Candidate' : 'Employer'})`;
+      statusText.innerHTML = `<strong>${escapeHtml(state.currentUser.name)}</strong> • ${state.currentRole === 'jobseeker' ? 'Candidate' : 'Employer'}`;
     } else if (state.currentUser && state.currentUser.role === 'admin') {
-      statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (Root Admin)`;
+      statusText.innerHTML = `<strong>${escapeHtml(state.currentUser.name)}</strong> • Admin`;
     } else {
-      statusText.innerHTML = `<span style="color: #cbd5e1;">Demo Data Removed (Clean Mode)</span>`;
+      statusText.innerHTML = `<span style="color: #cbd5e1;">Clean Mode</span>`;
     }
     return;
   }
   if (!state.currentUser) {
-    statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
+    statusText.innerHTML = `Public Guest`;
   } else if (state.currentUser.role === 'admin') {
-    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (Root Admin)`;
+    statusText.innerHTML = `<strong>${escapeHtml(state.currentUser.name)}</strong> • Admin`;
   } else if (state.currentUser.role === 'recruiter') {
-    const bizName = state.currentUser.title || 'Hotel Employer';
-    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${escapeHtml(bizName)})`;
+    statusText.innerHTML = `<strong>${escapeHtml(state.currentUser.name)}</strong> • Recruiter`;
   } else {
-    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${escapeHtml(state.currentUser.title || 'Candidate')})`;
+    statusText.innerHTML = `<strong>${escapeHtml(state.currentUser.name)}</strong> • Candidate`;
   }
 }
 
@@ -734,13 +763,13 @@ async function toggleDemoData(forceState = null) {
     const toggleBtn = document.getElementById('btn-toggle-demo-data');
     if (toggleBtn) {
       if (state.demoDataHidden) {
-        toggleBtn.textContent = 'Restore Demo Data';
-        toggleBtn.title = 'Restore demo seed data';
+        toggleBtn.textContent = 'Restore Demo';
+        toggleBtn.title = 'Restore demo data';
         toggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
         toggleBtn.style.color = '#fca5a5';
         toggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
       } else {
-        toggleBtn.textContent = 'Remove Demo Data';
+        toggleBtn.textContent = 'Clean Mode';
         toggleBtn.title = 'Temporarily remove demo data';
         toggleBtn.style.background = '';
         toggleBtn.style.color = '';
@@ -1282,13 +1311,13 @@ async function renderHomeScreen(viewport) {
     <section class="hero-glass-section">
       <div class="hero-left-col">
         <div class="hero-chip">
-          <span class="orange-dot"></span> Hospitality Employment Platform
+          <span class="orange-dot"></span> Hospitality Careers
         </div>
         <h1 class="hero-title">
           Your Next<br>Opportunity <span class="text-orange">Awaits</span>
         </h1>
         <p class="hero-subtitle">
-          Find your place in hospitality. Explore top jobs, and grow your career.
+          Verified roles at premier hotels, resorts, and fine dining across Bangladesh.
         </p>
 
         <!-- Glass Capsule Search Bar with Autocomplete -->
@@ -1342,7 +1371,7 @@ async function renderHomeScreen(viewport) {
           </div>
           <button class="hero-search-btn" onclick="executeSearch()" title="Search Opportunities">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            <span class="hero-btn-label">Search Jobs</span>
+            <span class="hero-btn-label">Search</span>
           </button>
           <div id="guest-search-dropdown" class="guest-search-dropdown" style="display: none;"></div>
         </div>
@@ -1364,7 +1393,7 @@ async function renderHomeScreen(viewport) {
     <div class="candidate-home-header" style="margin-bottom: 24px;">
       <div style="margin-bottom: 16px;">
         <div class="hero-chip" style="margin-bottom: 12px;">
-          <span class="orange-dot"></span> Hospitality Careers • ${state.currentUser?.name || 'Candidate'}
+          <span class="orange-dot"></span> Verified Opportunities
         </div>
         <h1 class="candidate-hero-heading">
           Find Your Next <span class="text-orange">Opportunity</span>
@@ -1440,7 +1469,7 @@ async function renderHomeScreen(viewport) {
             <span>Location &amp; Department Filters</span> ${svgIcon('chevronDown', '', 14)}
           </button>
           <button class="btn-orange" onclick="executeSearch()" style="padding: 12px 24px; font-weight: 700; white-space: nowrap;">
-            ${svgIcon('search', '', 15)} Search Jobs
+            ${svgIcon('search', '', 15)} Search
           </button>
         </div>
       </div>
@@ -1454,10 +1483,10 @@ async function renderHomeScreen(viewport) {
         <div class="section-header" style="align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
           <div>
             <h2 class="section-title" style="margin: 0; font-size: 1.35rem;">
-              ${svgIcon('briefcase', '', 20)} Hospitality Job Posts
+              ${svgIcon('briefcase', '', 20)} Open Positions
             </h2>
             <p class="section-subtitle" style="margin: 2px 0 0 0;">
-              Showing <strong>${jobs.length}</strong> verified opening${jobs.length === 1 ? '' : 's'} with direct hotel applications
+              <strong>${jobs.length}</strong> verified opening${jobs.length === 1 ? '' : 's'} available
             </p>
           </div>
 
@@ -1536,13 +1565,7 @@ function renderJobCardHTML(job) {
             <div class="hotel-name" style="margin-bottom: 2px;">
               <span>${job.brand_name}</span>
               <span class="verified-badge" title="Verified 5-Star Establishment">${svgIcon('shieldCheck', '', 14)}</span>
-              <span class="star-rating" title="${job.star_rating || 5}-Star Property">
-                ${svgIcon('starFilled', 'star-rating-icon', 13)}
-                ${svgIcon('starFilled', 'star-rating-icon', 13)}
-                ${svgIcon('starFilled', 'star-rating-icon', 13)}
-                ${svgIcon('starFilled', 'star-rating-icon', 13)}
-                ${svgIcon('starFilled', 'star-rating-icon', 13)}
-              </span>
+              <span class="hotel-star-pill" title="${job.star_rating || 5}-Star Property">${svgIcon('starFilled', '', 11)} ${job.star_rating || 5}★</span>
             </div>
             <a href="#job-details?id=${job.id}" class="job-title-link" onclick="openJobDetailModal('${job.id}'); return false;" style="font-size: 1.3rem;">
               ${job.title}
@@ -1596,17 +1619,17 @@ function renderJobCardHTML(job) {
       <!-- Perks Row (High candidate attraction points) -->
       ${(job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
         <div class="job-perks-row" style="margin-bottom: 14px;">
-          ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 13)} Service Charge Distribution</span>` : ''}
-          ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 13)} Staff Housing / Accommodation</span>` : ''}
-          ${job.duty_meals_provided ? `<span class="perk-chip">${svgIcon('utensils', '', 13)} Duty Meals Included</span>` : ''}
-          <span class="perk-chip">${svgIcon('shield', '', 13)} Medical Insurance</span>
+          ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 13)} Service Charge</span>` : ''}
+          ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 13)} Accommodation</span>` : ''}
+          ${job.duty_meals_provided ? `<span class="perk-chip">${svgIcon('utensils', '', 13)} Duty Meals</span>` : ''}
+          <span class="perk-chip">${svgIcon('shield', '', 13)} Health Insurance</span>
         </div>
       ` : ''}
 
       <!-- Footer & Action Buttons -->
       <div class="job-card-footer">
         <span class="card-deadline" style="display: inline-flex; align-items: center; gap: 6px;">
-          ${svgIcon('calendar', '', 13)} Deadline: <strong>${job.deadline || 'Open'}</strong> • <strong>${job.applicant_count || 12}</strong> applied
+          ${svgIcon('calendar', '', 13)} Deadline: <strong>${formatDisplayDate(job.deadline)}</strong> • <strong>${job.applicant_count || 12}</strong> applied
         </span>
         <div class="card-actions">
           <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isGuest ? 'Log in to save favourite' : (isSaved ? 'Bookmarked' : 'Save Job Post')}" onclick="toggleSaveJob('${job.id}')">
@@ -2104,7 +2127,7 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
 
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
               <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white);">${biz.brand_name}</h2>
-              <span class="verified-badge" title="Verified">✓ Verified</span>
+              <span class="verified-badge" title="Verified" style="white-space: nowrap; flex-shrink: 0;">✓ Verified</span>
             </div>
 
             <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
@@ -2123,7 +2146,7 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
           <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px;">
             <span style="font-size: 0.8rem; color: var(--text-muted);">${svgIcon('users', '', 14)} ${biz.follower_count || 1200} followers</span>
             <button class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" onclick="navigateTo('hotels', { id: '${biz.id}' })">
-              View Job Posts →
+              View Open Jobs →
             </button>
           </div>
         </div>
@@ -2432,7 +2455,6 @@ async function renderProfileScreen(viewport) {
               Open to Work: <strong>${isOpen ? 'ON' : 'OFF'}</strong>
             </button>
             <button class="btn-secondary" onclick="openComprehensiveEditProfileModal()">${svgIcon('edit', '', 14)} Edit Profile</button>
-            <button class="btn-orange" onclick="openAddCvModal()">+ Upload CV</button>
           </div>
         </div>
 
@@ -2441,10 +2463,6 @@ async function renderProfileScreen(viewport) {
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
               <span class="verified-badge" title="Verified">✓ Verified</span>
-              ${isOpen
-                ? `<span class="badge-featured" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full);">● Open to Work</span>`
-                : `<span class="badge-secondary" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-weight: 600; padding: 3px 10px; border-radius: var(--radius-full);">○ Not Looking for Work</span>`
-              }
             </div>
             <p style="font-size: 1.05rem; color: #cbd5e1; margin-top: 4px; font-weight: 600;">${escapeHtml(profile.headline || 'Hospitality Specialist')}</p>
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 6px;">
@@ -2518,8 +2536,8 @@ async function renderProfileScreen(viewport) {
         <!-- Summary -->
         <div class="profile-section-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Professional Summary</h2>
-            <button class="btn-icon" onclick="openEditSummaryModal()" title="Edit Professional Summary">${svgIcon('edit', '', 14)}</button>
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Summary</h2>
+            <button class="btn-icon" onclick="openEditSummaryModal()" title="Edit Summary">${svgIcon('edit', '', 14)}</button>
           </div>
           <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">${profile.summary || 'No professional summary added yet.'}</p>
         </div>
@@ -2527,7 +2545,7 @@ async function renderProfileScreen(viewport) {
         <!-- Experience Timeline -->
         <div class="profile-section-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Hospitality Experience</h2>
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Experience</h2>
             <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditExperienceModal()">+ Add / Edit</button>
           </div>
           <div style="display: flex; flex-direction: column; gap: 16px;">
@@ -2546,7 +2564,7 @@ async function renderProfileScreen(viewport) {
         <!-- Certifications -->
         <div class="profile-section-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Credentials &amp; Accreditations</h2>
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Certifications</h2>
             <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditCredentialsModal()">+ Add / Edit</button>
           </div>
           <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -2686,7 +2704,7 @@ async function renderRecruiterDashboard(viewport) {
         <img src="${biz.logo_url || DEFAULT_HOTEL_LOGO}" alt="${escapeHtml(biz.brand_name || '')}" style="width: 56px; height: 56px; border-radius: 12px; object-fit: contain; border: 1.5px solid var(--border-subtle); background: #070d1e; padding: 4px;">
         <div>
           <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">${escapeHtml(biz.brand_name || '')}</h1>
-          <p style="color: var(--text-muted); font-size: 0.9rem;">Manage job posts, applications, and establishment profile.</p>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">Establishment workspace and recruitment pipeline.</p>
         </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -2699,19 +2717,31 @@ async function renderRecruiterDashboard(viewport) {
     <!-- Header Metrics -->
     <div class="ats-header-stats" style="margin-bottom: 24px;">
       <div class="stat-card">
-        <span class="stat-card-label">Active Jobs</span>
+        <div class="stat-card-header">
+          <span class="stat-card-label">Active Jobs</span>
+          ${svgIcon('briefcase', 'stat-card-icon', 16)}
+        </div>
         <span class="stat-card-value" style="color: var(--blue-primary);">${jobs.length}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-label">Applicants</span>
+        <div class="stat-card-header">
+          <span class="stat-card-label">Applicants</span>
+          ${svgIcon('users', 'stat-card-icon', 16)}
+        </div>
         <span class="stat-card-value">${totalApplicants}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-label">Shortlisted</span>
+        <div class="stat-card-header">
+          <span class="stat-card-label">Shortlisted</span>
+          ${svgIcon('starFilled', 'stat-card-icon', 16)}
+        </div>
         <span class="stat-card-value" style="color: #a78bfa;">${shortlistedCount}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-label">Interviews</span>
+        <div class="stat-card-header">
+          <span class="stat-card-label">Interviews</span>
+          ${svgIcon('calendar', 'stat-card-icon', 16)}
+        </div>
         <span class="stat-card-value" style="color: var(--orange-primary);">${scheduledInterviews}</span>
       </div>
     </div>
@@ -2744,7 +2774,7 @@ async function renderRecruiterDashboard(viewport) {
                 <td><span class="badge-featured">${j.applicant_count || 0}</span></td>
                 <td>
                   <span class="status-pill status-${j.status === 'active' ? 'interview_scheduled' : 'rejected'}">
-                    ${j.status}
+                    ${formatStatusLabel(j.status)}
                   </span>
                 </td>
                 <td>
@@ -2867,10 +2897,10 @@ function renderCandidatesTableHTML(apps) {
               </td>
               <td>
                 <span class="status-pill status-${app.status}">
-                  ${app.status.replace('_', ' ')}
+                  ${formatStatusLabel(app.status)}
                 </span>
               </td>
-              <td style="font-size: 0.8rem; color: var(--text-dim);">${app.applied_at}</td>
+              <td style="font-size: 0.8rem; color: var(--text-dim);">${formatDisplayDate(app.applied_at)}</td>
               <td>
                 <button class="btn-primary" style="padding: 5px 12px; font-size: 0.78rem;" onclick="openCandidateReviewModal('${app.id}')">
                   Review

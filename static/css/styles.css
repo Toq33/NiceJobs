@@ -1447,6 +1447,25 @@ select option {
   display: inline-flex;
   align-items: center;
   cursor: help;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.hotel-star-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(234, 179, 8, 0.12);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .star-rating {
@@ -2109,6 +2128,24 @@ select option {
   padding: 18px;
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.stat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stat-card-icon {
+  color: var(--text-dim);
+  opacity: 0.65;
 }
 
 .stat-card-label {
@@ -2116,6 +2153,7 @@ select option {
   color: var(--text-dim);
   text-transform: uppercase;
   font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .stat-card-value {
@@ -5089,13 +5127,7 @@ select option {
   }
 
   .hero-perspective-wrap {
-    max-width: 420px;
-    margin: 8px auto 0 auto;
-    width: 100%;
-    height: auto !important;
-    overflow: hidden !important;
-    position: relative !important;
-    z-index: 1 !important;
+    display: none !important;
   }
 
   .perspective-main-card {
