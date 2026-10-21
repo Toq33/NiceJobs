@@ -277,7 +277,8 @@ def init_db():
         ("nid_passport", "TEXT DEFAULT ''"),
         ("designation", "TEXT DEFAULT ''"),
         ("status", "TEXT DEFAULT 'active'"),
-        ("is_business_admin", "INTEGER DEFAULT 0")
+        ("is_business_admin", "INTEGER DEFAULT 0"),
+        ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
@@ -294,7 +295,8 @@ def init_db():
         ("features", "TEXT DEFAULT '[]'"),
         ("admin_user_id", "TEXT DEFAULT ''"),
         ("telephone", "TEXT DEFAULT ''"),
-        ("official_telephone", "TEXT DEFAULT ''")
+        ("official_telephone", "TEXT DEFAULT ''"),
+        ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE businesses ADD COLUMN {col} {typ}")
@@ -338,16 +340,43 @@ def init_db():
     for col, typ in [
         ("is_negotiable", "INTEGER DEFAULT 0"),
         ("education_requirements", "TEXT DEFAULT '[]'"),
-        ("skill_requirements", "TEXT DEFAULT '[]'")
+        ("skill_requirements", "TEXT DEFAULT '[]'"),
+        ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE jobs ADD COLUMN {col} {typ}")
         except Exception:
             pass
 
+    for tbl in ["applications", "notifications", "conversations", "messages"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN is_demo INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+    """)
+    cursor.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('demo_data_hidden', '0')")
+
     cursor.execute("UPDATE users SET is_business_admin = 1 WHERE role = 'recruiter'")
     cursor.execute("UPDATE business_memberships SET membership_role = 'admin' WHERE membership_role IS NULL OR membership_role = '' OR membership_role = 'moderator'")
     cursor.execute("UPDATE businesses SET admin_user_id = 'user_fatima' WHERE id = 'biz_radisson' AND (admin_user_id IS NULL OR admin_user_id = '')")
+
+    # Mark demo fixture rows with is_demo = 1
+    try:
+        cursor.execute("UPDATE users SET is_demo = 1 WHERE id IN ('user_rahim', 'user_fatima', 'user_admin')")
+        cursor.execute("UPDATE businesses SET is_demo = 1 WHERE id IN ('biz_radisson', 'biz_intercon', 'biz_westin', 'biz_seagull', 'biz_sayeman', 'biz_grandsultan') OR id LIKE 'biz_1792337641%'")
+        cursor.execute("UPDATE jobs SET is_demo = 1 WHERE business_id IN (SELECT id FROM businesses WHERE is_demo = 1) OR id LIKE 'job_%'")
+        cursor.execute("UPDATE applications SET is_demo = 1 WHERE user_id = 'user_rahim' OR job_id IN (SELECT id FROM jobs WHERE is_demo = 1)")
+        cursor.execute("UPDATE notifications SET is_demo = 1 WHERE user_id IN ('user_rahim', 'user_fatima', 'user_admin')")
+        cursor.execute("UPDATE conversations SET is_demo = 1 WHERE user_id IN ('user_rahim', 'user_fatima') OR business_id IN (SELECT id FROM businesses WHERE is_demo = 1)")
+    except Exception:
+        pass
+
     conn.commit()
 
     # Seed rich initial data if database is fresh or jobs are empty

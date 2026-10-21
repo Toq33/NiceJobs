@@ -100,8 +100,22 @@ def dispatch_system_email(to_email: str, subject: str, body_text: str, event_typ
     return {"id": mail_id, "status": status, "to": to_email}
 
 # =======================
-# API ENDPOINTS
+# API ENDPOINTS & DEMO DATA MANAGEMENT
 # =======================
+
+DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>"
+DEFAULT_HOTEL_LOGO_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M19 2H5a2 2 0 0 0-2 2v18h18V4a2 2 0 0 0-2-2zm-7 2h2v2h-2V4zm0 4h2v2h-2V8zm0 4h2v2h-2v-2zm-4-8h2v2H8V4zm0 4h2v2H8V8zm0 4h2v2H8v-2zm-4-8h2v2H4V4zm0 4h2v2H4V8zm0 4h2v2H4v-2zm14 8h-4v-4h4v4z'/></svg>"
+
+def is_demo_hidden() -> bool:
+    try:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'demo_data_hidden'")
+        row = cursor.fetchone()
+        conn.close()
+        return bool(row and row["value"] == "1")
+    except Exception:
+        return False
 
 @app.get("/api/jobs")
 def get_jobs(
@@ -127,6 +141,10 @@ def get_jobs(
         WHERE 1=1
     """
     params = []
+
+    if is_demo_hidden():
+        query += " AND (j.is_demo = 0 OR j.is_demo IS NULL)"
+        query += " AND (b.is_demo = 0 OR b.is_demo IS NULL)"
 
     if status and status != "all":
         query += " AND j.status = ?"
@@ -371,6 +389,9 @@ def get_businesses(city: Optional[str] = None, property_type: Optional[str] = No
     query = "SELECT * FROM businesses WHERE 1=1"
     params = []
 
+    if is_demo_hidden():
+        query += " AND (is_demo = 0 OR is_demo IS NULL)"
+
     if city:
         query += " AND city LIKE ?"
         params.append(f"%{city}%")
@@ -401,7 +422,7 @@ def get_business_detail(business_id: str, user_id: Optional[str] = "user_rahim")
 
     cursor.execute("SELECT * FROM businesses WHERE id = ?", (business_id,))
     row = cursor.fetchone()
-    if not row:
+    if not row or (is_demo_hidden() and row["is_demo"] == 1):
         conn.close()
         raise HTTPException(status_code=404, detail="Hotel/Business not found")
 
@@ -761,13 +782,13 @@ def register_candidate(payload: CandidateRegisterPayload):
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    avatar = payload.avatar_url or "/static/images/candidate_rahim.jpg"
+    avatar = payload.avatar_url or DEFAULT_AVATAR_SVG
     dob_val = payload.dob or ""
     nid_val = payload.nid_passport or ""
 
     cursor.execute("""
-        INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     """, (user_id, payload.name, payload.email, payload.phone, payload.password, "jobseeker", avatar, now, dob_val, nid_val, "active"))
 
     cv_filename = payload.cv_name or f"{payload.name.replace(' ', '_')}_Hospitality_Resume.pdf"
@@ -780,42 +801,37 @@ def register_candidate(payload: CandidateRegisterPayload):
             "size": "240 KB",
             "is_default": True
         }
-    ])
+    ]) if payload.cv_name else json.dumps([])
 
-    skills_data = payload.skills or ["Guest Relations", "Opera PMS", "Hospitality Standards", "Shift Management"]
+    skills_data = payload.skills if isinstance(payload.skills, list) else []
     
     # Process languages
     if isinstance(payload.languages, list):
         langs_data = payload.languages
     else:
-        langs_data = [{"name": "Bengali", "level": "Native"}, {"name": "English", "level": "Professional"}]
+        langs_data = []
 
     # Process education
     if isinstance(payload.education, list):
         edu_list = payload.education
     elif isinstance(payload.education, str) and payload.education:
-        edu_list = [{"institution": "Hospitality Institute", "degree": payload.education, "year": "2023"}]
+        edu_list = [{"institution": "Hospitality Institute", "degree": payload.education, "year": "2026"}]
     else:
-        edu_list = [{"institution": "National Hotel & Tourism Training Institute (NHTTI)", "degree": "Diploma in Hospitality & Tourism Management", "gpa": "3.80"}]
+        edu_list = []
 
     # Process experience
     if isinstance(payload.experience, list):
         exp_list = payload.experience
     else:
-        exp_list = [{
-            "company": "Radisson Blu Dhaka Water Garden",
-            "role": payload.current_position or "Front Desk Associate",
-            "period": f"Past {payload.experience_years or 2} Years",
-            "skills_acquired": "Opera PMS 5.5, VIP Concierge, Shift Management"
-        }]
+        exp_list = []
 
-    bio_text = payload.bio or payload.summary or "Passionate hospitality professional dedicated to 5-star service delivery and hotel operations excellence."
-    headline_text = f"{payload.current_position or 'Hospitality Specialist'} • {payload.department or 'Hotel Operations'}"
+    bio_text = payload.bio or payload.summary or ""
+    headline_text = f"{payload.current_position} • {payload.department}" if payload.current_position and payload.department else (payload.current_position or payload.department or "Hospitality Specialist")
 
     prefs_data = {
-        "target_roles": [payload.current_position or "Hospitality Associate"],
-        "locations": [payload.location or "Dhaka"],
-        "expected_salary": payload.expected_salary or "BDT 40,000 - 60,000",
+        "target_roles": [payload.current_position or "Hospitality Associate"] if payload.current_position else [],
+        "locations": [payload.location] if payload.location else ["Dhaka"],
+        "expected_salary": payload.expected_salary or "Negotiable",
         "work_type": payload.work_type or "Full-time",
         "notice_period": payload.notice_period or "1 Month"
     }
@@ -836,19 +852,19 @@ def register_candidate(payload: CandidateRegisterPayload):
         headline_text,
         payload.location or "Dhaka, Bangladesh",
         bio_text,
-        payload.current_position or "Front Desk Associate",
-        payload.experience_years or 2,
+        payload.current_position or "Hospitality Specialist",
+        payload.experience_years or 0,
         1 if payload.open_to_work else 0,
         payload.visibility or "eligible_employers",
         json.dumps(skills_data),
         json.dumps(langs_data),
-        json.dumps([{"name": "Certified Hospitality Professional (CHP)", "issuer": "BHA", "year": "2023"}]),
+        json.dumps([]),
         json.dumps(exp_list),
         json.dumps(edu_list),
         json.dumps(prefs_data),
         cv_filename,
         "Just now",
-        92,
+        85 if payload.cv_name else 70,
         initial_cvs,
         dob_val,
         nid_val,
@@ -977,20 +993,20 @@ def register_business(payload: BusinessRegisterPayload):
         user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        feature_list = payload.features or ["Swimming Pool", "Spa & Wellness", "Fitness Gym", "Multi-Cuisine Restaurant", "High-Speed WiFi", "Valet Parking"]
+        feature_list = payload.features if isinstance(payload.features, list) else []
         dept_list = ["Front Office", "Food & Beverage", "Culinary", "Housekeeping", "Sales & Banquets", "Engineering"]
         benefits_list = ["Competitive Service Charge", "Duty Meals Included", "Staff Accommodation", "Health Insurance"]
 
         composite_addr = payload.address or f"Plot {payload.plot_number}, Road {payload.road_number}, {payload.thana_upazila}, {payload.district}"
         city_val = payload.district or payload.thana_upazila or "Dhaka"
 
-        designation_val = payload.designation or "Director of Human Resources"
-        avatar = payload.avatar_url or "/static/images/candidate_rahim.jpg"
+        designation_val = payload.designation or "Authorized Representative"
+        avatar = payload.avatar_url or DEFAULT_AVATAR_SVG
 
         # Insert representative user as Business Administrator
         cursor.execute("""
-            INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, (user_id, payload.representative_name, rep_email, payload.phone, payload.password or "Password123!", "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
 
         # Insert business
@@ -1000,8 +1016,8 @@ def register_business(payload: BusinessRegisterPayload):
                 website, email, logo_url, cover_image, description, verification_status,
                 verification_notes, departments, amenities, benefits, follower_count,
                 parent_group, property_size, plot_number, road_number, thana_upazila, district,
-                features, admin_user_id, telephone, official_telephone
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                features, admin_user_id, telephone, official_telephone, is_demo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, (
             biz_id,
             payload.legal_name,
@@ -1013,7 +1029,7 @@ def register_business(payload: BusinessRegisterPayload):
             "Bangladesh",
             payload.website or "",
             official_email_clean,
-            "/static/images/hero_lobby.jpg",
+            DEFAULT_HOTEL_LOGO_SVG,
             "/static/images/hero_lobby.jpg",
             f"{payload.property_type} property: {payload.brand_name}. Providing world-class hospitality services.",
             "pending",
@@ -1148,9 +1164,9 @@ def register_business_user(payload: RegisterBusinessUserPayload):
 
     # Insert user (Pending admin approval)
     cursor.execute("""
-        INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, payload.name, payload.email.strip().lower(), payload.phone, payload.password, "recruiter", payload.avatar_url or "/static/images/candidate_rahim.jpg", now, payload.dob or "", payload.designation, "pending_approval", 0))
+        INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin, is_demo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    """, (user_id, payload.name, payload.email.strip().lower(), payload.phone, payload.password, "recruiter", payload.avatar_url or DEFAULT_AVATAR_SVG, now, payload.dob or "", payload.designation or "Team Member", "pending_approval", 0))
 
     # Insert membership with 'pending_admin_approval'
     cursor.execute("""
@@ -1415,6 +1431,10 @@ def login(payload: LoginPayload):
 def get_profile(user_id: str = "user_rahim"):
     conn = database.get_db()
     cursor = conn.cursor()
+
+    if is_demo_hidden() and user_id in ["user_rahim", "user_fatima"]:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Demo profile is hidden because demo data has been removed.")
 
     cursor.execute("""
         SELECT u.name, u.email, u.phone, u.avatar_url, p.*
@@ -1707,6 +1727,9 @@ def get_applications(
         WHERE 1=1
     """
     params = []
+
+    if is_demo_hidden():
+        query += " AND (a.is_demo = 0 OR a.is_demo IS NULL)"
 
     if user_id:
         query += " AND a.user_id = ?"
@@ -2010,6 +2033,9 @@ def get_conversations(user_id: Optional[str] = None, business_id: Optional[str] 
     """
     params = []
 
+    if is_demo_hidden():
+        query += " AND (c.is_demo = 0 OR c.is_demo IS NULL)"
+
     if user_id:
         query += " AND c.user_id = ?"
         params.append(user_id)
@@ -2136,7 +2162,13 @@ def get_notifications(user_id: str = "user_rahim"):
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM notifications WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    query = "SELECT * FROM notifications WHERE user_id = ?"
+    params = [user_id]
+    if is_demo_hidden():
+        query += " AND (is_demo = 0 OR is_demo IS NULL)"
+    query += " ORDER BY timestamp DESC"
+
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     results = [dict(r) for r in rows]
 
@@ -2591,6 +2623,8 @@ def get_admin_jobs_list(status: Optional[str] = "all", q: Optional[str] = None):
         WHERE 1=1
     """
     params = []
+    if is_demo_hidden():
+        query += " AND (j.is_demo = 0 OR j.is_demo IS NULL)"
     if status and status != "all":
         query += " AND j.status = ?"
         params.append(status)
@@ -2649,12 +2683,14 @@ def delete_job(job_id: str):
 def get_admin_businesses_list():
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("""
+    where_clause = "WHERE (b.is_demo = 0 OR b.is_demo IS NULL)" if is_demo_hidden() else ""
+    cursor.execute(f"""
         SELECT b.*, u.name as admin_name, u.email as admin_email,
                (SELECT count(*) FROM business_memberships WHERE business_id = b.id) as member_count,
                (SELECT count(*) FROM jobs WHERE business_id = b.id) as job_count
         FROM businesses b
         LEFT JOIN users u ON b.admin_user_id = u.id
+        {where_clause}
         ORDER BY b.brand_name ASC
     """)
     rows = cursor.fetchall()
@@ -2687,6 +2723,53 @@ def get_admin_moderator_requests():
     results = [dict(r) for r in rows]
     conn.close()
     return results
+
+@app.delete("/api/admin/businesses/{business_id}")
+def delete_business(business_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM businesses WHERE id = ?", (business_id,))
+    cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (business_id,))
+    cursor.execute("DELETE FROM jobs WHERE business_id = ?", (business_id,))
+    cursor.execute("DELETE FROM business_verifications WHERE business_id = ?", (business_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Business establishment deleted successfully."}
+
+@app.get("/api/admin/demo-status")
+def get_demo_status():
+    return {"demo_data_hidden": is_demo_hidden()}
+
+class ToggleDemoPayload(BaseModel):
+    hide: Optional[bool] = None
+
+@app.post("/api/admin/toggle-demo-data")
+def toggle_demo_data(payload: Optional[ToggleDemoPayload] = None):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+    """)
+    current_hidden = is_demo_hidden()
+    if payload is not None and payload.hide is not None:
+        new_hidden = bool(payload.hide)
+    else:
+        new_hidden = not current_hidden
+
+    cursor.execute("""
+        INSERT INTO system_settings (key, value) VALUES ('demo_data_hidden', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    """, ("1" if new_hidden else "0",))
+    conn.commit()
+    conn.close()
+    return {
+        "success": True,
+        "demo_data_hidden": new_hidden,
+        "message": "Demo data temporarily removed! Fresh accounts view active." if new_hidden else "Demo data restored!"
+    }
 
 @app.post("/api/admin/reset-demo")
 def reset_demo_database():

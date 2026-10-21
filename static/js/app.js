@@ -86,9 +86,12 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+const DEFAULT_AVATAR_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
 // Application State Store
 const state = {
   currentRole: 'jobseeker', // 'jobseeker', 'recruiter', 'admin', 'guest'
+  demoDataHidden: false,
   currentUser: {
     id: 'user_rahim',
     name: 'Rahim Ahmed',
@@ -415,105 +418,93 @@ const loginState = {
   lastSentOtp: '258330'
 };
 
-const signupState = {
-  role: 'candidate',       // 'candidate' | 'business'
-  stage: 1,                // 1, 2, 3, 4, 'terms'
+function getFreshSignupState(role = 'candidate') {
+  return {
+    role: role,
+    stage: 1,
 
-  // Candidate Fields (Part 1 to 4)
-  pfp: '/static/images/candidate_rahim.jpg',
-  name: 'Rahim Ahmed',
-  dob: '1998-04-12',
-  nid_passport: 'NID-1998269123456',
-  phone: '01711234567',
-  phone_secondary: '',     // Secondary phone (primary receives OTP)
-  email: 'rahim.ahmed@example.bd',
-  bio: 'Passionate hospitality professional dedicated to 5-star service delivery, guest relations, and front office operations excellence.',
-  cv_name: 'Rahim_Ahmed_Hospitality_CV.pdf',
-  cv_url: '',
-  job_preferences: {
-    department: 'Front Office',
-    desired_role: 'Front Office Supervisor',
-    shift: 'Rotational',
-    expected_salary: '৳55,000',
-    preferred_location: 'Dhaka'
-  },
-  education: [
-    {
-      institution: 'National Hotel & Tourism Training Institute (NHTTI)',
-      degree: 'Diploma in Hospitality & Tourism Management (NHTTI)',
-      gpa: '3.85'
-    }
-  ],
-  skills: ['Opera PMS', 'Guest Relations', 'VIP Concierge', 'Shift Management'],
-  customSkillsPool: [],
-  skillsSearchQuery: '',
-  languages: [
-    { name: 'Bengali', level: 'Native' },
-    { name: 'English', level: 'Professional' }
-  ],
-  languagesSearchQuery: '',
-  experience: [
-    {
-      company: 'Radisson Blu Dhaka Water Garden',
-      role: 'Front Desk Associate',
-      period: '2023 - Present (2 Years)',
-      skills_acquired: 'Opera PMS 5.5, VIP concierge, shift management'
-    }
-  ],
-  password: 'Password123!',
-  confirm_password: 'Password123!',
-  otp_code: '',
-  lastSentOtp: '258330',
-  terms_accepted: false,
+    // Candidate Fields
+    pfp: '',
+    name: '',
+    dob: '',
+    nid_passport: '',
+    phone: '',
+    phone_secondary: '',
+    email: '',
+    bio: '',
+    cv_name: '',
+    cv_url: '',
+    job_preferences: {
+      department: 'Front Office & Guest Services',
+      desired_role: '',
+      shift: 'Rotational',
+      expected_salary: '',
+      preferred_location: 'Dhaka'
+    },
+    education: [],
+    skills: [],
+    customSkillsPool: [],
+    skillsSearchQuery: '',
+    languages: [],
+    languagesSearchQuery: '',
+    experience: [],
+    password: '',
+    confirm_password: '',
+    otp_code: '',
+    lastSentOtp: '258330',
+    terms_accepted: false,
 
-  // Business Onboarding State
-  biz_route: 'choose',     // 'choose' | 'new' | 'join'
-  biz_step: 1,
+    // Business Onboarding State
+    biz_route: 'choose',
+    biz_step: 1,
 
-  // Route A: New Business Account (Parts 1-8)
-  brand_name: 'Radisson Blu Dhaka Water Garden',
-  legal_name: 'Sena Hotel Developments Ltd.',
-  property_type: '5-Star International Luxury Hotel',
-  bizTypeSearchQuery: '',
-  customBizTypesPool: [],
-  plot_number: '7',
-  road_number: 'Airport Road',
-  thana_upazila: 'Cantonment',
-  district: 'Dhaka',
-  website: 'https://www.radissonhotels.com/en-us/hotels/radisson-blu-dhaka',
-  official_email: 'hr@radissondhaka.com',
-  official_telephone: '+880 2 9834555',
-  features: ['Infinity Swimming Pool', 'Luxury Spa & Wellness Center', '24/7 Fitness Center & Gym', 'Multi-Cuisine Fine Dining Restaurant', 'High-Speed Optical Fiber Wi-Fi'],
-  customFeaturesPool: [],
-  featuresSearchQuery: '',
-  rep_name: 'Fatima Khan',
-  rep_cell: '01819876543',
-  rep_email: 'fatima.khan@radissondhaka.com',
-  rep_dob: '1989-08-25',
-  rep_pfp: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
-  rep_designation: 'Director of Human Resources',
-  biz_password: 'Password123!',
-  biz_confirm_password: 'Password123!',
-  biz_role_choice: 'admin', // Default admin for business
-  biz_otp_code: '',
-  biz_lastSentOtp: '258330',
-  hotel_terms_accepted: false,
+    // Route A: New Business Account
+    brand_name: '',
+    legal_name: '',
+    property_type: '5-Star International Luxury Hotel',
+    bizTypeSearchQuery: '',
+    customBizTypesPool: [],
+    plot_number: '',
+    road_number: '',
+    thana_upazila: '',
+    district: 'Dhaka',
+    website: '',
+    official_email: '',
+    official_telephone: '',
+    features: [],
+    customFeaturesPool: [],
+    featuresSearchQuery: '',
+    rep_name: '',
+    rep_cell: '',
+    rep_email: '',
+    rep_dob: '',
+    rep_pfp: '',
+    rep_designation: '',
+    biz_password: '',
+    biz_confirm_password: '',
+    biz_role_choice: 'admin',
+    biz_otp_code: '',
+    biz_lastSentOtp: '258330',
+    hotel_terms_accepted: false,
 
-  // Route B: Add New User to Existing Business (Parts 1-7)
-  join_business_email: 'hr@radissondhaka.com',
-  join_matched_business: null,
-  join_user_email: 'tanvir.recruiter@radissondhaka.com',
-  join_user_password: 'Password123!',
-  join_confirm_password: 'Password123!',
-  join_name: 'Tanvir Hossain',
-  join_cell: '01912345678',
-  join_dob: '1995-11-14',
-  join_pfp: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-  join_designation: 'Assistant HR Manager & Recruiter',
-  join_otp_code: '',
-  join_lastSentOtp: '258330',
-  join_terms_accepted: false
-};
+    // Route B: Add New User
+    join_business_email: '',
+    join_matched_business: null,
+    join_user_email: '',
+    join_user_password: '',
+    join_confirm_password: '',
+    join_name: '',
+    join_cell: '',
+    join_dob: '',
+    join_pfp: '',
+    join_designation: '',
+    join_otp_code: '',
+    join_lastSentOtp: '258330',
+    join_terms_accepted: false
+  };
+}
+
+const signupState = getFreshSignupState('candidate');
 
 function saveSignupProgress() {
   try {
@@ -526,6 +517,18 @@ function restoreSignupProgress() {
     const saved = sessionStorage.getItem('nicejobs_signup_state');
     if (saved) {
       const parsed = JSON.parse(saved);
+      // Clean out obsolete demo values if present from prior sessions
+      if (parsed.email === 'rahim.ahmed@example.bd') parsed.email = '';
+      if (parsed.name === 'Rahim Ahmed') parsed.name = '';
+      if (parsed.phone === '01711234567') parsed.phone = '';
+      if (parsed.pfp === '/static/images/candidate_rahim.jpg') parsed.pfp = '';
+      if (parsed.cv_name === 'Rahim_Ahmed_Hospitality_CV.pdf') parsed.cv_name = '';
+      if (parsed.brand_name === 'Radisson Blu Dhaka Water Garden') parsed.brand_name = '';
+      if (parsed.official_email === 'hr@radissondhaka.com') parsed.official_email = '';
+      if (parsed.rep_name === 'Fatima Khan') parsed.rep_name = '';
+      if (parsed.rep_email === 'fatima.khan@radissondhaka.com') parsed.rep_email = '';
+      if (parsed.join_name === 'Tanvir Hossain') parsed.join_name = '';
+      if (parsed.join_user_email === 'tanvir.recruiter@radissondhaka.com') parsed.join_user_email = '';
       Object.assign(signupState, parsed);
     }
   } catch (e) {}
@@ -546,8 +549,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (sess.expiresAt > Date.now() && sess.user && sess.user.role === 'admin') {
         state.currentUser = sess.user;
         state.currentRole = 'admin';
-        const statusText = document.getElementById('role-status-text');
-        if (statusText) statusText.innerHTML = `Signed in as <strong>${sess.user.name}</strong> (Root Admin)`;
         document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
       } else {
         sessionStorage.removeItem('nicejobs_admin_session');
@@ -555,9 +556,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       sessionStorage.removeItem('nicejobs_admin_session');
     }
+  } else {
+    const savedActiveSession = sessionStorage.getItem('nicejobs_active_session');
+    if (savedActiveSession) {
+      try {
+        const sess = JSON.parse(savedActiveSession);
+        if (sess && sess.user) {
+          state.currentUser = sess.user;
+          state.currentRole = sess.role || 'jobseeker';
+          state.activeHotelId = sess.activeHotelId || null;
+          document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+          if (state.currentRole === 'jobseeker') {
+            document.getElementById('btn-role-seeker')?.classList.add('active');
+          } else if (state.currentRole === 'recruiter') {
+            document.getElementById('btn-role-recruiter')?.classList.add('active');
+          }
+        }
+      } catch (e) {
+        sessionStorage.removeItem('nicejobs_active_session');
+      }
+    }
   }
   setupHashRouting();
   await loadInitialData();
+  updateRoleStatusText();
   renderApp();
 });
 
@@ -657,6 +679,96 @@ function navigateTo(screen, params = null) {
 // Role Switcher (Persona Simulation)
 // ==========================================================================
 
+function updateRoleStatusText() {
+  const statusText = document.getElementById('role-status-text');
+  if (!statusText) return;
+  if (state.demoDataHidden) {
+    if (state.currentUser && state.currentUser.role !== 'admin') {
+      statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${state.currentRole === 'jobseeker' ? 'Candidate' : 'Employer'})`;
+    } else if (state.currentUser && state.currentUser.role === 'admin') {
+      statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (Root Admin)`;
+    } else {
+      statusText.innerHTML = `<span style="color: #cbd5e1;">Demo Data Removed (Clean Mode)</span>`;
+    }
+    return;
+  }
+  if (!state.currentUser) {
+    statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
+  } else if (state.currentUser.role === 'admin') {
+    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (Root Admin)`;
+  } else if (state.currentUser.role === 'recruiter') {
+    const bizName = state.currentUser.title || 'Hotel Employer';
+    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${escapeHtml(bizName)})`;
+  } else {
+    statusText.innerHTML = `Signed in as <strong>${escapeHtml(state.currentUser.name)}</strong> (${escapeHtml(state.currentUser.title || 'Candidate')})`;
+  }
+}
+
+async function toggleDemoData(forceState = null) {
+  try {
+    const body = forceState !== null ? JSON.stringify({ hide: forceState }) : null;
+    const res = await fetch('/api/admin/toggle-demo-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body
+    });
+    const data = await res.json();
+    state.demoDataHidden = data.demo_data_hidden;
+    
+    // Update button UI
+    const toggleBtn = document.getElementById('btn-toggle-demo-data');
+    if (toggleBtn) {
+      if (state.demoDataHidden) {
+        toggleBtn.textContent = 'Restore Demo Data';
+        toggleBtn.title = 'Restore demo seed data';
+        toggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+        toggleBtn.style.color = '#fca5a5';
+        toggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      } else {
+        toggleBtn.textContent = 'Remove Demo Data';
+        toggleBtn.title = 'Temporarily remove demo data';
+        toggleBtn.style.background = '';
+        toggleBtn.style.color = '';
+        toggleBtn.style.borderColor = '';
+      }
+    }
+
+    // If demo data was removed and user was using demo persona (Rahim/Fatima), clear demo persona
+    if (state.demoDataHidden) {
+      if (state.currentUser && (state.currentUser.id === 'user_rahim' || state.currentUser.id === 'user_fatima')) {
+        let customSess = null;
+        try {
+          const raw = sessionStorage.getItem('nicejobs_active_session');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p?.user?.id !== 'user_rahim' && p?.user?.id !== 'user_fatima') {
+              customSess = p;
+            }
+          }
+        } catch (e) {}
+
+        if (customSess) {
+          state.currentUser = customSess.user;
+          state.currentRole = customSess.role;
+          state.activeHotelId = customSess.activeHotelId;
+        } else {
+          state.currentUser = null;
+          state.currentRole = 'guest';
+          document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+          document.getElementById('btn-role-guest')?.classList.add('active');
+        }
+      }
+    }
+
+    showToast(data.message, 'info');
+    updateRoleStatusText();
+    await loadInitialData();
+    renderApp();
+  } catch (err) {
+    showToast('Failed to toggle demo data: ' + err.message, 'danger');
+  }
+}
+
 function switchRole(role) {
   closeMobileMenu();
   state.currentRole = role;
@@ -665,19 +777,43 @@ function switchRole(role) {
   const btn = document.getElementById(`btn-role-${role}`);
   if (btn) btn.classList.add('active');
 
-  const statusText = document.getElementById('role-status-text');
+  // Check if user has an active custom session saved in sessionStorage for this role
+  let customSess = null;
+  try {
+    const roleKey = role === 'jobseeker' ? 'nicejobs_candidate_session' : (role === 'recruiter' ? 'nicejobs_employer_session' : null);
+    const raw = (roleKey ? sessionStorage.getItem(roleKey) : null) || sessionStorage.getItem('nicejobs_active_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.user && parsed.role === role) {
+        customSess = parsed;
+      }
+    }
+  } catch (e) {}
 
   if (role === 'jobseeker') {
-    state.currentUser = {
-      id: 'user_rahim',
-      name: 'Rahim Ahmed',
-      email: 'rahim.ahmed@example.bd',
-      phone: '+880 1711 234567',
-      role: 'jobseeker',
-      title: 'Front Office Supervisor',
-      avatar: '/static/images/candidate_rahim.jpg'
-    };
-    statusText.innerHTML = `Signed in as <strong>Rahim Ahmed</strong> (Front Office Supervisor)`;
+    if (customSess) {
+      state.currentUser = customSess.user;
+      state.activeHotelId = null;
+    } else if (!state.demoDataHidden) {
+      state.currentUser = {
+        id: 'user_rahim',
+        name: 'Rahim Ahmed',
+        email: 'rahim.ahmed@example.bd',
+        phone: '+880 1711 234567',
+        role: 'jobseeker',
+        title: 'Front Office Supervisor',
+        avatar: '/static/images/candidate_rahim.jpg'
+      };
+      state.activeHotelId = null;
+    } else {
+      state.currentUser = null;
+      showToast('Demo data is removed. Please sign up or log in to view candidate portal.', 'info');
+      updateRoleStatusText();
+      updateNavigation();
+      navigateTo('home');
+      return;
+    }
+    updateRoleStatusText();
     showToast('Job Seeker mode');
     loadInitialData().then(() => {
       updateNavigation();
@@ -689,18 +825,31 @@ function switchRole(role) {
     });
     return;
   } else if (role === 'recruiter') {
-    state.currentUser = {
-      id: 'user_fatima',
-      name: 'Fatima Khan',
-      email: 'fatima.khan@radissondhaka.com',
-      phone: '+880 1819 876543',
-      role: 'recruiter',
-      business_id: 'biz_radisson',
-      title: 'HR Manager & Business Admin (Radisson Blu Dhaka)',
-      avatar: '/static/images/candidate_rahim.jpg',
-      is_business_admin: true
-    };
-    statusText.innerHTML = `Signed in as <strong>Fatima Khan</strong> (Business Admin, Radisson Blu Dhaka)`;
+    if (customSess) {
+      state.currentUser = customSess.user;
+      state.activeHotelId = customSess.activeHotelId || customSess.user.business_id;
+    } else if (!state.demoDataHidden) {
+      state.currentUser = {
+        id: 'user_fatima',
+        name: 'Fatima Khan',
+        email: 'fatima.khan@radissondhaka.com',
+        phone: '+880 1819 876543',
+        role: 'recruiter',
+        business_id: 'biz_radisson',
+        title: 'HR Manager & Business Admin (Radisson Blu Dhaka)',
+        avatar: '/static/images/candidate_rahim.jpg',
+        is_business_admin: true
+      };
+      state.activeHotelId = 'biz_radisson';
+    } else {
+      state.currentUser = null;
+      showToast('Demo data is removed. Please sign up or log in to view business portal.', 'info');
+      updateRoleStatusText();
+      updateNavigation();
+      navigateTo('home');
+      return;
+    }
+    updateRoleStatusText();
     showToast('Employer mode');
     loadInitialData().then(() => {
       updateNavigation();
@@ -709,7 +858,7 @@ function switchRole(role) {
     return;
   } else if (role === 'admin') {
     if (state.currentUser && state.currentUser.role === 'admin') {
-      statusText.innerHTML = `Signed in as <strong>${state.currentUser.name}</strong> (Platform Admin)`;
+      updateRoleStatusText();
       navigateTo('admin');
     } else {
       showToast('Admin login required', 'warning');
@@ -721,7 +870,7 @@ function switchRole(role) {
     state.notifications = [];
     state.conversations = [];
     state.savedJobs = [];
-    statusText.innerHTML = `Browsing as <strong>Guest Visitor</strong> (Public Mode)`;
+    updateRoleStatusText();
     showToast('Guest mode');
     navigateTo('home');
   }
@@ -731,8 +880,38 @@ function switchRole(role) {
 
 async function resetDemoData() {
   try {
+    sessionStorage.removeItem('nicejobs_active_session');
+    sessionStorage.removeItem('nicejobs_candidate_session');
+    sessionStorage.removeItem('nicejobs_employer_session');
+    sessionStorage.removeItem('nicejobs_signup_state');
+    Object.assign(signupState, getFreshSignupState('candidate'));
     const res = await fetch('/api/admin/reset-demo', { method: 'POST' });
     const data = await res.json();
+    state.demoDataHidden = false;
+    state.currentUser = {
+      id: 'user_rahim',
+      name: 'Rahim Ahmed',
+      email: 'rahim.ahmed@example.bd',
+      phone: '+880 1711 234567',
+      role: 'jobseeker',
+      title: 'Front Office Supervisor',
+      avatar: '/static/images/candidate_rahim.jpg'
+    };
+    state.currentRole = 'jobseeker';
+    state.activeHotelId = null;
+
+    const toggleBtn = document.getElementById('btn-toggle-demo-data');
+    if (toggleBtn) {
+      toggleBtn.textContent = 'Remove Demo Data';
+      toggleBtn.title = 'Temporarily remove demo data';
+      toggleBtn.style.background = '';
+      toggleBtn.style.color = '';
+      toggleBtn.style.borderColor = '';
+    }
+
+    document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('btn-role-seeker')?.classList.add('active');
+    updateRoleStatusText();
     showToast('Demo reset!', 'success');
     await loadInitialData();
     renderApp();
@@ -747,6 +926,30 @@ async function resetDemoData() {
 
 async function loadInitialData() {
   try {
+    try {
+      const demoRes = await fetch('/api/admin/demo-status');
+      if (demoRes.ok) {
+        const demoData = await demoRes.json();
+        state.demoDataHidden = demoData.demo_data_hidden;
+        const toggleBtn = document.getElementById('btn-toggle-demo-data');
+        if (toggleBtn) {
+          if (state.demoDataHidden) {
+            toggleBtn.textContent = 'Restore Demo Data';
+            toggleBtn.title = 'Restore demo seed data';
+            toggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+            toggleBtn.style.color = '#fca5a5';
+            toggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+          } else {
+            toggleBtn.textContent = 'Remove Demo Data';
+            toggleBtn.title = 'Temporarily remove demo data';
+            toggleBtn.style.background = '';
+            toggleBtn.style.color = '';
+            toggleBtn.style.borderColor = '';
+          }
+        }
+      }
+    } catch (e) {}
+
     const [jobsRes, bizRes, blogsRes] = await Promise.all([
       fetch('/api/jobs?status=active'),
       fetch('/api/businesses'),
@@ -764,15 +967,19 @@ async function loadInitialData() {
         fetch(`/api/profile?user_id=${state.currentUser.id}`),
         fetch(`/api/conversations?user_id=${state.currentUser.id}`)
       ]);
-      state.applications = await appsRes.json();
-      state.savedJobs = await savedRes.json();
-      state.notifications = await notifRes.json();
-      state.profile = await profRes.json();
-      state.conversations = await convRes.json();
+      state.applications = appsRes.ok ? await appsRes.json() : [];
+      state.savedJobs = savedRes.ok ? await savedRes.json() : [];
+      state.notifications = notifRes.ok ? await notifRes.json() : [];
+      state.profile = profRes.ok ? await profRes.json() : null;
+      state.conversations = convRes.ok ? await convRes.json() : [];
     } else if (state.currentUser && state.currentUser.role === 'recruiter') {
-      const bId = state.currentUser.business_id || state.activeHotelId || 'biz_radisson';
-      const convRes = await fetch(`/api/conversations?business_id=${bId}`);
-      state.conversations = await convRes.json();
+      const bId = state.currentUser.business_id || state.activeHotelId;
+      if (bId) {
+        const convRes = await fetch(`/api/conversations?business_id=${bId}`);
+        state.conversations = convRes.ok ? await convRes.json() : [];
+      } else {
+        state.conversations = [];
+      }
     }
   } catch (err) {
     console.error('Error loading data:', err);
@@ -2164,8 +2371,31 @@ async function toggleOpenToWork() {
 }
 
 async function renderProfileScreen(viewport) {
-  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
+  if (!userId) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Candidate Profile Active</h2>
+        <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">Demo data is removed or you are not signed in. Please register a candidate account or log in to view and manage your profile.</p>
+        <button class="btn-orange" onclick="startSignupFlow('candidate')">Register as Candidate</button>
+        <button class="btn-secondary" style="margin-left: 10px;" onclick="startLoginFlow('candidate')">Log In</button>
+      </div>
+    `;
+    return;
+  }
   const res = await fetch(`/api/profile?user_id=${userId}`);
+  if (!res.ok) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
+        <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
+        <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
+      </div>
+    `;
+    return;
+  }
   const profile = await res.json();
   state.profile = profile;
 
@@ -2177,7 +2407,7 @@ async function renderProfileScreen(viewport) {
       
       <div class="profile-header-content">
         <div class="profile-avatar-row">
-          <img src="${profile.avatar_url || '/static/images/candidate_rahim.jpg'}" alt="${profile.name}" class="profile-main-avatar">
+          <img src="${profile.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(profile.name || '')}" class="profile-main-avatar">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <!-- Open to Work Quick Toggle Button -->
             <button class="${isOpen ? 'btn-primary' : 'btn-secondary'}" onclick="toggleOpenToWork()" id="btn-toggle-open-to-work" style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px; font-size: 0.82rem; font-weight: 700; border-radius: var(--radius-md);" title="Click to ${isOpen ? 'turn off' : 'turn on'} Open to Work">
@@ -2192,16 +2422,16 @@ async function renderProfileScreen(viewport) {
         <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px;">
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${profile.name}</h1>
+              <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
               <span class="verified-badge" title="Verified">✓ Verified</span>
               ${isOpen
                 ? `<span class="badge-featured" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full);">● Open to Work</span>`
                 : `<span class="badge-secondary" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-weight: 600; padding: 3px 10px; border-radius: var(--radius-full);">○ Not Looking for Work</span>`
               }
             </div>
-            <p style="font-size: 1.05rem; color: #cbd5e1; margin-top: 4px; font-weight: 600;">${profile.headline}</p>
+            <p style="font-size: 1.05rem; color: #cbd5e1; margin-top: 4px; font-weight: 600;">${escapeHtml(profile.headline || 'Hospitality Specialist')}</p>
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 6px;">
-              ${svgIcon('mapPin', '', 14)} ${profile.location} • ${svgIcon('phone', '', 14)} ${profile.phone} • ${svgIcon('mail', '', 14)} ${profile.email}
+              ${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || 'Dhaka, Bangladesh')} • ${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')} • ${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}
             </div>
 
             <!-- Open to Work Status Banner & Switch -->
@@ -2389,14 +2619,37 @@ async function renderProfileScreen(viewport) {
 // ==========================================================================
 
 async function renderRecruiterDashboard(viewport) {
-  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  const bId = state.currentUser?.business_id || state.activeHotelId || (state.demoDataHidden ? null : 'biz_radisson');
+  if (!bId) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">🏨</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel / Business Active</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Demo data is removed or no business session is active. Please register your establishment or log in to access the recruiter desk.</p>
+        <button class="btn-orange" onclick="startSignupFlow('business')">Register New Business</button>
+        <button class="btn-secondary" style="margin-left: 10px;" onclick="startLoginFlow('business')">Employer Log In</button>
+      </div>
+    `;
+    return;
+  }
   const [jobsRes, appsRes, bizRes] = await Promise.all([
     fetch(`/api/jobs?business_id=${bId}&status=all`),
     fetch(`/api/applications?business_id=${bId}`),
     fetch(`/api/businesses/${bId}`)
   ]);
-  const jobs = await jobsRes.json();
-  const apps = await appsRes.json();
+  if (!bizRes.ok) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">🏨</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Business Profile Not Found</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Could not load business details.</p>
+        <button class="btn-orange" onclick="startSignupFlow('business')">Register New Business</button>
+      </div>
+    `;
+    return;
+  }
+  const jobs = jobsRes.ok ? await jobsRes.json() : [];
+  const apps = appsRes.ok ? await appsRes.json() : [];
   const biz = await bizRes.json();
 
   const isPending = biz.verification_status !== 'verified';
@@ -2501,12 +2754,24 @@ async function renderRecruiterDashboard(viewport) {
 
 // ATS Board Full Page
 async function renderATSBoard(viewport) {
-  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  const bId = state.currentUser?.business_id || state.activeHotelId || (state.demoDataHidden ? null : 'biz_radisson');
+  if (!bId) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">📋</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Business Active</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Demo data is removed or no business session is active. Please register or sign in.</p>
+        <button class="btn-orange" onclick="startSignupFlow('business')">Register Business</button>
+        <button class="btn-secondary" style="margin-left: 10px;" onclick="startLoginFlow('business')">Employer Log In</button>
+      </div>
+    `;
+    return;
+  }
   const jobId = state.screenParams?.get('job_id');
   let url = `/api/applications?business_id=${bId}`;
   if (jobId) url += `&job_id=${jobId}`;
   const res = await fetch(url);
-  const apps = await res.json();
+  const apps = res.ok ? await res.json() : [];
 
   viewport.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -4395,8 +4660,11 @@ function startSignupFlow(role = 'candidate', stage = 1, bizRoute = null) {
   signupState.role = role;
   signupState.stage = stage;
   if (role === 'business') {
-    signupState.biz_route = bizRoute || signupState.biz_route || 'choose';
+    signupState.biz_route = bizRoute || (signupState.biz_route || 'choose');
     signupState.biz_step = stage;
+  } else {
+    signupState.biz_route = 'choose';
+    signupState.biz_step = 1;
   }
   navigateTo('signup', { role, stage });
 }
@@ -4413,10 +4681,8 @@ function setLoginRole(role) {
 function setSignupRole(role) {
   signupState.role = role;
   signupState.stage = 1;
-  if (role === 'business') {
-    signupState.biz_route = 'choose';
-    signupState.biz_step = 1;
-  }
+  signupState.biz_route = 'choose';
+  signupState.biz_step = 1;
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderSignupPage(viewport);
 }
@@ -4619,12 +4885,18 @@ async function handleCandidateLogin(event) {
 
     state.currentUser = data.user;
     state.currentRole = 'jobseeker';
+    state.activeHotelId = null;
     if (data.profile) {
       state.currentUser.title = `${data.profile.current_position || 'Candidate'} • ${data.profile.department || 'Hospitality'}`;
     }
 
-    const statusText = document.getElementById('role-status-text');
-    if (statusText) statusText.innerHTML = `Signed in as <strong>${data.user.name}</strong> (Candidate)`;
+    try {
+      const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+    } catch (e) {}
+
+    updateRoleStatusText();
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-seeker')?.classList.add('active');
 
@@ -4723,10 +4995,17 @@ async function handleBusinessLoginPart2(event) {
       state.currentUser.title = `${data.business.org_role || 'Business Admin'} (${data.business.brand_name})`;
     }
 
-    const statusText = document.getElementById('role-status-text');
-    if (statusText) {
-      statusText.innerHTML = `Signed in as <strong>${data.user.name}</strong> (${data.business?.brand_name || 'Hotel'} Admin)`;
-    }
+    try {
+      const sessPayload = JSON.stringify({
+        user: state.currentUser,
+        role: 'recruiter',
+        activeHotelId: state.activeHotelId
+      });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_employer_session', sessPayload);
+    } catch (e) {}
+
+    updateRoleStatusText();
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-recruiter')?.classList.add('active');
 
@@ -4793,16 +5072,22 @@ function renderSignupPage(viewport) {
         </div>
 
         <!-- Role Toggle (Candidate vs Hotel / Business) - Only shown on Stage 1 / Initial Route Choice -->
-        ${(signupState.stage === 1 && (!signupState.biz_route || signupState.biz_route === 'choose')) ? `
-          <div class="auth-segmented-tabs" style="margin-bottom: 20px;">
-            <button type="button" class="auth-segment-btn ${isCandidate ? 'active' : ''}" onclick="setSignupRole('candidate')">
-              ${svgIcon('candidate', '', 14)} Candidate
-            </button>
-            <button type="button" class="auth-segment-btn ${!isCandidate ? 'active' : ''}" onclick="setSignupRole('business')">
-              ${svgIcon('hotel', '', 14)} Hotel / Business
-            </button>
-          </div>
-        ` : ''}
+        ${(() => {
+          const isPart1 = isCandidate 
+            ? (signupState.stage === 1) 
+            : (!signupState.biz_step || signupState.biz_step === 1 || !signupState.biz_route || signupState.biz_route === 'choose');
+          if (!isPart1) return '';
+          return `
+            <div class="auth-segmented-tabs" style="margin-bottom: 20px;">
+              <button type="button" class="auth-segment-btn ${isCandidate ? 'active' : ''}" onclick="setSignupRole('candidate')">
+                ${svgIcon('candidate', '', 14)} Candidate
+              </button>
+              <button type="button" class="auth-segment-btn ${!isCandidate ? 'active' : ''}" onclick="setSignupRole('business')">
+                ${svgIcon('hotel', '', 14)} Hotel / Business
+              </button>
+            </div>
+          `;
+        })()}
 
         <!-- ============================================== -->
         <!-- CANDIDATE SIGNUP FLOW                          -->
@@ -4837,7 +5122,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Date of Birth (DOB)</label>
                   <input type="date" id="cand-dob" class="auth-input" required 
-                    value="${signupState.dob || '1998-04-12'}">
+                    value="${signupState.dob || ''}">
                 </div>
                 <div class="auth-field">
                   <label class="auth-label">NID / Passport (Optional)</label>
@@ -4910,7 +5195,7 @@ function renderSignupPage(viewport) {
               <!-- Profile Picture Upload (Moved to Part 2 before Bio with Zoom/Drag setting) -->
               <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                 <div class="pfp-avatar-preview-box">
-                  <img src="${signupState.pfp || '/static/images/candidate_rahim.jpg'}" alt="Profile Photo Preview" class="pfp-preview-img" id="cand-pfp-part2-img">
+                  <img src="${signupState.pfp || DEFAULT_AVATAR_PREVIEW}" alt="Profile Photo Preview" class="pfp-preview-img" id="cand-pfp-part2-img">
                 </div>
                 <div style="flex: 1;">
                   <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Picture</label>
@@ -4920,7 +5205,7 @@ function renderSignupPage(viewport) {
                       ${svgIcon('upload', '', 14)} Upload Picture
                     </button>
                     <input type="file" id="cand-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event)">
-                    ${signupState.pfp && signupState.pfp !== '/static/images/candidate_rahim.jpg' ? `
+                    ${signupState.pfp && signupState.pfp !== DEFAULT_AVATAR_PREVIEW ? `
                       <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.pfp)">
                         ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                       </button>
@@ -4973,7 +5258,7 @@ function renderSignupPage(viewport) {
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Desired Role / Title</label>
-                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="e.g. Front Office Supervisor" value="${signupState.job_preferences?.desired_role || 'Front Office Supervisor'}">
+                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="e.g. Front Office Supervisor" value="${signupState.job_preferences?.desired_role || ''}">
                   </div>
                 </div>
                 <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
@@ -4988,7 +5273,7 @@ function renderSignupPage(viewport) {
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Expected Salary</label>
-                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="e.g. ৳55,000" value="${signupState.job_preferences?.expected_salary || '৳55,000'}">
+                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="e.g. ৳55,000" value="${signupState.job_preferences?.expected_salary || ''}">
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Location</label>
@@ -5011,7 +5296,11 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <div class="dynamic-list-container" id="edu-dynamic-container">
-                  ${signupState.education.map((edu, idx) => `
+                  ${signupState.education.length === 0 ? `
+                    <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+                      No degrees or certificates added yet. Click below to add.
+                    </div>
+                  ` : signupState.education.map((edu, idx) => `
                     <div class="dynamic-entry-card">
                       <div class="dynamic-entry-header">
                         <span class="dynamic-entry-title">Education #${idx + 1}</span>
@@ -5036,7 +5325,7 @@ function renderSignupPage(viewport) {
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">GPA / Result</label>
                           <input type="text" class="auth-input edu-gpa" placeholder="e.g. 3.85 / 5.0" 
-                            value="${edu.gpa || '3.80'}">
+                            value="${edu.gpa || ''}">
                         </div>
                       </div>
                     </div>
@@ -5159,7 +5448,11 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <div class="dynamic-list-container" id="exp-dynamic-container">
-                  ${signupState.experience.map((exp, idx) => `
+                  ${signupState.experience.length === 0 ? `
+                    <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+                      No previous hospitality experience listed yet. Click below to add experience (or leave empty if you are a fresher).
+                    </div>
+                  ` : signupState.experience.map((exp, idx) => `
                     <div class="dynamic-entry-card">
                       <div class="dynamic-entry-header">
                         <span class="dynamic-entry-title">Experience #${idx + 1}</span>
@@ -5226,7 +5519,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.password || 'Password123!'}" autofocus>
+                      placeholder="••••••••" value="${signupState.password || ''}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
                       onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -5237,7 +5530,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Confirm Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-confirm-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.confirm_password || 'Password123!'}">
+                      placeholder="••••••••" value="${signupState.confirm_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
                       onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -5558,7 +5851,7 @@ function renderSignupPage(viewport) {
                 <!-- Profile Picture Upload (Person on behalf of the business) -->
                 <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                   <div class="pfp-avatar-preview-box">
-                    <img src="${signupState.rep_pfp || '/static/images/candidate_rahim.jpg'}" alt="Representative Photo Preview" class="pfp-preview-img" id="biz-rep-pfp-img">
+                    <img src="${signupState.rep_pfp || DEFAULT_AVATAR_PREVIEW}" alt="Representative Photo Preview" class="pfp-preview-img" id="biz-rep-pfp-img">
                   </div>
                   <div style="flex: 1;">
                     <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Representative Photo</label>
@@ -5568,7 +5861,7 @@ function renderSignupPage(viewport) {
                         ${svgIcon('upload', '', 14)} Upload Picture
                       </button>
                       <input type="file" id="biz-rep-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_rep')">
-                      ${signupState.rep_pfp && signupState.rep_pfp !== '/static/images/candidate_rahim.jpg' ? `
+                      ${signupState.rep_pfp && signupState.rep_pfp !== DEFAULT_AVATAR_PREVIEW ? `
                         <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.rep_pfp, 'biz_rep')">
                           ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                         </button>
@@ -5618,7 +5911,7 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Date of Birth (DOB)</label>
                     <input type="date" id="biz-rep-dob" class="auth-input" 
-                      value="${signupState.rep_dob || '1989-08-25'}">
+                      value="${signupState.rep_dob || ''}">
                   </div>
                 </div>
 
@@ -5626,7 +5919,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Designation / Role in Business</label>
                   <input type="text" id="biz-rep-desig" class="auth-input" required 
                     placeholder="e.g. Director of Human Resources / General Manager" 
-                    value="${signupState.rep_designation || 'Director of Human Resources'}">
+                    value="${signupState.rep_designation || ''}">
                 </div>
 
                 <div class="auth-nav-row">
@@ -5653,7 +5946,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Set Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-pwd-part4" class="auth-input" required 
-                        placeholder="••••••••" value="${signupState.biz_password || 'Password123!'}" autofocus>
+                        placeholder="••••••••" value="${signupState.biz_password || ''}" autofocus>
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
                         onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
                     </div>
@@ -5663,7 +5956,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Confirm Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-confirm-pwd-part4" class="auth-input" required 
-                        placeholder="••••••••" value="${signupState.biz_confirm_password || 'Password123!'}">
+                        placeholder="••••••••" value="${signupState.biz_confirm_password || ''}">
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t2" 
                         onclick="togglePasswordVisibility('biz-confirm-pwd-part4', 'biz-p4-t2')">${svgIcon('eye', '', 16)}</button>
                     </div>
@@ -5845,7 +6138,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Account Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="join-rep-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.join_user_password || 'Password123!'}">
+                      placeholder="••••••••" value="${signupState.join_user_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="join-p3-t1" 
                       onclick="togglePasswordVisibility('join-rep-pwd', 'join-p3-t1')">${svgIcon('eye', '', 16)}</button>
                   </div>
@@ -5873,7 +6166,7 @@ function renderSignupPage(viewport) {
                 <!-- Profile Picture Upload (Adding new user for business) -->
                 <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                   <div class="pfp-avatar-preview-box">
-                    <img src="${signupState.join_pfp || '/static/images/candidate_rahim.jpg'}" alt="Photo Preview" class="pfp-preview-img" id="biz-join-pfp-img">
+                    <img src="${signupState.join_pfp || DEFAULT_AVATAR_PREVIEW}" alt="Photo Preview" class="pfp-preview-img" id="biz-join-pfp-img">
                   </div>
                   <div style="flex: 1;">
                     <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Profile Photo</label>
@@ -5883,7 +6176,7 @@ function renderSignupPage(viewport) {
                         ${svgIcon('upload', '', 14)} Upload Picture
                       </button>
                       <input type="file" id="biz-join-pfp-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handlePfpFileSelected(event, 'biz_join')">
-                      ${signupState.join_pfp && signupState.join_pfp !== '/static/images/candidate_rahim.jpg' ? `
+                      ${signupState.join_pfp && signupState.join_pfp !== DEFAULT_AVATAR_PREVIEW ? `
                         <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openPfpSettingModal(signupState.join_pfp, 'biz_join')">
                           ${svgIcon('maximize', '', 13)} Adjust Face &amp; Zoom
                         </button>
@@ -5926,13 +6219,13 @@ function renderSignupPage(viewport) {
                   <div class="auth-field">
                     <label class="auth-label">Date of Birth (DOB)</label>
                     <input type="date" id="join-rep-dob" class="auth-input" 
-                      value="${signupState.join_dob || '1995-11-14'}">
+                      value="${signupState.join_dob || ''}">
                   </div>
                   <div class="auth-field">
                     <label class="auth-label">Designation</label>
                     <input type="text" id="join-rep-desig" class="auth-input" required 
                       placeholder="e.g. Assistant HR Manager" 
-                      value="${signupState.join_designation || 'Assistant HR Manager'}">
+                      value="${signupState.join_designation || ''}">
                   </div>
                 </div>
 
@@ -5959,7 +6252,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Confirm Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="join-confirm-pwd" class="auth-input" required 
-                      placeholder="••••••••" value="${signupState.join_confirm_password || 'Password123!'}" autofocus>
+                      placeholder="••••••••" value="${signupState.join_confirm_password || ''}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="join-p5-t1" 
                       onclick="togglePasswordVisibility('join-confirm-pwd', 'join-p5-t1')">${svgIcon('eye', '', 16)}</button>
                   </div>
@@ -6139,16 +6432,14 @@ function addEducationEntry() {
   signupState.education.push({
     institution: '',
     degree: 'Bachelor of Hotel Management (BHM)',
-    gpa: '3.80'
+    gpa: ''
   });
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function removeEducationEntry(idx) {
-  if (signupState.education.length > 1) {
-    signupState.education.splice(idx, 1);
-    renderSignupPage(document.getElementById('app-viewport'));
-  }
+  signupState.education.splice(idx, 1);
+  renderSignupPage(document.getElementById('app-viewport'));
 }
 
 // Experience dynamic add/remove
@@ -6156,17 +6447,15 @@ function addExperienceEntry() {
   signupState.experience.push({
     company: '',
     role: '',
-    period: '1 Year',
+    period: '',
     skills_acquired: ''
   });
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function removeExperienceEntry(idx) {
-  if (signupState.experience.length > 1) {
-    signupState.experience.splice(idx, 1);
-    renderSignupPage(document.getElementById('app-viewport'));
-  }
+  signupState.experience.splice(idx, 1);
+  renderSignupPage(document.getElementById('app-viewport'));
 }
 
 function filterSkillsSchema(q) {
@@ -6924,11 +7213,16 @@ async function finalizeCandidateRegistration() {
       avatar: payload.avatar_url
     };
     state.currentRole = 'jobseeker';
+    state.activeHotelId = null;
 
     try {
+      const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
       sessionStorage.removeItem('nicejobs_signup_state');
     } catch (e) {}
 
+    updateRoleStatusText();
     showToast(data.message || 'Candidate account activated successfully!', 'success');
     await loadInitialData();
     navigateTo('profile');
@@ -7192,6 +7486,19 @@ async function finalizeNewBusinessRegistration() {
     };
     state.currentRole = 'recruiter';
     state.activeHotelId = data.business_id;
+
+    try {
+      const sessPayload = JSON.stringify({
+        user: state.currentUser,
+        role: 'recruiter',
+        activeHotelId: data.business_id
+      });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_employer_session', sessPayload);
+      sessionStorage.removeItem('nicejobs_signup_state');
+    } catch (e) {}
+
+    updateRoleStatusText();
 
     // Show Verification Screen (Step 6)
     signupState.biz_step = 6;
@@ -9150,8 +9457,10 @@ async function handleAddNewCv(event) {
 }
 
 async function setDefaultCv(cvId) {
+  const uId = state.currentUser?.id || (state.demoDataHidden ? null : 'user_rahim');
+  if (!uId) return;
   try {
-    await fetch(`/api/profile/cvs/${cvId}/default?user_id=${state.currentUser.id}`, { method: 'PATCH' });
+    await fetch(`/api/profile/cvs/${cvId}/default?user_id=${uId}`, { method: 'PATCH' });
     showToast('Default resume updated.');
     await loadInitialData();
     renderProfileScreen(document.getElementById('app-viewport'));
@@ -9161,8 +9470,10 @@ async function setDefaultCv(cvId) {
 }
 
 async function deleteCv(cvId) {
+  const uId = state.currentUser?.id || (state.demoDataHidden ? null : 'user_rahim');
+  if (!uId) return;
   try {
-    await fetch(`/api/profile/cvs/${cvId}?user_id=${state.currentUser.id}`, { method: 'DELETE' });
+    await fetch(`/api/profile/cvs/${cvId}?user_id=${uId}`, { method: 'DELETE' });
     showToast('Resume removed.');
     await loadInitialData();
     renderProfileScreen(document.getElementById('app-viewport'));
@@ -9176,7 +9487,11 @@ async function deleteCv(cvId) {
 // ==========================================================================
 
 async function saveProfileField(patchObj) {
-  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
+  if (!userId) {
+    showToast('Please sign in to update your profile.', 'danger');
+    return;
+  }
   try {
     const res = await fetch('/api/profile', {
       method: 'PUT',
@@ -9199,12 +9514,12 @@ async function saveProfileField(patchObj) {
 // Preview Candidate CV Modal
 function previewCandidateCvModal(cvTitle, cvName) {
   const profile = state.profile || {};
-  const name = profile.name || state.currentUser?.name || 'Rahim Ahmed';
-  const headline = profile.headline || 'Front Office Supervisor & Guest Relations Specialist';
-  const email = profile.email || 'rahim.ahmed@example.bd';
-  const phone = profile.phone || '01711234567';
+  const name = profile.name || state.currentUser?.name || 'Hospitality Candidate';
+  const headline = profile.headline || 'Hospitality Specialist';
+  const email = profile.email || state.currentUser?.email || '';
+  const phone = profile.phone || state.currentUser?.phone || '';
   const location = profile.location || 'Dhaka, Bangladesh';
-  const summary = profile.summary || 'Dedicated 5-star hospitality professional with proven excellence in Front Office, VIP Concierge, and Opera PMS operations.';
+  const summary = profile.summary || 'Hospitality professional.';
   const experience = profile.experience || [];
   const skills = profile.skills || [];
   const languages = profile.languages || [];
@@ -9707,8 +10022,16 @@ async function handleSavePreferencesModal(e) {
 
 // Edit Profile Modal
 async function openComprehensiveEditProfileModal() {
-  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
+  if (!userId) {
+    showToast('Please sign in to edit your candidate profile.', 'danger');
+    return;
+  }
   const res = await fetch(`/api/profile?user_id=${userId}`);
+  if (!res.ok) {
+    showToast('Profile not found', 'danger');
+    return;
+  }
   const profile = await res.json();
   state.profile = profile;
 
@@ -9858,6 +10181,11 @@ async function requestContactChangeOtp() {
 
 async function handleSaveComprehensiveProfile(event) {
   event.preventDefault();
+  const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
+  if (!userId) {
+    showToast('Please sign in to update your profile.', 'danger');
+    return;
+  }
   const form = event.target;
   const newEmail = form.email.value.trim();
   const newPhone = form.phone.value.trim();
@@ -9866,7 +10194,7 @@ async function handleSaveComprehensiveProfile(event) {
   const skillsArr = form.skills_csv.value.split(',').map(s => s.trim()).filter(Boolean);
 
   const payload = {
-    user_id: state.currentUser?.id || 'user_rahim',
+    user_id: userId,
     name: form.name.value,
     email: newEmail,
     phone: newPhone,
