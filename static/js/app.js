@@ -121,16 +121,9 @@ const DEFAULT_HOTEL_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.or
 
 // Application State Store
 const state = {
-  currentRole: 'jobseeker', // 'jobseeker', 'recruiter', 'admin', 'guest'
-  demoDataHidden: false,
-  currentUser: {
-    id: 'user_rahim',
-    name: 'Rahim Ahmed',
-    email: 'rahim.ahmed@example.bd',
-    phone: '+880 1711 234567',
-    role: 'jobseeker',
-    avatar: '/static/images/candidate_rahim.jpg'
-  },
+  currentRole: 'guest', // 'jobseeker', 'recruiter', 'admin', 'guest'
+  demoDataHidden: true,
+  currentUser: null,
   currentScreen: 'home',
   activeJobId: null,
   activeHotelId: null,
@@ -434,19 +427,19 @@ const PRESET_AVATARS = [
 const loginState = {
   role: 'candidate',       // 'candidate' | 'business'
   // Candidate Login (Email + Password)
-  email: 'rahim.ahmed@example.bd',
-  password: 'Password123!',
+  email: '',
+  password: '',
   // Business Login (Part 1 Business Check, Part 2 User Login)
   businessStep: 1,         // 1 or 2
-  businessEmail: 'hr@radissondhaka.com',
+  businessEmail: '',
   verifiedBusiness: null,
-  userEmail: 'hr@radissondhaka.com',
-  businessPassword: 'Password123!',
+  userEmail: '',
+  businessPassword: '',
   errorMessage: null,
   errorType: null,
   useOtp: false,
   otpCode: '',
-  lastSentOtp: '258330'
+  lastSentOtp: ''
 };
 
 function getFreshSignupState(role = 'candidate') {
@@ -602,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       sessionStorage.removeItem('nicejobs_admin_session');
     }
   } else {
-    const savedActiveSession = sessionStorage.getItem('nicejobs_active_session');
+    const savedActiveSession = sessionStorage.getItem('nicejobs_active_session') || localStorage.getItem('nicejobs_active_session');
     if (savedActiveSession) {
       try {
         const sess = JSON.parse(savedActiveSession);
@@ -619,6 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       } catch (e) {
         sessionStorage.removeItem('nicejobs_active_session');
+        localStorage.removeItem('nicejobs_active_session');
       }
     }
   }
@@ -814,11 +808,11 @@ async function toggleDemoData(forceState = null) {
       loginState.verifiedBusiness = null;
       loginState.businessStep = 1;
     } else {
-      loginState.email = 'rahim.ahmed@example.bd';
-      loginState.password = 'Password123!';
-      loginState.businessEmail = 'hr@radissondhaka.com';
-      loginState.userEmail = 'hr@radissondhaka.com';
-      loginState.businessPassword = 'Password123!';
+      loginState.email = '';
+      loginState.password = '';
+      loginState.businessEmail = '';
+      loginState.userEmail = '';
+      loginState.businessPassword = '';
     }
 
     showToast(data.message, 'info');
@@ -842,7 +836,9 @@ function switchRole(role) {
   let customSess = null;
   try {
     const roleKey = role === 'jobseeker' ? 'nicejobs_candidate_session' : (role === 'recruiter' ? 'nicejobs_employer_session' : null);
-    const raw = (roleKey ? sessionStorage.getItem(roleKey) : null) || sessionStorage.getItem('nicejobs_active_session');
+    const raw = (roleKey ? (sessionStorage.getItem(roleKey) || localStorage.getItem(roleKey)) : null) || 
+                sessionStorage.getItem('nicejobs_active_session') || 
+                localStorage.getItem('nicejobs_active_session');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.user && parsed.role === role) {
@@ -1009,6 +1005,9 @@ async function loadInitialData() {
           }
         }
         if (state.demoDataHidden) {
+          if (state.currentUser && (state.currentUser.id === 'user_rahim' || state.currentUser.id === 'user_fatima')) {
+            state.currentUser = null;
+          }
           loginState.email = '';
           loginState.password = '';
           loginState.businessEmail = '';
@@ -1074,7 +1073,7 @@ function updateNavigation() {
   let actionsHtml = '';
   let mobileActionsHtml = '';
 
-  if (role === 'jobseeker') {
+  if (role === 'jobseeker' && state.currentUser) {
     // Only display number beside Applications if there is an unseen application notification
     const unseenAppNotifs = (state.notifications || []).filter(n => !n.is_read && n.type === 'application').length;
     // Display number beside Messages for unseen texts
@@ -1130,7 +1129,7 @@ function updateNavigation() {
         <button class="btn-secondary" style="justify-content: center; padding: 10px;" onclick="switchRole('guest'); closeMobileMenu();">Sign Out</button>
       </div>
     `;
-  } else if (role === 'recruiter') {
+  } else if (role === 'recruiter' && state.currentUser) {
     const currentBizId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
     const unseenBizTexts = (state.conversations || []).reduce((acc, c) => acc + (c.unread_for_business || 0), 0);
     linksHtml = `
@@ -2411,7 +2410,9 @@ async function toggleOpenToWork() {
 }
 
 async function renderProfileScreen(viewport) {
-  const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
+  const currentUserId = state.currentUser ? state.currentUser.id : null;
+  const isDemoUser = currentUserId === 'user_rahim' || currentUserId === 'user_fatima';
+  const userId = currentUserId ? ((state.demoDataHidden && isDemoUser) ? null : currentUserId) : (state.demoDataHidden ? null : 'user_rahim');
   if (!userId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
@@ -2424,20 +2425,23 @@ async function renderProfileScreen(viewport) {
     `;
     return;
   }
-  const res = await fetch(`/api/profile?user_id=${userId}`);
-  if (!res.ok) {
-    viewport.innerHTML = `
-      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
-        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
-        <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
-        <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
-      </div>
-    `;
-    return;
+  let profile = (state.profile && (state.profile.user_id === userId || state.profile.id === userId)) ? state.profile : null;
+  if (!profile) {
+    const res = await fetch(`/api/profile?user_id=${userId}`);
+    if (!res.ok) {
+      viewport.innerHTML = `
+        <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+          <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
+          <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
+          <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
+          <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
+        </div>
+      `;
+      return;
+    }
+    profile = await res.json();
+    state.profile = profile;
   }
-  const profile = await res.json();
-  state.profile = profile;
 
   const isOpen = (profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === '1' || profile.open_to_work === undefined);
 
@@ -7659,6 +7663,8 @@ async function finalizeCandidateRegistration() {
       const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
       sessionStorage.setItem('nicejobs_active_session', sessPayload);
       sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+      localStorage.setItem('nicejobs_active_session', sessPayload);
+      localStorage.setItem('nicejobs_candidate_session', sessPayload);
       sessionStorage.removeItem('nicejobs_signup_state');
     } catch (e) {}
 
@@ -7668,7 +7674,7 @@ async function finalizeCandidateRegistration() {
     updateNavigation();
     showToast(data.message || 'Terms accepted! Logged in successfully.', 'success');
     await loadInitialData();
-    navigateTo('home');
+    navigateTo('profile');
   } catch (err) {
     showToast(err.message, 'danger');
   }
@@ -9234,15 +9240,24 @@ async function handleCandidateSignup(event) {
     };
     state.currentRole = 'jobseeker';
 
+    try {
+      const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+      localStorage.setItem('nicejobs_active_session', sessPayload);
+      localStorage.setItem('nicejobs_candidate_session', sessPayload);
+    } catch (e) {}
+
     const statusText = document.getElementById('role-status-text');
     if (statusText) {
       statusText.innerHTML = `Signed in as <strong>${data.name}</strong> (${payload.current_position})`;
     }
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-seeker')?.classList.add('active');
+    updateNavigation();
 
     await loadInitialData();
-    renderApp();
+    navigateTo('profile');
   } catch (err) {
     showToast(err.message, 'danger');
   }

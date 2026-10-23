@@ -6,7 +6,137 @@ import sqlite3
 import json
 import os
 import shutil
+import re
+from typing import Optional
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load local environment configuration
+load_dotenv()
+
+def is_production() -> bool:
+    """Detects whether code is running in a live production or serverless environment."""
+    return bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("ENVIRONMENT", "").lower() in ("production", "prod")
+    )
+
+def is_postgres() -> bool:
+    """Checks if a PostgreSQL database URL is configured."""
+    return bool(os.environ.get("DATABASE_URL"))
+
+class PostgresRow(dict):
+    """
+    Dict-like and indexable row representation mimicking sqlite3.Row.
+    Supports row['col'], row[0], dict(row), row.get('col'), and JSON serialization.
+    """
+    def __init__(self, description, values):
+        self._keys = [col.name for col in description] if description else []
+        self._values = tuple(values) if values is not None else ()
+        super().__init__(zip(self._keys, self._values))
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self._values[item]
+        return super().__getitem__(item)
+
+
+def adapt_sql_for_postgres(sql: str) -> str:
+    """
+    Adapts SQLite-style parameter placeholders (?) to PostgreSQL format (%s)
+    and converts ASCII case-insensitive LIKE to ILIKE outside string literals.
+    """
+    parts = re.split(r"('(?:''|[^'])*')", sql)
+    for i in range(0, len(parts), 2):
+        parts[i] = parts[i].replace('?', '%s')
+        parts[i] = re.sub(r'\bLIKE\b', 'ILIKE', parts[i], flags=re.IGNORECASE)
+    return ''.join(parts)
+
+
+class PostgresCursorWrapper:
+    """Cursor wrapper that translates query placeholders and wraps results in PostgresRow."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    def execute(self, query, params=None):
+        adapted_query = adapt_sql_for_postgres(query)
+        if params is not None:
+            self._cursor.execute(adapted_query, params)
+        else:
+            self._cursor.execute(adapted_query)
+        return self
+
+    def executemany(self, query, seq_of_parameters):
+        adapted_query = adapt_sql_for_postgres(query)
+        self._cursor.executemany(adapted_query, seq_of_parameters)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return PostgresRow(self._cursor.description, row)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if not rows:
+            return []
+        desc = self._cursor.description
+        return [PostgresRow(desc, r) for r in rows]
+
+    def fetchmany(self, size=None):
+        rows = self._cursor.fetchmany(size) if size else self._cursor.fetchmany()
+        if not rows:
+            return []
+        desc = self._cursor.description
+        return [PostgresRow(desc, r) for r in rows]
+
+    def close(self):
+        self._cursor.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+class PostgresConnectionWrapper:
+    """Connection wrapper ensuring consistent commit, rollback, and cursor wrapping."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self):
+        return PostgresCursorWrapper(self._conn.cursor())
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.rollback()
+        else:
+            self.commit()
+        self.close()
+
 
 def get_db_path():
     # Detect Vercel serverless environment (read-only filesystem)
@@ -24,10 +154,76 @@ def get_db_path():
 
 DB_FILE = get_db_path()
 
+def normalize_database_url(url: Optional[str]) -> Optional[str]:
+    """Normalizes connection URL, stripping accidental square brackets around password from template copy-paste."""
+    if not url:
+        return url
+    return re.sub(r'(://[^:]+:)(?:\[)(.*)(?:\])(@)', r'\1\2\3', url)
+
 def get_db():
+    database_url = normalize_database_url(os.environ.get("DATABASE_URL"))
+
+    # Guard: Production environments must NEVER silently fall back to local/bundled SQLite
+    if is_production() and not database_url:
+        raise RuntimeError(
+            "CRITICAL: DATABASE_URL is not set in production. "
+            "NiceJobs strictly forbids silent fallback to local/bundled SQLite in production environments."
+        )
+
+    if database_url:
+        import psycopg2
+        conn_kwargs = {}
+        if "sslmode" not in database_url.lower():
+            conn_kwargs["sslmode"] = "require"
+        raw_conn = psycopg2.connect(database_url, **conn_kwargs)
+        return PostgresConnectionWrapper(raw_conn)
+
+    # Local development SQLite connection
     conn = sqlite3.connect(get_db_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
+
+def ensure_db_ready():
+    """
+    Lightweight health check for serverless environments.
+    Verifies database connectivity without executing heavy DDL or migrations.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1")
+    conn.close()
+
+def reset_demo_data():
+    """
+    Safely resets demo fixture records to their pristine initial state.
+    Guaranteed NEVER to delete the physical database file or touch non-demo user records.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # Clear volatile demo-only records
+        cursor.execute("DELETE FROM messages WHERE conversation_id = 'conv_rahim_radisson'")
+        cursor.execute("DELETE FROM application_events WHERE application_id = 'app_rahim_radisson'")
+        cursor.execute("DELETE FROM notifications WHERE id IN ('notif_1', 'notif_2') OR (user_id IN ('user_rahim', 'user_fatima', 'user_admin') AND is_demo = 1)")
+        cursor.execute("DELETE FROM business_verifications WHERE id IN ('verif_sayeman', 'verif_seagull')")
+        cursor.execute("DELETE FROM moderation_reports WHERE id = 'rep_101'")
+
+        # Explicitly restore demo persona credentials and names
+        cursor.execute("UPDATE users SET name = 'Rahim Ahmed', email = 'rahim.ahmed@example.bd', phone = '+880 1711 234567', role = 'jobseeker', password = 'Password123!', is_demo = 1 WHERE id = 'user_rahim'")
+        cursor.execute("UPDATE users SET name = 'Fatima Khan', email = 'fatima.khan@radissondhaka.com', phone = '+880 1819 876543', role = 'recruiter', password = 'Password123!', is_demo = 1 WHERE id = 'user_fatima'")
+        cursor.execute("UPDATE users SET name = 'Tariqul Islam (Trust & Safety)', email = 'admin@nicejobs.bd', phone = '+880 1912 334455', role = 'admin', password = 'Password123!', is_demo = 1 WHERE id = 'user_admin'")
+
+        # Re-seed demo entities (uses ON CONFLICT DO UPDATE so real records are never affected)
+        seed_data(cursor)
+
+        # Ensure re-seeded notifications are marked as demo
+        cursor.execute("UPDATE notifications SET is_demo = 1 WHERE id IN ('notif_1', 'notif_2')")
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
 
 def init_db():
     conn = get_db()
@@ -360,7 +556,7 @@ def init_db():
         value TEXT
     );
     """)
-    cursor.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('demo_data_hidden', '0')")
+    cursor.execute("INSERT INTO system_settings (key, value) VALUES ('demo_data_hidden', '1') ON CONFLICT (key) DO NOTHING")
 
     cursor.execute("UPDATE users SET is_business_admin = 1 WHERE role = 'recruiter'")
     cursor.execute("UPDATE business_memberships SET membership_role = 'admin' WHERE membership_role IS NULL OR membership_role = '' OR membership_role = 'moderator'")
@@ -379,11 +575,16 @@ def init_db():
 
     conn.commit()
 
-    # Seed rich initial data if database is fresh or jobs are empty
-    cursor.execute("SELECT count(*) FROM jobs")
-    if cursor.fetchone()[0] == 0:
-        seed_data(cursor)
-        conn.commit()
+    # Seed rich initial data only if demo data is not intentionally removed/hidden
+    cursor.execute("SELECT value FROM system_settings WHERE key = 'demo_data_hidden'")
+    row = cursor.fetchone()
+    is_hidden = row and row[0] == '1'
+
+    if not is_hidden:
+        cursor.execute("SELECT count(*) FROM jobs")
+        if cursor.fetchone()[0] == 0:
+            seed_data(cursor)
+            conn.commit()
 
     conn.close()
 
@@ -397,8 +598,9 @@ def seed_data(cursor):
         ("user_admin", "Tariqul Islam (Trust & Safety)", "admin@nicejobs.bd", "+880 1912 334455", "admin", "", now)
     ]
     cursor.executemany("""
-    INSERT OR IGNORE INTO users (id, name, email, phone, role, avatar_url, created_at)
+    INSERT INTO users (id, name, email, phone, role, avatar_url, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING
     """, users)
 
     # 2. Employee Profile for Rahim Ahmed
@@ -472,11 +674,29 @@ def seed_data(cursor):
     ])
 
     cursor.execute("""
-    INSERT OR REPLACE INTO employee_profiles (
+    INSERT INTO employee_profiles (
         user_id, headline, location, summary, current_position, experience_years,
         open_to_work, visibility, skills, languages, certifications, experience,
         education, preferences, cv_name, cv_updated_at, profile_completion, cv_list
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET
+        headline = excluded.headline,
+        location = excluded.location,
+        summary = excluded.summary,
+        current_position = excluded.current_position,
+        experience_years = excluded.experience_years,
+        open_to_work = excluded.open_to_work,
+        visibility = excluded.visibility,
+        skills = excluded.skills,
+        languages = excluded.languages,
+        certifications = excluded.certifications,
+        experience = excluded.experience,
+        education = excluded.education,
+        preferences = excluded.preferences,
+        cv_name = excluded.cv_name,
+        cv_updated_at = excluded.cv_updated_at,
+        profile_completion = excluded.profile_completion,
+        cv_list = excluded.cv_list
     """, (
         "user_rahim",
         "Experienced Front Office Supervisor | Opera PMS Expert | 5-Star Hotel Professional",
@@ -607,12 +827,31 @@ def seed_data(cursor):
         )
     ]
     cursor.executemany("""
-    INSERT OR REPLACE INTO businesses (
+    INSERT INTO businesses (
         id, legal_name, brand_name, property_type, star_rating, city,
         address, country, website, email, logo_url, cover_image,
         description, verification_status, verification_notes, departments,
         amenities, benefits, follower_count
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        legal_name = excluded.legal_name,
+        brand_name = excluded.brand_name,
+        property_type = excluded.property_type,
+        star_rating = excluded.star_rating,
+        city = excluded.city,
+        address = excluded.address,
+        country = excluded.country,
+        website = excluded.website,
+        email = excluded.email,
+        logo_url = excluded.logo_url,
+        cover_image = excluded.cover_image,
+        description = excluded.description,
+        verification_status = excluded.verification_status,
+        verification_notes = excluded.verification_notes,
+        departments = excluded.departments,
+        amenities = excluded.amenities,
+        benefits = excluded.benefits,
+        follower_count = excluded.follower_count
     """, businesses)
 
     # 4. Business Memberships
@@ -620,9 +859,14 @@ def seed_data(cursor):
         ("mem_1", "biz_radisson", "user_fatima", "HR Manager", now)
     ]
     cursor.executemany("""
-    INSERT OR REPLACE INTO business_memberships (
+    INSERT INTO business_memberships (
         id, business_id, user_id, org_role, created_at
     ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        business_id = excluded.business_id,
+        user_id = excluded.user_id,
+        org_role = excluded.org_role,
+        created_at = excluded.created_at
     """, memberships)
 
     # 5. Realistic Hospitality Jobs
@@ -932,7 +1176,7 @@ def seed_data(cursor):
         )
     ]
     cursor.executemany("""
-    INSERT OR REPLACE INTO jobs (
+    INSERT INTO jobs (
         id, business_id, title, department, property_location,
         employment_type, shift, salary_min, salary_max, salary_period,
         currency, service_charge_included, accommodation_provided,
@@ -940,15 +1184,52 @@ def seed_data(cursor):
         requirements, screening_questions, status, is_urgent,
         is_featured, deadline, posted_at, applicant_count
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        business_id = excluded.business_id,
+        title = excluded.title,
+        department = excluded.department,
+        property_location = excluded.property_location,
+        employment_type = excluded.employment_type,
+        shift = excluded.shift,
+        salary_min = excluded.salary_min,
+        salary_max = excluded.salary_max,
+        salary_period = excluded.salary_period,
+        currency = excluded.currency,
+        service_charge_included = excluded.service_charge_included,
+        accommodation_provided = excluded.accommodation_provided,
+        duty_meals_provided = excluded.duty_meals_provided,
+        experience_level = excluded.experience_level,
+        vacancies = excluded.vacancies,
+        description = excluded.description,
+        requirements = excluded.requirements,
+        screening_questions = excluded.screening_questions,
+        status = excluded.status,
+        is_urgent = excluded.is_urgent,
+        is_featured = excluded.is_featured,
+        deadline = excluded.deadline,
+        posted_at = excluded.posted_at,
+        applicant_count = excluded.applicant_count
     """, jobs)
 
     # 6. Seed Application: Rahim Ahmed applied to Radisson Blu Front Office Supervisor
     cursor.execute("""
-    INSERT OR REPLACE INTO applications (
+    INSERT INTO applications (
         id, job_id, user_id, status, applied_at, updated_at,
         cover_letter, selected_cv, screening_answers, recruiter_notes,
         interview_time, interview_notes
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        job_id = excluded.job_id,
+        user_id = excluded.user_id,
+        status = excluded.status,
+        applied_at = excluded.applied_at,
+        updated_at = excluded.updated_at,
+        cover_letter = excluded.cover_letter,
+        selected_cv = excluded.selected_cv,
+        screening_answers = excluded.screening_answers,
+        recruiter_notes = excluded.recruiter_notes,
+        interview_time = excluded.interview_time,
+        interview_notes = excluded.interview_notes
     """, (
         "app_rahim_radisson",
         "job_fo_sup",
@@ -976,14 +1257,22 @@ def seed_data(cursor):
         ("app_rahim_radisson", "interview_scheduled", "Fatima Khan (HR Manager)", "Scheduled 1st Round Interview with Director of Rooms for Oct 18, 02:30 PM.", "2026-10-15 16:30")
     ]
     for ev in events:
-        cursor.execute("INSERT OR REPLACE INTO application_events (application_id, status, actor_name, note, timestamp) VALUES (?, ?, ?, ?, ?)", ev)
+        cursor.execute("INSERT INTO application_events (application_id, status, actor_name, note, timestamp) VALUES (?, ?, ?, ?, ?)", ev)
 
     # 7. Seed Conversation between Rahim and Fatima Khan (Radisson HR)
     cursor.execute("""
-    INSERT OR REPLACE INTO conversations (
+    INSERT INTO conversations (
         id, user_id, business_id, job_id, last_message,
         last_message_time, unread_for_user, unread_for_business
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        user_id = excluded.user_id,
+        business_id = excluded.business_id,
+        job_id = excluded.job_id,
+        last_message = excluded.last_message,
+        last_message_time = excluded.last_message_time,
+        unread_for_user = excluded.unread_for_user,
+        unread_for_business = excluded.unread_for_business
     """, (
         "conv_rahim_radisson",
         "user_rahim",
@@ -1001,16 +1290,24 @@ def seed_data(cursor):
         ("msg_3", "conv_rahim_radisson", "user_rahim", "user", "Rahim Ahmed", "Thank you Ms. Fatima. I will be at the Executive Lounge on Sunday at 2:30 PM sharp with all credentials. Looking forward to meeting the team!", 0, "2026-10-15 17:15")
     ]
     cursor.executemany("""
-    INSERT OR REPLACE INTO messages (
+    INSERT INTO messages (
         id, conversation_id, sender_id, sender_role, sender_name,
         content, is_action_prompt, timestamp
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        conversation_id = excluded.conversation_id,
+        sender_id = excluded.sender_id,
+        sender_role = excluded.sender_role,
+        sender_name = excluded.sender_name,
+        content = excluded.content,
+        is_action_prompt = excluded.is_action_prompt,
+        timestamp = excluded.timestamp
     """, messages)
 
     # 8. Saved Job & Followed Business
-    cursor.execute("INSERT OR REPLACE INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?)", ("user_rahim", "job_sous_chef", "2026-10-14 10:00"))
-    cursor.execute("INSERT OR REPLACE INTO followed_businesses (user_id, business_id, followed_at) VALUES (?, ?, ?)", ("user_rahim", "biz_radisson", "2026-10-12 09:00"))
-    cursor.execute("INSERT OR REPLACE INTO followed_businesses (user_id, business_id, followed_at) VALUES (?, ?, ?)", ("user_rahim", "biz_sayeman", "2026-10-12 09:30"))
+    cursor.execute("INSERT INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?) ON CONFLICT (user_id, job_id) DO NOTHING", ("user_rahim", "job_sous_chef", "2026-10-14 10:00"))
+    cursor.execute("INSERT INTO followed_businesses (user_id, business_id, followed_at) VALUES (?, ?, ?) ON CONFLICT (user_id, business_id) DO NOTHING", ("user_rahim", "biz_radisson", "2026-10-12 09:00"))
+    cursor.execute("INSERT INTO followed_businesses (user_id, business_id, followed_at) VALUES (?, ?, ?) ON CONFLICT (user_id, business_id) DO NOTHING", ("user_rahim", "biz_sayeman", "2026-10-12 09:30"))
 
     # 9. Notifications for Rahim
     notifications = [
@@ -1018,17 +1315,35 @@ def seed_data(cursor):
         ("notif_2", "user_rahim", "New Job from Sayeman Beach Resort", "A new vacancy for F&B Service Captain in Cox's Bazar was posted.", "job_alert", "#job-details?id=job_fb_capt", 1, "2026-10-10 14:00")
     ]
     cursor.executemany("""
-    INSERT OR REPLACE INTO notifications (
+    INSERT INTO notifications (
         id, user_id, title, message, type, link, is_read, timestamp
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        user_id = excluded.user_id,
+        title = excluded.title,
+        message = excluded.message,
+        type = excluded.type,
+        link = excluded.link,
+        is_read = excluded.is_read,
+        timestamp = excluded.timestamp
     """, notifications)
 
     # 10. Admin Verification Queue
     cursor.execute("""
-    INSERT OR REPLACE INTO business_verifications (
+    INSERT INTO business_verifications (
         id, business_id, legal_doc_type, doc_number, submitted_by,
         submitted_at, status, reviewed_at, reviewed_by, review_comments
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        business_id = excluded.business_id,
+        legal_doc_type = excluded.legal_doc_type,
+        doc_number = excluded.doc_number,
+        submitted_by = excluded.submitted_by,
+        submitted_at = excluded.submitted_at,
+        status = excluded.status,
+        reviewed_at = excluded.reviewed_at,
+        reviewed_by = excluded.reviewed_by,
+        review_comments = excluded.review_comments
     """, (
         "verif_sayeman",
         "biz_sayeman",
@@ -1044,12 +1359,31 @@ def seed_data(cursor):
 
     # Add a pending verification for demo
     cursor.execute("""
-    INSERT OR REPLACE INTO businesses (
+    INSERT INTO businesses (
         id, legal_name, brand_name, property_type, star_rating, city,
         address, country, website, email, logo_url, cover_image,
         description, verification_status, verification_notes, departments,
         amenities, benefits, follower_count
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        legal_name = excluded.legal_name,
+        brand_name = excluded.brand_name,
+        property_type = excluded.property_type,
+        star_rating = excluded.star_rating,
+        city = excluded.city,
+        address = excluded.address,
+        country = excluded.country,
+        website = excluded.website,
+        email = excluded.email,
+        logo_url = excluded.logo_url,
+        cover_image = excluded.cover_image,
+        description = excluded.description,
+        verification_status = excluded.verification_status,
+        verification_notes = excluded.verification_notes,
+        departments = excluded.departments,
+        amenities = excluded.amenities,
+        benefits = excluded.benefits,
+        follower_count = excluded.follower_count
     """, (
         "biz_seagull",
         "Seagull Hotels Ltd.",
@@ -1073,10 +1407,20 @@ def seed_data(cursor):
     ))
 
     cursor.execute("""
-    INSERT OR REPLACE INTO business_verifications (
+    INSERT INTO business_verifications (
         id, business_id, legal_doc_type, doc_number, submitted_by,
         submitted_at, status, reviewed_at, reviewed_by, review_comments
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        business_id = excluded.business_id,
+        legal_doc_type = excluded.legal_doc_type,
+        doc_number = excluded.doc_number,
+        submitted_by = excluded.submitted_by,
+        submitted_at = excluded.submitted_at,
+        status = excluded.status,
+        reviewed_at = excluded.reviewed_at,
+        reviewed_by = excluded.reviewed_by,
+        review_comments = excluded.review_comments
     """, (
         "verif_seagull",
         "biz_seagull",
@@ -1092,9 +1436,16 @@ def seed_data(cursor):
 
     # 11. Moderation Report Sample
     cursor.execute("""
-    INSERT OR REPLACE INTO moderation_reports (
+    INSERT INTO moderation_reports (
         id, item_type, item_id, reporter_name, reason, status, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        item_type = excluded.item_type,
+        item_id = excluded.item_id,
+        reporter_name = excluded.reporter_name,
+        reason = excluded.reason,
+        status = excluded.status,
+        created_at = excluded.created_at
     """, (
         "rep_101",
         "job",
@@ -1170,9 +1521,22 @@ def seed_data(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR REPLACE INTO blogs (
+    INSERT INTO blogs (
         id, title, slug, category, excerpt, content, author_name, author_title,
         author_avatar, cover_image, read_time, published_at, tags
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        title = excluded.title,
+        slug = excluded.slug,
+        category = excluded.category,
+        excerpt = excluded.excerpt,
+        content = excluded.content,
+        author_name = excluded.author_name,
+        author_title = excluded.author_title,
+        author_avatar = excluded.author_avatar,
+        cover_image = excluded.cover_image,
+        read_time = excluded.read_time,
+        published_at = excluded.published_at,
+        tags = excluded.tags
     """, blogs)
 

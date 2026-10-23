@@ -13,13 +13,21 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Ensure local .env is loaded before application startup
+load_dotenv()
 
 import database
 
 app = FastAPI(title="NiceJobs API", version="1.0.0")
 
-# Ensure DB initialized
-database.init_db()
+# Ensure DB initialized in local non-production SQLite mode.
+# When running with PostgreSQL or in Vercel/production, schema migrations must be run explicitly.
+if not database.is_production() and not database.is_postgres():
+    database.init_db()
+else:
+    database.ensure_db_ready()
 
 # Mount static folder
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -582,10 +590,10 @@ def toggle_follow(business_id: str, user_id: str = "user_rahim"):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     if exists:
         cursor.execute("DELETE FROM followed_businesses WHERE user_id = ? AND business_id = ?", (user_id, business_id))
-        cursor.execute("UPDATE businesses SET follower_count = MAX(0, follower_count - 1) WHERE id = ?", (business_id,))
+        cursor.execute("UPDATE businesses SET follower_count = CASE WHEN follower_count > 0 THEN follower_count - 1 ELSE 0 END WHERE id = ?", (business_id,))
         is_followed = False
     else:
-        cursor.execute("INSERT INTO followed_businesses VALUES (?, ?, ?)", (user_id, business_id, now))
+        cursor.execute("INSERT INTO followed_businesses (user_id, business_id, followed_at) VALUES (?, ?, ?)", (user_id, business_id, now))
         cursor.execute("UPDATE businesses SET follower_count = follower_count + 1 WHERE id = ?", (business_id,))
         is_followed = True
 
@@ -639,7 +647,7 @@ def send_otp(payload: SendOtpPayload):
 
     for t in targets:
         otp_id = f"otp_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-        cursor.execute("INSERT INTO otp_verifications VALUES (?, ?, ?, ?, ?, ?)", (otp_id, t, code, payload.purpose, now, 0))
+        cursor.execute("INSERT INTO otp_verifications (id, identifier, otp_code, purpose, created_at, verified) VALUES (?, ?, ?, ?, ?, ?)", (otp_id, t, code, payload.purpose, now, 0))
 
     conn.commit()
     conn.close()
@@ -2269,7 +2277,7 @@ def toggle_save_job(job_id: str, user_id: str = "user_rahim"):
         is_saved = False
     else:
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        cursor.execute("INSERT INTO saved_jobs VALUES (?, ?, ?)", (user_id, job_id, now))
+        cursor.execute("INSERT INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?)", (user_id, job_id, now))
         is_saved = True
 
     conn.commit()
@@ -2600,8 +2608,15 @@ def admin_login(payload: AdminLoginPayload, request: Request):
 
     # Record security audit log
     cursor.execute("""
-        INSERT OR REPLACE INTO moderation_reports (id, item_type, item_id, reporter_name, reason, status, created_at)
+        INSERT INTO moderation_reports (id, item_type, item_id, reporter_name, reason, status, created_at)
         VALUES (?, 'admin_audit', ?, 'Platform Security Guardian', ?, 'resolved', ?)
+        ON CONFLICT (id) DO UPDATE SET
+            item_type = excluded.item_type,
+            item_id = excluded.item_id,
+            reporter_name = excluded.reporter_name,
+            reason = excluded.reason,
+            status = excluded.status,
+            created_at = excluded.created_at
     """, (audit_id, user["id"], f"Successful root administrator authentication from {client_ip} via TLS", now_str))
     conn.commit()
     conn.close()
@@ -2892,10 +2907,7 @@ def toggle_demo_data(payload: Optional[ToggleDemoPayload] = None):
 
 @app.post("/api/admin/reset-demo")
 def reset_demo_database():
-    import os
-    if os.path.exists(database.DB_FILE):
-        os.remove(database.DB_FILE)
-    database.init_db()
+    database.reset_demo_data()
     return {"success": True, "message": "NiceJobs demo database has been re-initialized to initial fresh state."}
 
 if __name__ == "__main__":

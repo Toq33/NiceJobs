@@ -25,3 +25,15 @@ ENV/
 
 # Scratch scripts
 scratch/
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+
+# Database backups
+*.backup*
+*.db.backup*
+nicejobs.db.backup*
