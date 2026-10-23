@@ -112,8 +112,9 @@ class PostgresCursorWrapper:
 
 class PostgresConnectionWrapper:
     """Connection wrapper ensuring consistent commit, rollback, and cursor wrapping."""
-    def __init__(self, conn):
+    def __init__(self, conn, pool=None):
         self._conn = conn
+        self._pool = pool
 
     def cursor(self):
         return PostgresCursorWrapper(self._conn.cursor())
@@ -125,7 +126,17 @@ class PostgresConnectionWrapper:
         self._conn.rollback()
 
     def close(self):
-        self._conn.close()
+        if self._pool is not None and not self._conn.closed:
+            try:
+                self._conn.rollback()
+                self._pool.putconn(self._conn)
+            except Exception:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+        elif not self._conn.closed:
+            self._conn.close()
 
     def __enter__(self):
         return self
@@ -160,6 +171,40 @@ def normalize_database_url(url: Optional[str]) -> Optional[str]:
         return url
     return re.sub(r'(://[^:]+:)(?:\[)(.*)(?:\])(@)', r'\1\2\3', url)
 
+_pg_pool = None
+_pool_lock = None
+
+def get_pg_pool():
+    global _pg_pool, _pool_lock
+    if _pool_lock is None:
+        import threading
+        _pool_lock = threading.Lock()
+
+    if _pg_pool is not None:
+        return _pg_pool
+
+    with _pool_lock:
+        if _pg_pool is not None:
+            return _pg_pool
+        database_url = normalize_database_url(os.environ.get("DATABASE_URL"))
+        if not database_url:
+            return None
+        from psycopg2.pool import ThreadedConnectionPool
+        conn_kwargs = {}
+        if "sslmode" not in database_url.lower():
+            conn_kwargs["sslmode"] = "require"
+        try:
+            _pg_pool = ThreadedConnectionPool(
+                minconn=2,
+                maxconn=20,
+                dsn=database_url,
+                **conn_kwargs
+            )
+        except Exception as e:
+            print(f"[WARN] Failed to initialize PostgreSQL connection pool: {e}")
+            _pg_pool = None
+        return _pg_pool
+
 def get_db():
     database_url = normalize_database_url(os.environ.get("DATABASE_URL"))
 
@@ -171,6 +216,29 @@ def get_db():
         )
 
     if database_url:
+        pool = get_pg_pool()
+        if pool:
+            raw_conn = None
+            for _ in range(3):
+                try:
+                    raw_conn = pool.getconn()
+                    if raw_conn.closed:
+                        pool.putconn(raw_conn, close=True)
+                        raw_conn = None
+                        continue
+                    # Quick alive check
+                    with raw_conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                    return PostgresConnectionWrapper(raw_conn, pool=pool)
+                except Exception:
+                    if raw_conn and not raw_conn.closed:
+                        try:
+                            pool.putconn(raw_conn, close=True)
+                        except Exception:
+                            pass
+                    raw_conn = None
+
+        # Fallback to direct connection if pool exhausted or unavailable
         import psycopg2
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():

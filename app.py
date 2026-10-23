@@ -121,16 +121,46 @@ def dispatch_system_email(to_email: str, subject: str, body_text: str, event_typ
 DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' fill='%23ffffff'/><circle cx='50' cy='36' r='16' fill='%23000000'/><path d='M22 84 C22 66, 35 60, 50 60 C65 60, 78 66, 78 84 Z' fill='%23000000'/></svg>"
 DEFAULT_HOTEL_LOGO_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%23ffffff'/><path d='M28 80 V22 H72 V80 H28 Z M38 32 H46 V40 H38 V32 Z M38 46 H46 V54 H38 V46 Z M38 60 H46 V68 H38 V60 Z M54 32 H62 V40 H54 V32 Z M54 46 H62 V54 H54 V46 Z M54 60 H62 V68 H54 V60 Z' fill='%23000000'/></svg>"
 
+# In-memory performance cache for ultra-fast response times
+_demo_hidden_cache = {"val": True, "ts": 0.0}
+_API_CACHE = {}
+_API_CACHE_TTL = 15.0  # Cache public list reads for 15s to make tab switching & refresh instant
+
+def get_cached_api(key: str):
+    import time
+    item = _API_CACHE.get(key)
+    if item and (time.time() - item["ts"] < _API_CACHE_TTL):
+        return item["data"]
+    return None
+
+def set_cached_api(key: str, data):
+    import time
+    _API_CACHE[key] = {"data": data, "ts": time.time()}
+
+def invalidate_api_cache(prefix: Optional[str] = None):
+    if not prefix:
+        _API_CACHE.clear()
+    else:
+        keys_to_del = [k for k in _API_CACHE if k.startswith(prefix)]
+        for k in keys_to_del:
+            _API_CACHE.pop(k, None)
+
 def is_demo_hidden() -> bool:
+    import time
+    now = time.time()
+    if now - _demo_hidden_cache["ts"] < 60.0:
+        return _demo_hidden_cache["val"]
     try:
         conn = database.get_db()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM system_settings WHERE key = 'demo_data_hidden'")
         row = cursor.fetchone()
         conn.close()
-        return bool(row and row["value"] == "1")
+        _demo_hidden_cache["val"] = bool(row and row["value"] == "1")
+        _demo_hidden_cache["ts"] = now
+        return _demo_hidden_cache["val"]
     except Exception:
-        return False
+        return True
 
 @app.get("/api/jobs")
 def get_jobs(
@@ -146,6 +176,12 @@ def get_jobs(
     business_id: Optional[str] = None,
     status: Optional[str] = "active"
 ):
+    demo_hidden = is_demo_hidden()
+    cache_key = f"jobs:{q}:{location}:{department}:{designation}:{employment_type}:{experience_level}:{accommodation}:{duty_meals}:{urgent_only}:{business_id}:{status}:{demo_hidden}"
+    cached = get_cached_api(cache_key)
+    if cached is not None:
+        return cached
+
     conn = database.get_db()
     cursor = conn.cursor()
 
@@ -157,7 +193,7 @@ def get_jobs(
     """
     params = []
 
-    if is_demo_hidden():
+    if demo_hidden:
         query += " AND (j.is_demo = 0 OR j.is_demo IS NULL)"
         query += " AND (b.is_demo = 0 OR b.is_demo IS NULL)"
 
@@ -231,6 +267,7 @@ def get_jobs(
         results.append(d)
 
     conn.close()
+    set_cached_api(cache_key, results)
     return results
 
 @app.get("/api/jobs/{job_id}")
@@ -385,6 +422,7 @@ def create_job(payload: JobCreatePayload):
     ))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
 
     return {"success": True, "job_id": job_id, "message": "Hospitality vacancy published successfully."}
 
@@ -399,17 +437,24 @@ def update_job_status(job_id: str, payload: Dict[str, str]):
     cursor.execute("UPDATE jobs SET status = ? WHERE id = ?", (status, job_id))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
     return {"success": True, "job_id": job_id, "status": status}
 
 @app.get("/api/businesses")
 def get_businesses(city: Optional[str] = None, property_type: Optional[str] = None):
+    demo_hidden = is_demo_hidden()
+    cache_key = f"businesses:{city}:{property_type}:{demo_hidden}"
+    cached = get_cached_api(cache_key)
+    if cached is not None:
+        return cached
+
     conn = database.get_db()
     cursor = conn.cursor()
 
     query = "SELECT * FROM businesses WHERE 1=1"
     params = []
 
-    if is_demo_hidden():
+    if demo_hidden:
         query += " AND (is_demo = 0 OR is_demo IS NULL)"
 
     if city:
@@ -433,6 +478,7 @@ def get_businesses(city: Optional[str] = None, property_type: Optional[str] = No
         results.append(d)
 
     conn.close()
+    set_cached_api(cache_key, results)
     return results
 
 @app.get("/api/businesses/{business_id}")
@@ -558,6 +604,11 @@ def update_business_profile(business_id: str, payload: BusinessUpdatePayload):
 
 @app.get("/api/blogs")
 def get_blogs(category: Optional[str] = None):
+    cache_key = f"blogs:{category}"
+    cached = get_cached_api(cache_key)
+    if cached is not None:
+        return cached
+
     conn = database.get_db()
     cursor = conn.cursor()
     if category and category.lower() != 'all':
@@ -571,6 +622,7 @@ def get_blogs(category: Optional[str] = None):
         b["tags"] = json.loads(b["tags"]) if b["tags"] else []
         blogs.append(b)
     conn.close()
+    set_cached_api(cache_key, blogs)
     return blogs
 
 @app.get("/api/blogs/{blog_id}")
@@ -2910,6 +2962,10 @@ def toggle_demo_data(payload: Optional[ToggleDemoPayload] = None):
     """, ("1" if new_hidden else "0",))
     conn.commit()
     conn.close()
+    import time
+    _demo_hidden_cache["val"] = new_hidden
+    _demo_hidden_cache["ts"] = time.time()
+    invalidate_api_cache()
     return {
         "success": True,
         "demo_data_hidden": new_hidden,
@@ -2919,6 +2975,7 @@ def toggle_demo_data(payload: Optional[ToggleDemoPayload] = None):
 @app.post("/api/admin/reset-demo")
 def reset_demo_database():
     database.reset_demo_data()
+    invalidate_api_cache()
     return {"success": True, "message": "NiceJobs demo database has been re-initialized to initial fresh state."}
 
 if __name__ == "__main__":

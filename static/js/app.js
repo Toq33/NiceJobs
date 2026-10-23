@@ -992,50 +992,16 @@ async function resetDemoData() {
 
 async function loadInitialData() {
   try {
-    try {
-      const demoRes = await fetch('/api/admin/demo-status');
-      if (demoRes.ok) {
-        const demoData = await demoRes.json();
-        state.demoDataHidden = demoData.demo_data_hidden;
-        const toggleBtn = document.getElementById('btn-toggle-demo-data');
-        if (toggleBtn) {
-          if (state.demoDataHidden) {
-            toggleBtn.textContent = 'Restore Demo Data';
-            toggleBtn.title = 'Restore demo seed data';
-            toggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
-            toggleBtn.style.color = '#fca5a5';
-            toggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-          } else {
-            toggleBtn.textContent = 'Remove Demo Data';
-            toggleBtn.title = 'Temporarily remove demo data';
-            toggleBtn.style.background = '';
-            toggleBtn.style.color = '';
-            toggleBtn.style.borderColor = '';
-          }
-        }
-        if (state.demoDataHidden) {
-          if (state.currentUser && (state.currentUser.id === 'user_rahim' || state.currentUser.id === 'user_fatima')) {
-            state.currentUser = null;
-          }
-          loginState.email = '';
-          loginState.password = '';
-          loginState.businessEmail = '';
-          loginState.userEmail = '';
-          loginState.businessPassword = '';
-          loginState.verifiedBusiness = null;
-          loginState.businessStep = 1;
-        }
-      }
-    } catch (e) {}
+    state.demoDataHidden = true;
 
     const [jobsRes, bizRes, blogsRes] = await Promise.all([
       fetch('/api/jobs?status=active'),
       fetch('/api/businesses'),
       fetch('/api/blogs')
     ]);
-    state.jobs = await jobsRes.json();
-    state.businesses = await bizRes.json();
-    state.blogs = await blogsRes.json();
+    state.jobs = jobsRes.ok ? await jobsRes.json() : [];
+    state.businesses = bizRes.ok ? await bizRes.json() : [];
+    state.blogs = blogsRes.ok ? await blogsRes.json() : [];
 
     if (state.currentUser && state.currentUser.role === 'jobseeker') {
       const [appsRes, savedRes, notifRes, profRes, convRes] = await Promise.all([
@@ -1283,17 +1249,28 @@ async function renderApp() {
 // ==========================================================================
 
 async function renderHomeScreen(viewport) {
-  const params = new URLSearchParams();
-  if (state.search.query) params.append('q', state.search.query);
-  if (state.search.location) params.append('location', state.search.location);
-  if (state.search.department) params.append('department', state.search.department);
-  if (state.search.designation) params.append('designation', state.search.designation);
-  if (state.search.accommodation) params.append('accommodation', 'true');
-  if (state.search.duty_meals) params.append('duty_meals', 'true');
-  if (state.search.urgent_only) params.append('urgent_only', 'true');
+  const hasFilter = Boolean(
+    state.search.query || state.search.location || state.search.department ||
+    state.search.designation || state.search.accommodation || state.search.duty_meals || state.search.urgent_only
+  );
 
-  const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
-  let jobs = await jobsRes.json();
+  let jobs;
+  if (!hasFilter && state.jobs && state.jobs.length > 0) {
+    jobs = [...state.jobs];
+  } else {
+    const params = new URLSearchParams();
+    if (state.search.query) params.append('q', state.search.query);
+    if (state.search.location) params.append('location', state.search.location);
+    if (state.search.department) params.append('department', state.search.department);
+    if (state.search.designation) params.append('designation', state.search.designation);
+    if (state.search.accommodation) params.append('accommodation', 'true');
+    if (state.search.duty_meals) params.append('duty_meals', 'true');
+    if (state.search.urgent_only) params.append('urgent_only', 'true');
+
+    const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
+    jobs = jobsRes.ok ? await jobsRes.json() : [];
+    if (!hasFilter) state.jobs = jobs;
+  }
 
   // Candidate sorting logic
   const sortBy = state.search.sort || 'featured';
@@ -2112,8 +2089,12 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
     return renderHotelDetailScreen(viewport, selectedHotelId);
   }
 
-  const bizRes = await fetch('/api/businesses');
-  const businesses = await bizRes.json();
+  let businesses = state.businesses;
+  if (!businesses || businesses.length === 0) {
+    const bizRes = await fetch('/api/businesses');
+    businesses = bizRes.ok ? await bizRes.json() : [];
+    state.businesses = businesses;
+  }
 
   viewport.innerHTML = `
     <div style="margin-bottom: 24px;">
