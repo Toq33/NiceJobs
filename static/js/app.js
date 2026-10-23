@@ -2501,7 +2501,16 @@ async function renderProfileScreen(viewport) {
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        ${(profile.cv_list || []).map(cv => `
+        ${(profile.cv_list || []).length === 0 ? `
+          <div style="padding: 28px 20px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div style="color: var(--orange-primary);">${svgIcon('upload', '', 32)}</div>
+            <div style="font-weight: 700; color: var(--white); font-size: 0.96rem;">No Hospitality CVs Uploaded Yet</div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 12px 0; max-width: 380px; line-height: 1.45;">Upload your tailored hospitality resume (.pdf, .docx) to showcase your experience to top hotels.</p>
+            <button class="btn-orange" onclick="openAddCvModal()" style="font-size: 0.85rem; padding: 7px 18px; display: inline-flex; align-items: center; gap: 6px;">
+              ${svgIcon('upload', '', 15)} Upload / Drop CV
+            </button>
+          </div>
+        ` : (profile.cv_list || []).map(cv => `
           <div class="cv-item-row ${cv.is_default ? 'is-default' : ''}">
             <div class="cv-item-info">
               <span class="cv-file-icon">${svgIcon('fileText', '', 20)}</span>
@@ -9972,35 +9981,184 @@ async function viewSubmittedApplicationCv(appId) {
   }
 }
 
-// Add New CV Modal
+// ==========================================================================
+// Add New CV Modal with Interactive Drag & Drop + Device File Upload
+// ==========================================================================
+let addCvModalState = {
+  file: null,
+  fileName: '',
+  fileSize: '',
+  fileData: null
+};
+
+function handleProfileCvDragOver(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const dropzone = document.getElementById('profile-cv-dropzone');
+  if (dropzone) dropzone.classList.add('drag-active');
+}
+
+function handleProfileCvDragLeave(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const dropzone = document.getElementById('profile-cv-dropzone');
+  if (dropzone) dropzone.classList.remove('drag-active');
+}
+
+function handleProfileCvDrop(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const dropzone = document.getElementById('profile-cv-dropzone');
+  if (dropzone) dropzone.classList.remove('drag-active');
+  const files = event.dataTransfer?.files;
+  if (files && files.length > 0) {
+    processSelectedProfileCvFile(files[0]);
+  }
+}
+
+function handleProfileCvFileSelected(event) {
+  const file = event.target?.files?.[0];
+  if (file) {
+    processSelectedProfileCvFile(file);
+  }
+}
+
+function processSelectedProfileCvFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['pdf', 'docx', 'doc'].includes(ext)) {
+    showToast('Please upload a PDF or Word document (.pdf, .docx, .doc)', 'warning');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('CV file size exceeds 10MB limit', 'warning');
+    return;
+  }
+
+  const formattedSize = file.size >= 1024 * 1024
+    ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.round(file.size / 1024)} KB`;
+
+  addCvModalState.file = file;
+  addCvModalState.fileName = file.name;
+  addCvModalState.fileSize = formattedSize;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    addCvModalState.fileData = e.target.result;
+  };
+  reader.readAsDataURL(file);
+
+  const badge = document.getElementById('profile-cv-file-badge');
+  const nameEl = document.getElementById('profile-cv-badge-name');
+  const sizeEl = document.getElementById('profile-cv-badge-size');
+  const titleInput = document.getElementById('profile-cv-title-input');
+
+  if (nameEl) nameEl.textContent = file.name;
+  if (sizeEl) sizeEl.textContent = formattedSize;
+  if (badge) badge.style.display = 'flex';
+
+  if (titleInput && !titleInput.value.trim()) {
+    const cleanTitle = file.name
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    titleInput.value = cleanTitle;
+  }
+
+  showToast(`File attached: ${file.name} (${formattedSize})`, 'success');
+}
+
+function clearProfileCvFile() {
+  addCvModalState.file = null;
+  addCvModalState.fileName = '';
+  addCvModalState.fileSize = '';
+  addCvModalState.fileData = null;
+
+  const fileInput = document.getElementById('profile-cv-file-input');
+  if (fileInput) fileInput.value = '';
+
+  const badge = document.getElementById('profile-cv-file-badge');
+  if (badge) badge.style.display = 'none';
+}
+
 function openAddCvModal() {
+  addCvModalState = {
+    file: null,
+    fileName: '',
+    fileSize: '',
+    fileData: null
+  };
+
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-add-cv">
-      <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-dialog" style="max-width: 520px;">
         <div class="modal-header">
-          <h2 class="modal-title">Add Resume</h2>
+          <div>
+            <h2 class="modal-title">Upload Hospitality Resume</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Attach a tailored CV to your candidate profile</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-add-cv')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
 
         <form onsubmit="handleAddNewCv(event)">
-          <div class="modal-body">
+          <div class="modal-body" style="padding: 22px; display: flex; flex-direction: column; gap: 16px;">
+            <!-- Drag & Drop CV Upload Zone -->
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Resume Title</label>
-              <input type="text" name="title" required placeholder="e.g. Front Office & Guest Relations CV" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; color: var(--white);">
+                Resume Document <span style="color: #f87171;">*</span>
+              </label>
+              
+              <div class="cv-dropzone" id="profile-cv-dropzone" 
+                   onclick="document.getElementById('profile-cv-file-input').click()"
+                   ondragover="handleProfileCvDragOver(event)"
+                   ondragleave="handleProfileCvDragLeave(event)"
+                   ondrop="handleProfileCvDrop(event)">
+                <div class="cv-dropzone-inner" id="profile-cv-dropzone-content">
+                  <div style="color: var(--orange-primary);">${svgIcon('upload', '', 36)}</div>
+                  <strong style="color: var(--white); font-size: 0.95rem; margin-top: 6px;">Choose a file or drag &amp; drop it here</strong>
+                  <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 3px;">
+                    Drag &amp; drop your CV here, or <span style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">browse device</span>
+                  </div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">PDF, DOCX, DOC (up to 10MB)</div>
+                </div>
+                <input type="file" id="profile-cv-file-input" style="display: none;" accept=".pdf,.docx,.doc" onchange="handleProfileCvFileSelected(event)">
+              </div>
+
+              <!-- Selected File Preview Badge -->
+              <div id="profile-cv-file-badge" style="display: none; margin-top: 10px; background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(37, 99, 235, 0.35); border-radius: var(--radius-md); padding: 10px 14px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                  <span style="color: var(--blue-primary); flex-shrink: 0;">${svgIcon('fileText', '', 24)}</span>
+                  <div style="min-width: 0;">
+                    <div id="profile-cv-badge-name" style="font-weight: 700; font-size: 0.88rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                    <div id="profile-cv-badge-size" style="font-size: 0.74rem; color: var(--text-muted);"></div>
+                  </div>
+                </div>
+                <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; color: #f87171;" onclick="clearProfileCvFile()">Remove</button>
+              </div>
             </div>
+
+            <!-- Resume Title -->
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">File Name (.pdf / .docx)</label>
-              <input type="text" name="filename" required placeholder="e.g. My_Hospitality_Resume.pdf" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
+                Resume Title <span style="color: #f87171;">*</span>
+              </label>
+              <input type="text" id="profile-cv-title-input" name="title" required placeholder="e.g. Front Office &amp; Guest Relations CV" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 4px;">Give this resume a descriptive title for your applications.</div>
             </div>
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--white); cursor: pointer;">
-              <input type="checkbox" name="is_default"> Set as default resume
+
+            <!-- Set as Default Checkbox -->
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--white); cursor: pointer; user-select: none;">
+              <input type="checkbox" id="profile-cv-default-checkbox" name="is_default"> Set as default resume for future job applications
             </label>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-add-cv')">Cancel</button>
-            <button type="submit" class="btn-orange">Save Resume</button>
+            <button type="submit" id="btn-submit-cv-upload" class="btn-orange" style="display: inline-flex; align-items: center; gap: 6px;">
+              ${svgIcon('upload', '', 15)} Upload &amp; Save Resume
+            </button>
           </div>
         </form>
       </div>
@@ -10011,12 +10169,33 @@ function openAddCvModal() {
 async function handleAddNewCv(event) {
   event.preventDefault();
   const form = event.target;
+  const title = form.title.value.trim();
+
+  const fileName = addCvModalState.fileName;
+  if (!fileName) {
+    showToast('Please select or drop a CV document to upload.', 'warning');
+    return;
+  }
+
+  const uId = state.currentUser?.id;
+  if (!uId) {
+    showToast('Please log in to upload your resume.', 'danger');
+    return;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-cv-upload');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = 'Uploading...';
+  }
+
   const payload = {
-    user_id: state.currentUser?.id || '',
-    title: form.title.value,
-    name: form.filename.value,
-    size: '235 KB',
-    is_default: form.is_default.checked
+    user_id: uId,
+    title: title || fileName,
+    name: fileName,
+    size: addCvModalState.fileSize || '250 KB',
+    is_default: form.is_default.checked,
+    file_data: addCvModalState.fileData || null
   };
 
   try {
@@ -10025,12 +10204,24 @@ async function handleAddNewCv(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to upload resume');
+
     closeModal('modal-add-cv');
-    showToast('Resume added to profile.', 'success');
-    await loadInitialData();
+    showToast(`Resume "${payload.title}" uploaded successfully.`, 'success');
+
+    // Reload profile data and refresh view
+    const profRes = await fetch(`/api/profile?user_id=${uId}`);
+    if (profRes.ok) {
+      state.profile = await profRes.json();
+    }
     renderProfileScreen(document.getElementById('app-viewport'));
   } catch (err) {
     showToast(err.message, 'danger');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `${svgIcon('upload', '', 15)} Upload &amp; Save Resume`;
+    }
   }
 }
 

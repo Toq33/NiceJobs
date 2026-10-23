@@ -1759,11 +1759,12 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     return {"success": True, "message": "Career profile updated successfully."}
 
 class CvCreatePayload(BaseModel):
-    user_id: str = "user_rahim"
+    user_id: Optional[str] = None
     title: str
     name: str
     size: str = "220 KB"
     is_default: bool = False
+    file_data: Optional[str] = None
 
 @app.get("/api/profile/cvs")
 def get_profile_cvs(user_id: str = "user_rahim"):
@@ -1777,54 +1778,69 @@ def get_profile_cvs(user_id: str = "user_rahim"):
 
 @app.post("/api/profile/cvs")
 def add_profile_cv(payload: CvCreatePayload, user_id: Optional[str] = None):
-    effective_user_id = user_id or payload.user_id or "user_rahim"
+    effective_user_id = user_id or payload.user_id
+    if not effective_user_id:
+        raise HTTPException(status_code=400, detail="Missing user_id for CV upload")
+
     conn = database.get_db()
     cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE id = ?", (effective_user_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="User account not found. Please log in.")
+
     cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
     row = cursor.fetchone()
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
 
     new_cv = {
         "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
-        "title": payload.title,
+        "title": payload.title or payload.name,
         "name": payload.name,
         "uploaded_at": datetime.now().strftime("%Y-%m-%d"),
-        "size": payload.size,
-        "is_default": payload.is_default
+        "size": payload.size or "250 KB",
+        "is_default": payload.is_default or len(cv_list) == 0,
+        "file_data": payload.file_data
     }
-    if payload.is_default:
+    if new_cv["is_default"]:
         for c in cv_list:
             c["is_default"] = False
     cv_list.append(new_cv)
 
-    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), payload.user_id))
+    if row is not None:
+        cursor.execute("UPDATE employee_profiles SET cv_list = ?, cv_name = ? WHERE user_id = ?", (json.dumps(cv_list), payload.name, effective_user_id))
+    else:
+        cursor.execute("INSERT INTO employee_profiles (user_id, cv_list, cv_name) VALUES (?, ?, ?)", (effective_user_id, json.dumps(cv_list), payload.name))
+
     conn.commit()
     conn.close()
     return {"success": True, "cv": new_cv, "cv_list": cv_list}
 
 @app.delete("/api/profile/cvs/{cv_id}")
-def delete_profile_cv(cv_id: str, user_id: str = "user_rahim"):
+def delete_profile_cv(cv_id: str, user_id: Optional[str] = None):
+    effective_user_id = user_id or "user_rahim"
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
     row = cursor.fetchone()
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
     cv_list = [c for c in cv_list if c["id"] != cv_id]
-    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), user_id))
+    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
     conn.commit()
     conn.close()
     return {"success": True, "cv_list": cv_list}
 
 @app.patch("/api/profile/cvs/{cv_id}/default")
-def set_default_cv(cv_id: str, user_id: str = "user_rahim"):
+def set_default_cv(cv_id: str, user_id: Optional[str] = None):
+    effective_user_id = user_id or "user_rahim"
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
     row = cursor.fetchone()
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
     for c in cv_list:
         c["is_default"] = (c["id"] == cv_id)
-    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), user_id))
+    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
     conn.commit()
     conn.close()
     return {"success": True, "cv_list": cv_list}
