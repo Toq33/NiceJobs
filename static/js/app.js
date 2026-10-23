@@ -4,6 +4,15 @@
  * Palette: Main Theme Blue | Sub Themes: Orange & White
  */
 
+// Permanently eradicate demo persona bar from DOM under all conditions
+function purgeDemoBarPermanently() {
+  if (typeof document === 'undefined') return;
+  const elements = document.querySelectorAll('.demo-bar, .role-switcher, .demo-bar-left, .demo-bar-right, #btn-toggle-demo-data, #role-status-text, [aria-label*="Demo Persona Switcher"]');
+  elements.forEach(el => el.remove());
+}
+purgeDemoBarPermanently();
+document.addEventListener('DOMContentLoaded', purgeDemoBarPermanently);
+window.addEventListener('load', purgeDemoBarPermanently);
 
 // ==========================================================================
 // Modern Clean Vector SVG Icon System (No Childish Emojis)
@@ -1216,6 +1225,7 @@ function updateNavigation() {
 // ==========================================================================
 
 async function renderApp() {
+  purgeDemoBarPermanently();
   updateNavigation();
   const viewport = document.getElementById('app-viewport');
   if (!viewport) return;
