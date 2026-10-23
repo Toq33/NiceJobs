@@ -554,9 +554,7 @@ button {
 }
 
 .user-badge-role {
-  font-size: 0.68rem;
-  color: var(--orange-primary);
-  font-weight: 600;
+  display: none !important;
 }
 
 /* ==========================================================================

@@ -129,7 +129,7 @@ const state = {
   activeHotelId: null,
   activeAppId: null,
   activeBlogId: null,
-  activeConvId: 'conv_rahim_radisson',
+  activeConvId: null,
   inboxMobileView: 'threads', // 'threads' or 'chat' on mobile
   
   // Search & Filter State
@@ -477,7 +477,7 @@ function getFreshSignupState(role = 'candidate') {
     password: '',
     confirm_password: '',
     otp_code: '',
-    lastSentOtp: '258330',
+    lastSentOtp: '',
     terms_accepted: false,
 
     // Business Onboarding State
@@ -513,7 +513,7 @@ function getFreshSignupState(role = 'candidate') {
     biz_confirm_password: '',
     biz_role_choice: 'admin',
     biz_otp_code: '',
-    biz_lastSentOtp: '258330',
+    biz_lastSentOtp: '',
     hotel_terms_accepted: false,
 
     // Route B: Add New User
@@ -530,7 +530,7 @@ function getFreshSignupState(role = 'candidate') {
     join_pfp_crop: null,
     join_designation: '',
     join_otp_code: '',
-    join_lastSentOtp: '258330',
+    join_lastSentOtp: '',
     join_terms_accepted: false
   };
 }
@@ -1107,7 +1107,6 @@ function updateNavigation() {
           <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}">
           <div class="user-badge-info">
             <span class="user-badge-name">${state.currentUser.name}</span>
-            <span class="user-badge-role">${state.currentUser.title || 'Candidate'}</span>
           </div>
         </div>
         <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
@@ -1116,10 +1115,10 @@ function updateNavigation() {
 
     mobileActionsHtml = `
       <div class="mobile-user-card" onclick="navigateTo('profile'); closeMobileMenu();" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);">
-        <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">
+        <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);">
         <div>
           <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${state.currentUser.name}</div>
-          <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 600;">${state.currentUser.title || 'Candidate'} • View Profile →</div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-weight: 500;">View Profile →</div>
         </div>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;">
@@ -1147,10 +1146,9 @@ function updateNavigation() {
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 8px;">
         <div class="user-profile-badge" id="nav-biz-user-profile-badge" onclick="openBusinessUserEditProfileModal()" style="cursor: pointer;" title="Edit My Profile">
-          ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--orange-primary);">` : `<div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1.5px solid rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
+          ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(255, 255, 255, 0.25);">` : `<div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
           <div class="user-badge-info">
             <span class="user-badge-name">${escapeHtml(state.currentUser.name)}</span>
-            <span class="user-badge-role">${escapeHtml(state.currentUser.title || 'Recruiter')}</span>
           </div>
         </div>
         <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
@@ -1158,10 +1156,10 @@ function updateNavigation() {
     `;
     mobileActionsHtml = `
       <div class="mobile-user-card" onclick="openBusinessUserEditProfileModal(); closeMobileMenu();" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); margin-bottom: 8px;">
-        ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary);">` : `<div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 2px solid var(--orange-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
+        ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);">` : `<div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 2px solid rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
         <div>
           <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${escapeHtml(state.currentUser.name)}</div>
-          <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 600;">${escapeHtml(state.currentUser.title || 'Recruiter')} • Edit Profile →</div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-weight: 500;">Edit Profile →</div>
         </div>
       </div>
       <button class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px;" onclick="switchRole('guest'); closeMobileMenu();">Sign Out</button>
@@ -2383,7 +2381,11 @@ async function renderApplicationsScreen(viewport) {
 // ==========================================================================
 
 async function toggleOpenToWork() {
-  const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  const userId = state.currentUser ? state.currentUser.id : null;
+  if (!userId) {
+    showToast('Please sign in as a candidate to update status.', 'warning');
+    return;
+  }
   const currentStatus = state.profile ? (state.profile.open_to_work === 1 || state.profile.open_to_work === true || state.profile.open_to_work === '1' || state.profile.open_to_work === undefined) : true;
   const newStatus = !currentStatus;
 
@@ -2635,7 +2637,7 @@ async function renderProfileScreen(viewport) {
 // ==========================================================================
 
 async function renderRecruiterDashboard(viewport) {
-  const bId = state.currentUser?.business_id || state.activeHotelId || (state.demoDataHidden ? null : 'biz_radisson');
+  const bId = state.currentUser?.business_id || state.activeHotelId || null;
   if (!bId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
@@ -2803,7 +2805,7 @@ async function renderRecruiterDashboard(viewport) {
 
 // ATS Board Full Page
 async function renderATSBoard(viewport) {
-  const bId = state.currentUser?.business_id || state.activeHotelId || (state.demoDataHidden ? null : 'biz_radisson');
+  const bId = state.currentUser?.business_id || state.activeHotelId || null;
   if (!bId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
@@ -2925,8 +2927,33 @@ function renderCandidatesTableHTML(apps) {
 async function renderInboxScreen(viewport) {
   const role = state.currentRole;
   const isRecruiter = role === 'recruiter';
-  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
-  const param = isRecruiter ? `business_id=${bId}` : `user_id=${state.currentUser?.id || 'user_rahim'}`;
+  const bId = state.currentUser?.business_id || state.activeHotelId;
+  const uId = state.currentUser?.id;
+
+  if (isRecruiter && !bId) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">✉️</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel Messages</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in to your verified hotel account to access candidate messaging.</p>
+        <button class="btn-orange" onclick="startLoginFlow('business')">Employer Log In</button>
+      </div>
+    `;
+    return;
+  }
+  if (!isRecruiter && !uId) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">✉️</div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Messages</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in as a candidate to view your interview requests and direct messages.</p>
+        <button class="btn-orange" onclick="startLoginFlow('candidate')">Candidate Log In</button>
+      </div>
+    `;
+    return;
+  }
+
+  const param = isRecruiter ? `business_id=${bId}` : `user_id=${uId}`;
 
   const convRes = await fetch(`/api/conversations?${param}`);
   const convs = await convRes.json();
@@ -3009,15 +3036,15 @@ async function renderInboxScreen(viewport) {
                 <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="openJobDetailModal('${activeConv.job_id}')">
                   Job Details
                 </button>
-                ${isRecruiter ? `
-                  <button class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="viewSubmittedApplicationCv('${activeConv.application_id || 'app_rahim_radisson'}')">
+                ${isRecruiter ? (activeConv.application_id ? `
+                  <button class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="viewSubmittedApplicationCv('${activeConv.application_id}')">
                     ${svgIcon('fileText', '', 13)} View CV
                   </button>
-                ` : `
-                  <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="previewCandidateCvModal('Rahim Ahmed Hospitality Resume', 'Rahim_Ahmed_Hospitality_CV.pdf')">
+                ` : '') : (state.profile?.cv_name ? `
+                  <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="previewCandidateCvModal('${escapeHtml(state.profile?.headline || 'Hospitality Resume')}', '${escapeHtml(state.profile?.cv_name)}')">
                     ${svgIcon('fileText', '', 13)} Preview CV
                   </button>
-                `}
+                ` : '')}
               </div>
             </div>
 
@@ -3203,9 +3230,9 @@ async function sendChatMessage() {
 
   const payload = {
     conversation_id: state.activeConvId,
-    sender_id: state.currentUser?.id || 'user_rahim',
+    sender_id: state.currentUser?.id || '',
     sender_role: isRecruiter ? 'business' : 'user',
-    sender_name: isRecruiter ? 'Fatima Khan (Radisson HR)' : (state.currentUser?.name || 'Rahim Ahmed'),
+    sender_name: isRecruiter ? (state.currentUser?.name || 'Hotel Recruiter') : (state.currentUser?.name || 'Candidate'),
     content: content
   };
 
@@ -3317,9 +3344,9 @@ async function sendChatDirectMessage(content) {
   const isRecruiter = state.currentRole === 'recruiter';
   const payload = {
     conversation_id: state.activeConvId,
-    sender_id: state.currentUser?.id || 'user_rahim',
+    sender_id: state.currentUser?.id || '',
     sender_role: isRecruiter ? 'business' : 'user',
-    sender_name: isRecruiter ? 'Fatima Khan (Radisson HR)' : (state.currentUser?.name || 'Rahim Ahmed'),
+    sender_name: isRecruiter ? (state.currentUser?.name || 'Hotel Recruiter') : (state.currentUser?.name || 'Candidate'),
     content: content
   };
 
@@ -4716,23 +4743,12 @@ function startLoginFlow(role = 'candidate') {
   loginState.businessStep = 1;
   loginState.errorMessage = null;
   loginState.errorType = null;
-  if (state.demoDataHidden) {
-    loginState.email = '';
-    loginState.password = '';
-    loginState.businessEmail = '';
-    loginState.userEmail = '';
-    loginState.businessPassword = '';
-    loginState.verifiedBusiness = null;
-  } else {
-    if (role === 'candidate') {
-      loginState.email = 'rahim.ahmed@example.bd';
-      loginState.password = 'Password123!';
-    } else {
-      loginState.businessEmail = 'hr@radissondhaka.com';
-      loginState.userEmail = 'hr@radissondhaka.com';
-      loginState.businessPassword = 'Password123!';
-    }
-  }
+  loginState.email = '';
+  loginState.password = '';
+  loginState.businessEmail = '';
+  loginState.userEmail = '';
+  loginState.businessPassword = '';
+  loginState.verifiedBusiness = null;
   navigateTo('login', { role });
 }
 
@@ -4754,23 +4770,12 @@ function setLoginRole(role) {
   loginState.businessStep = 1;
   loginState.errorMessage = null;
   loginState.errorType = null;
-  if (state.demoDataHidden) {
-    loginState.email = '';
-    loginState.password = '';
-    loginState.businessEmail = '';
-    loginState.userEmail = '';
-    loginState.businessPassword = '';
-    loginState.verifiedBusiness = null;
-  } else {
-    if (role === 'candidate') {
-      loginState.email = loginState.email || 'rahim.ahmed@example.bd';
-      loginState.password = loginState.password || 'Password123!';
-    } else {
-      loginState.businessEmail = loginState.businessEmail || 'hr@radissondhaka.com';
-      loginState.userEmail = loginState.userEmail || 'hr@radissondhaka.com';
-      loginState.businessPassword = loginState.businessPassword || 'Password123!';
-    }
-  }
+  loginState.email = '';
+  loginState.password = '';
+  loginState.businessEmail = '';
+  loginState.userEmail = '';
+  loginState.businessPassword = '';
+  loginState.verifiedBusiness = null;
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderLoginPage(viewport);
 }
@@ -4827,7 +4832,7 @@ function renderLoginPage(viewport) {
                 class="auth-input" 
                 placeholder="Enter your registered email" 
                 required 
-                value="${escapeHtml(state.demoDataHidden ? (loginState.email || '') : (loginState.email || 'rahim.ahmed@example.bd'))}" 
+                value="${escapeHtml(loginState.email || '')}" 
                 autocomplete="username" autofocus>
             </div>
 
@@ -4839,7 +4844,7 @@ function renderLoginPage(viewport) {
                   class="auth-input" 
                   placeholder="Enter your password" 
                   required 
-                  value="${escapeHtml(state.demoDataHidden ? (loginState.password || '') : (loginState.password || 'Password123!'))}" 
+                  value="${escapeHtml(loginState.password || '')}" 
                   autocomplete="current-password">
                 <button type="button" class="auth-eye-toggle" id="cand-pwd-toggle" 
                   onclick="togglePasswordVisibility('login-candidate-pwd', 'cand-pwd-toggle')" 
@@ -4863,7 +4868,7 @@ function renderLoginPage(viewport) {
                   class="auth-input" 
                   placeholder="Enter official business email" 
                   required 
-                  value="${escapeHtml(state.demoDataHidden ? (loginState.businessEmail || '') : (loginState.businessEmail || 'hr@radissondhaka.com'))}" 
+                  value="${escapeHtml(loginState.businessEmail || '')}" 
                   autocomplete="organization" autofocus>
               </div>
 
@@ -4920,7 +4925,7 @@ function renderLoginPage(viewport) {
                   class="auth-input" 
                   placeholder="Enter your account email" 
                   required 
-                  value="${escapeHtml(state.demoDataHidden ? (loginState.userEmail || '') : (loginState.userEmail || 'hr@radissondhaka.com'))}" 
+                  value="${escapeHtml(loginState.userEmail || '')}" 
                   autocomplete="username" autofocus>
               </div>
 
@@ -4932,7 +4937,7 @@ function renderLoginPage(viewport) {
                     class="auth-input" 
                     placeholder="Enter your password" 
                     required 
-                    value="${escapeHtml(state.demoDataHidden ? (loginState.businessPassword || '') : (loginState.businessPassword || 'Password123!'))}" 
+                    value="${escapeHtml(loginState.businessPassword || '')}" 
                     autocomplete="current-password">
                   <button type="button" class="auth-eye-toggle" id="biz-pwd-toggle" 
                     onclick="togglePasswordVisibility('biz-login-password', 'biz-pwd-toggle')" 
@@ -5145,18 +5150,11 @@ async function handleBusinessLoginPart2(event) {
 }
 
 function quickDemoLogin(role) {
-  if (role === 'candidate') {
-    loginState.role = 'candidate';
-    loginState.email = 'rahim.ahmed@example.bd';
-    loginState.password = 'Password123!';
-  } else if (role === 'business') {
-    loginState.role = 'business';
-    loginState.businessStep = 2;
-    loginState.businessEmail = 'hr@radissondhaka.com';
-    loginState.verifiedBusiness = { brand_name: 'Radisson Blu Dhaka Water Garden', email: 'hr@radissondhaka.com' };
-    loginState.userEmail = 'hr@radissondhaka.com';
-    loginState.businessPassword = 'Password123!';
-  }
+  loginState.email = '';
+  loginState.password = '';
+  loginState.businessEmail = '';
+  loginState.userEmail = '';
+  loginState.businessPassword = '';
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderLoginPage(viewport);
 }
@@ -7623,8 +7621,8 @@ async function finalizeCandidateRegistration() {
       email: signupState.email,
       phone: signupState.phone,
       phone_secondary: signupState.phone_secondary || null,
-      password: signupState.password || 'Password123!',
-      otp_code: signupState.otp_code || signupState.lastSentOtp || '258330',
+      password: signupState.password || '',
+      otp_code: signupState.otp_code || signupState.lastSentOtp || '',
       dob: signupState.dob,
       nid_passport: signupState.nid_passport,
       avatar_url: signupState.pfp,
@@ -7635,8 +7633,8 @@ async function finalizeCandidateRegistration() {
       languages: signupState.languages,
       experience: signupState.experience,
       job_preferences: signupState.job_preferences,
-      current_position: signupState.job_preferences?.desired_role || signupState.experience[0]?.role || 'Front Desk Associate',
-      department: signupState.job_preferences?.department || 'Front Office'
+      current_position: signupState.job_preferences?.desired_role || signupState.experience[0]?.role || '',
+      department: signupState.job_preferences?.department || ''
     };
 
     const res = await fetch('/api/auth/register-candidate', {
@@ -8246,21 +8244,21 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Full Name *</label>
-              <input type="text" name="name" required placeholder="e.g. Tanvir Hasan" value="Tanvir Hasan" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="name" required placeholder="e.g. Tanvir Hasan" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Mobile Cell (SMS OTP) *</label>
-                <input type="tel" id="cand-phone" name="phone" required placeholder="+880 17..." value="+880 1722 556677" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="tel" id="cand-phone" name="phone" required placeholder="+880 17..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary Email (Email OTP) *</label>
-                <input type="email" id="cand-email" name="email" required placeholder="tanvir@example.com" value="tanvir.hospitality@example.com" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="email" id="cand-email" name="email" required placeholder="e.g. name@example.com" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Account Password *</label>
-              <input type="password" name="password" required placeholder="••••••••" value="Password123!" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="password" name="password" required placeholder="••••••••" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -8272,12 +8270,12 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Professional Headline *</label>
-              <input type="text" name="headline" placeholder="e.g. Front Office Executive | Opera PMS Expert | 5-Star Hotel Professional" value="Front Office Executive | Opera PMS Expert | 5-Star Hotel Professional" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="headline" placeholder="e.g. Front Office Executive | Opera PMS Expert | 5-Star Hotel Professional" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Target / Current Role *</label>
-                <input type="text" name="current_position" placeholder="e.g. Front Desk Associate / Sous Chef" value="Front Desk Associate" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="current_position" placeholder="e.g. Front Desk Associate / Sous Chef" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary Department *</label>
@@ -8308,8 +8306,8 @@ function switchAuthTab(tab) {
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hospitality Experience (Years) *</label>
                 <select name="experience_years" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="0">Entry-Level / Fresher (0-1 yr)</option>
-                  <option value="2" selected>Mid-Level Associate (2-4 yrs)</option>
+                  <option value="0" selected>Entry-Level / Fresher (0-1 yr)</option>
+                  <option value="2">Mid-Level Associate (2-4 yrs)</option>
                   <option value="5">Senior Executive (5-7 yrs)</option>
                   <option value="8">Department Head / Manager (8+ yrs)</option>
                 </select>
@@ -8318,7 +8316,7 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Recent Hospitality Employer</label>
-                <input type="text" name="recent_employer" placeholder="e.g. Radisson Blu Dhaka / Sayeman Resort" value="Radisson Blu Dhaka Water Garden" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="recent_employer" placeholder="e.g. Radisson Blu Dhaka / Sayeman Resort" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Preferred Work Type</label>
@@ -8332,7 +8330,7 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Career Summary & Hospitality Pitch</label>
-              <textarea name="summary" rows="2" placeholder="Brief summary of guest service philosophy and accomplishments..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; resize: vertical;">Passionate 5-star hotel professional with over 3 years in luxury guest relations and front office operations. Proficient in Opera PMS room distribution and VIP protocol.</textarea>
+              <textarea name="summary" rows="2" placeholder="Brief summary of guest service philosophy and accomplishments..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; resize: vertical;"></textarea>
             </div>
           </div>
 
@@ -8344,21 +8342,21 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hospitality Skills & PMS Software (comma-separated) *</label>
-              <input type="text" name="skills_input" placeholder="Opera PMS, Micros POS, VIP Protocol, HACCP Food Safety, Shift Management" value="Opera PMS, Micros POS, VIP Protocol, HACCP Food Safety, Guest Relations, Shift Management" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="skills_input" placeholder="Opera PMS, Micros POS, VIP Protocol, HACCP Food Safety, Shift Management" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Languages Spoken *</label>
-                <input type="text" name="languages_input" placeholder="Bengali (Native), English (Professional), Hindi" value="Bengali (Native), English (Professional), Hindi (Conversational)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="languages_input" placeholder="Bengali (Native), English (Professional), Hindi" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hospitality Institute / Academy</label>
-                <input type="text" name="institution" placeholder="e.g. National Hotel & Tourism Training Institute (NHTTI)" value="National Hotel & Tourism Training Institute (NHTTI)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="institution" placeholder="e.g. National Hotel & Tourism Training Institute (NHTTI)" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Degree / Qualification Title</label>
-              <input type="text" name="education" placeholder="e.g. Diploma in Hospitality Management / AHLEI Supervisor" value="Diploma in Hospitality & Tourism Management" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="education" placeholder="e.g. Diploma in Hospitality Management / AHLEI Supervisor" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -8371,11 +8369,11 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Preferred Work Locations</label>
-                <input type="text" name="pref_locations" placeholder="Dhaka, Cox's Bazar, Sylhet" value="Dhaka, Cox's Bazar, Sylhet" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="pref_locations" placeholder="Dhaka, Cox's Bazar, Sylhet" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Expected Salary (BDT/Month)</label>
-                <input type="text" name="expected_salary" placeholder="BDT 50,000 - 70,000" value="BDT 50,000 - 70,000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="expected_salary" placeholder="e.g. 35,000 - 50,000" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -8384,13 +8382,13 @@ function switchAuthTab(tab) {
                 <select name="notice_period" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                   <option value="Immediate Joining">Immediate Joining</option>
                   <option value="15 Days Notice">15 Days Notice</option>
-                  <option value="1 Month Notice" selected>1 Month Notice</option>
-                  <option value="Negotiable">Negotiable</option>
+                  <option value="1 Month Notice">1 Month Notice</option>
+                  <option value="Negotiable" selected>Negotiable</option>
                 </select>
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary CV Document Name</label>
-                <input type="text" name="cv_name" placeholder="My_Hospitality_Resume.pdf" value="Tanvir_Hasan_Hospitality_CV.pdf" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="cv_name" placeholder="e.g. My_Hospitality_Resume.pdf" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: var(--radius-md);">
@@ -8467,23 +8465,23 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Public Hotel / Brand Name *</label>
-                <input type="text" name="brand_name" required placeholder="e.g. Sayeman Beach Resort" value="Sayeman Beach Resort" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="brand_name" required placeholder="e.g. Sayeman Beach Resort" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Legal Registered Entity Name *</label>
-                <input type="text" name="legal_name" required placeholder="e.g. Sayeman Hotels Ltd." value="Sayeman Hotels Ltd." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="legal_name" required placeholder="e.g. Sayeman Hotels Ltd." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Parent Hotel Company / Group</label>
-                <input type="text" name="parent_group" placeholder="e.g. Unique Hotel & Resorts PLC / Independent" value="Independent Hospitality Brand" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="parent_group" placeholder="e.g. Unique Hotel & Resorts PLC / Independent" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hospitality Property Type *</label>
                 <select name="property_type" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="Luxury Hotel">Luxury 5-Star Hotel</option>
-                  <option value="Beach Resort" selected>Beachfront Resort</option>
+                  <option value="Luxury Hotel" selected>Luxury 5-Star Hotel</option>
+                  <option value="Beach Resort">Beachfront Resort</option>
                   <option value="Boutique Hotel">Boutique Luxury Hotel</option>
                   <option value="Eco Resort">Eco Resort & Wellness Retreat</option>
                   <option value="Fine Dining">Fine Dining Restaurant Group</option>
@@ -8503,12 +8501,12 @@ function switchAuthTab(tab) {
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Website URL</label>
-                <input type="url" name="website" placeholder="https://www.sayemanresort.com" value="https://www.sayemanresort.com" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="url" name="website" placeholder="https://..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hotel Description & Brand Story</label>
-              <textarea name="description" rows="2" placeholder="Brief summary of hotel heritage, facilities, and hospitality brand..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; resize: vertical;">Premier luxury hospitality property featuring 245 guest rooms and suites, 3 grand ballrooms, infinity pool, and world-class dining facilities on Kolatoli beachfront.</textarea>
+              <textarea name="description" rows="2" placeholder="Brief summary of hotel heritage, facilities, and hospitality brand..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; resize: vertical;"></textarea>
             </div>
           </div>
 
@@ -8521,13 +8519,13 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Physical Street Address *</label>
-                <input type="text" name="address" required placeholder="Marine Drive, Kolatoli" value="Marine Drive, Kolatoli" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="address" required placeholder="e.g. Marine Drive, Kolatoli" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">City / Region *</label>
                 <select name="city" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="Cox's Bazar" selected>Cox's Bazar</option>
-                  <option value="Dhaka">Dhaka</option>
+                  <option value="Dhaka" selected>Dhaka</option>
+                  <option value="Cox's Bazar">Cox's Bazar</option>
                   <option value="Sylhet / Sreemangal">Sylhet / Sreemangal</option>
                   <option value="Chittagong">Chittagong</option>
                   <option value="Kuakata">Kuakata</option>
@@ -8537,11 +8535,11 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Contact Cell (SMS OTP) *</label>
-                <input type="tel" id="biz-phone" name="phone" required placeholder="+880 18..." value="+880 1819 887766" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="tel" id="biz-phone" name="phone" required placeholder="+880 18..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Business Email (Email OTP) *</label>
-                <input type="email" id="biz-email" name="email" required placeholder="hr@sayemanresort.com" value="hr@sayemanresort.com" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="email" id="biz-email" name="email" required placeholder="e.g. hr@hotel.com" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
           </div>
@@ -8555,7 +8553,7 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Representative Full Name *</label>
-                <input type="text" name="representative_name" required placeholder="e.g. Tanvir Hossain" value="Tanvir Hossain" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="representative_name" required placeholder="e.g. Tanvir Hossain" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Organizational Role *</label>
@@ -8570,7 +8568,7 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Representative Account Password *</label>
-              <input type="password" name="password" required placeholder="••••••••" value="Password123!" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="password" name="password" required placeholder="••••••••" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -8592,12 +8590,12 @@ function switchAuthTab(tab) {
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">License / Registration # *</label>
-                <input type="text" name="doc_number" required placeholder="TRAD/DSCC/2026/88991" value="TRAD/COX/2026/77889" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="doc_number" required placeholder="TRAD/DSCC/2026/88991" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Issuing Authority</label>
-              <input type="text" name="issuing_authority" placeholder="e.g. Cox's Bazar Municipality / Bangladesh Tourism Board" value="Cox's Bazar Municipality / Bangladesh Tourism Board" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="issuing_authority" placeholder="e.g. Dhaka City Corporation / Bangladesh Tourism Board" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -8609,15 +8607,15 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Property Key Count & Capacity</label>
-              <input type="text" name="property_size" placeholder="e.g. 245 Luxury Rooms & Suites, 3 Grand Ballrooms" value="245 Luxury Rooms & Suites, 3 Grand Ballrooms, 1,200 Banquet Capacity" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="property_size" placeholder="e.g. 245 Luxury Rooms & Suites, 3 Grand Ballrooms" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Operating Hospitality Departments (comma-separated)</label>
-              <input type="text" name="departments" placeholder="Front Office, Food & Beverage, Culinary, Housekeeping, Sales & Banquets" value="Front Office, Food & Beverage, Culinary, Housekeeping, Sales & Banquets, Engineering, Human Resources, Finance" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="departments" placeholder="Front Office, Food & Beverage, Culinary, Housekeeping, Sales & Banquets" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Staff Benefits & Facilities Provided (comma-separated)</label>
-              <input type="text" name="benefits" placeholder="Service Charge Pool, Duty Meals, Accommodation, Health Insurance" value="Competitive Service Charge Pool, Duty Meals Included, Staff Accommodation, Health Insurance, Annual Festival Bonuses, AHLEI Training" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="benefits" placeholder="Service Charge Pool, Duty Meals, Accommodation, Health Insurance" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -8672,19 +8670,16 @@ function switchAuthTab(tab) {
 let loginWizardState = {
   step: 1, // 1: Portal Select, 2: Identity, 3: Verification
   role: 'jobseeker', // 'jobseeker' | 'recruiter'
-  identifier: '01711234567',
+  identifier: '',
   method: 'pwd', // 'pwd' | 'otp'
-  password: 'Password123!',
+  password: '',
   otpCode: ''
 };
 
 function selectLoginPortal(role) {
   loginWizardState.role = role;
-  if (role === 'jobseeker' && (loginWizardState.identifier === '01819876543' || loginWizardState.identifier === 'hr@radissondhaka.com')) {
-    loginWizardState.identifier = '01711234567';
-  } else if (role === 'recruiter' && (loginWizardState.identifier === '01711234567' || loginWizardState.identifier === 'rahim.ahmed@example.bd')) {
-    loginWizardState.identifier = '01819876543';
-  }
+  loginWizardState.identifier = '';
+  loginWizardState.password = '';
   goToLoginStep(2);
 }
 
@@ -8858,49 +8853,6 @@ function renderLoginWizard() {
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Quick Demo Personas -->
-        <div class="demo-personas-section" style="margin-top: 2px;">
-          <div class="demo-personas-header">
-            <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800; color: var(--text-dim);">
-              ${svgIcon('zap', '', 14)} 1-Click Demo Profiles
-            </span>
-            <span style="font-size: 0.7rem; color: var(--blue-sub); font-weight: 700;">Instant switch</span>
-          </div>
-
-          <button type="button" class="demo-persona-card" onclick="closeModal('modal-auth'); switchRole('jobseeker');">
-            <div class="demo-persona-left">
-              <div class="demo-persona-avatar" style="background: rgba(255, 255, 255, 0.08); color: var(--orange-primary);">${svgIcon('candidate', '', 16)}</div>
-              <div>
-                <div class="demo-persona-name">Rahim Ahmed</div>
-                <div class="demo-persona-role">Candidate • Front Office Supervisor</div>
-              </div>
-            </div>
-            <span class="demo-persona-arrow">→</span>
-          </button>
-
-          <button type="button" class="demo-persona-card" onclick="closeModal('modal-auth'); switchRole('recruiter');">
-            <div class="demo-persona-left">
-              <div class="demo-persona-avatar" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">${svgIcon('hotel', '', 16)}</div>
-              <div>
-                <div class="demo-persona-name">Radisson Blu Dhaka Water Garden</div>
-                <div class="demo-persona-role">Hotel Recruiter Desk • Talent Admin</div>
-              </div>
-            </div>
-            <span class="demo-persona-arrow">→</span>
-          </button>
-
-          <button type="button" class="demo-persona-card" onclick="closeModal('modal-auth'); switchRole('admin');">
-            <div class="demo-persona-left">
-              <div class="demo-persona-avatar" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">${svgIcon('shield', '', 16)}</div>
-              <div>
-                <div class="demo-persona-name">Tariqul Islam</div>
-                <div class="demo-persona-role">Platform Admin • Verification & Moderation</div>
-              </div>
-            </div>
-            <span class="demo-persona-arrow">→</span>
-          </button>
         </div>
       </div>
     `;
@@ -9210,9 +9162,9 @@ async function handleCandidateSignup(event) {
     education: form.education?.value || 'Diploma in Hospitality & Tourism Management',
     institution: form.institution?.value || 'National Hotel & Tourism Training Institute (NHTTI)',
     preferred_locations: prefLocArr,
-    expected_salary: form.expected_salary?.value || 'BDT 50,000 - 70,000',
+    expected_salary: form.expected_salary?.value || '',
     work_type: form.work_type?.value || 'Full-time',
-    notice_period: form.notice_period?.value || '1 Month',
+    notice_period: form.notice_period?.value || 'Immediate',
     cv_name: form.cv_name?.value || `${form.name.value.replace(/ /g, '_')}_Hospitality_Resume.pdf`,
     visibility: form.visibility?.value || 'eligible_employers',
     open_to_work: form.open_to_work?.checked ?? true
@@ -9235,8 +9187,8 @@ async function handleCandidateSignup(event) {
       email: data.email,
       phone: data.phone,
       role: 'jobseeker',
-      title: `${payload.current_position} • ${payload.department}`,
-      avatar: '/static/images/candidate_rahim.jpg'
+      title: `${payload.current_position || 'Candidate'} • ${payload.department || 'Hospitality'}`,
+      avatar: DEFAULT_AVATAR_PREVIEW
     };
     state.currentRole = 'jobseeker';
 
@@ -9321,7 +9273,7 @@ async function handleBusinessSignup(event) {
     property_size: form.property_size?.value || '200+ Luxury Rooms',
     departments: deptArr,
     benefits: benefitsArr,
-    password: form.password?.value || 'Password123!',
+    password: form.password?.value || '',
     otp_code: otpCode
   };
 
@@ -9345,7 +9297,7 @@ async function handleBusinessSignup(event) {
       role: 'recruiter',
       business_id: data.business_id,
       title: `${payload.org_role} (${payload.brand_name})`,
-      avatar: '/static/images/candidate_rahim.jpg'
+      avatar: DEFAULT_AVATAR_PREVIEW
     };
     state.currentRole = 'recruiter';
     state.activeHotelId = data.business_id;
@@ -9499,11 +9451,11 @@ async function openApplicationWizardModal(jobId) {
   const job = state.jobs.find(j => j.id === jobId);
   if (!job) return;
 
-  const profRes = await fetch(`/api/profile?user_id=${state.currentUser.id}`);
-  const profile = await profRes.json();
-  const cvList = profile.cv_list || [
-    { id: 'cv_default', name: 'Rahim_Ahmed_Front_Office_Executive_CV.pdf', title: 'Front Office Executive CV', is_default: true }
-  ];
+  const profRes = state.currentUser ? await fetch(`/api/profile?user_id=${state.currentUser.id}`) : null;
+  const profile = profRes && profRes.ok ? await profRes.json() : {};
+  const cvList = profile.cv_list || (profile.cv_name ? [
+    { id: 'cv_default', name: profile.cv_name, title: 'Primary Resume', is_default: true }
+  ] : []);
 
   const questions = job.screening_questions || [
     { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
@@ -9603,7 +9555,7 @@ async function submitApplicationForm(event, jobId) {
   event.preventDefault();
   const form = event.target;
   const coverNote = document.getElementById('app-cover-note')?.value || '';
-  const selectedCv = form.selected_cv_radio?.value || 'Rahim_Ahmed_Front_Office_Executive_CV.pdf';
+  const selectedCv = form.selected_cv_radio?.value || (state.currentUser?.cv_name || '');
 
   const screeningAnswers = {};
   const job = state.jobs.find(j => j.id === jobId);
@@ -9616,7 +9568,7 @@ async function submitApplicationForm(event, jobId) {
 
   const payload = {
     job_id: jobId,
-    user_id: state.currentUser?.id || 'user_rahim',
+    user_id: state.currentUser?.id || '',
     cover_letter: coverNote,
     selected_cv: selectedCv,
     screening_answers: screeningAnswers
@@ -10048,7 +10000,7 @@ function openAddCvModal() {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">File Name (.pdf / .docx)</label>
-              <input type="text" name="filename" required placeholder="Rahim_Ahmed_CV.pdf" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="filename" required placeholder="e.g. My_Hospitality_Resume.pdf" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--white); cursor: pointer;">
               <input type="checkbox" name="is_default"> Set as default resume
@@ -10069,7 +10021,7 @@ async function handleAddNewCv(event) {
   event.preventDefault();
   const form = event.target;
   const payload = {
-    user_id: state.currentUser?.id || 'user_rahim',
+    user_id: state.currentUser?.id || '',
     title: form.title.value,
     name: form.filename.value,
     size: '235 KB',
@@ -10092,7 +10044,7 @@ async function handleAddNewCv(event) {
 }
 
 async function setDefaultCv(cvId) {
-  const uId = state.currentUser?.id || (state.demoDataHidden ? null : 'user_rahim');
+  const uId = state.currentUser?.id;
   if (!uId) return;
   try {
     await fetch(`/api/profile/cvs/${cvId}/default?user_id=${uId}`, { method: 'PATCH' });
@@ -10105,7 +10057,7 @@ async function setDefaultCv(cvId) {
 }
 
 async function deleteCv(cvId) {
-  const uId = state.currentUser?.id || (state.demoDataHidden ? null : 'user_rahim');
+  const uId = state.currentUser?.id;
   if (!uId) return;
   try {
     await fetch(`/api/profile/cvs/${cvId}?user_id=${uId}`, { method: 'DELETE' });
@@ -10771,7 +10723,7 @@ async function openComprehensiveEditProfileModal() {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Location</label>
-                <input type="text" name="location" value="${profile.location || 'Dhaka, Bangladesh'}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                <input type="text" name="location" value="${profile.location || ''}" placeholder="e.g. Dhaka, Bangladesh" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Visibility</label>
@@ -11151,11 +11103,11 @@ async function openEditBusinessProfileModal(bizId) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Property Type</label>
-                <input type="text" name="property_type" value="${escapeHtml(biz.property_type || 'Luxury Hotel')}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="property_type" value="${escapeHtml(biz.property_type || '')}" placeholder="e.g. Luxury Hotel" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">City</label>
-                <input type="text" name="city" value="${escapeHtml(biz.city || 'Dhaka')}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="city" value="${escapeHtml(biz.city || '')}" placeholder="e.g. Dhaka" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
@@ -11439,9 +11391,9 @@ async function openCreateJobModal() {
   const hotelName = bizObj ? (bizObj.brand_name || bizObj.legal_name) : 'Hospitality Establishment';
 
   createJobState.isNegotiable = false;
-  createJobState.selectedDegrees = ["Diploma in Hospitality & Tourism Management"];
-  createJobState.degreeField = "Hospitality Management";
-  createJobState.selectedSkills = ["Opera PMS", "Guest Relations", "Customer Satisfaction (CSAT)"];
+  createJobState.selectedDegrees = [];
+  createJobState.degreeField = '';
+  createJobState.selectedSkills = [];
   createJobState.customSkillsPool = [];
   createJobState.skillSearchQuery = '';
 
@@ -11497,11 +11449,11 @@ async function openCreateJobModal() {
               <div id="salary-range-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
                 <div>
                   <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Minimum Salary (BDT / month)</label>
-                  <input type="number" name="salary_min" value="45000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <input type="number" name="salary_min" value="" placeholder="e.g. 35000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Maximum Salary (BDT / month)</label>
-                  <input type="number" name="salary_max" value="65000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <input type="number" name="salary_max" value="" placeholder="e.g. 50000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                 </div>
               </div>
 
@@ -11531,7 +11483,7 @@ async function openCreateJobModal() {
                 <select name="experience_level" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                   <option value="Entry Level / Freshers Welcome">Entry Level / Freshers Welcome (0 - 1 Year)</option>
                   <option value="1-2 Years">1 - 2 Years in this Field</option>
-                  <option value="3-5 Years" selected>3 - 5 Years in this Field</option>
+                  <option value="3-5 Years">3 - 5 Years in this Field</option>
                   <option value="5-7 Years">5 - 7 Years in this Field</option>
                   <option value="8-10 Years">8 - 10 Years in this Field</option>
                   <option value="10+ Years">10+ Years (Senior / Leadership)</option>
@@ -11625,7 +11577,7 @@ async function openCreateJobModal() {
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
                   Application Deadline <span style="color: #f87171;">*</span>
                 </label>
-                <input type="date" name="deadline" required value="2026-11-30" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="date" name="deadline" required value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Posting Priority</label>
@@ -11654,7 +11606,11 @@ async function submitNewJob(event) {
   event.preventDefault();
   const form = event.target;
 
-  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  const bId = state.currentUser?.business_id || state.activeHotelId;
+  if (!bId) {
+    showToast('Please sign in as a verified business to post jobs.', 'danger');
+    return;
+  }
   const bizObj = state.businesses?.find(b => b.id === bId);
 
   const higherDegreeSelected = createJobState.selectedDegrees.some(d => {
@@ -11671,11 +11627,13 @@ async function submitNewJob(event) {
     };
   });
 
+  const propertyLoc = bizObj ? (bizObj.address ? `${bizObj.address}, ${bizObj.city || ''}` : (bizObj.city || '')) : '';
+
   const payload = {
     business_id: bId,
     title: form.title.value.trim(),
     department: form.department.value,
-    property_location: bizObj ? `${bizObj.address}, ${bizObj.city}` : 'Airport Road, Dhaka',
+    property_location: propertyLoc,
     employment_type: 'Full-time',
     shift: form.shift.value,
     is_negotiable: createJobState.isNegotiable,
@@ -11807,7 +11765,11 @@ function shareJob(jobId, encodedTitle) {
 }
 
 async function openConversationForJob(jobId, businessId) {
-  const userId = state.currentUser?.id || 'user_rahim';
+  const userId = state.currentUser?.id;
+  if (!userId) {
+    openModal('modal-auth');
+    return;
+  }
   try {
     const res = await fetch(`/api/conversations?user_id=${userId}`);
     if (res.ok) {
@@ -11993,8 +11955,9 @@ async function openNotificationsModal() {
 }
 
 async function markAllNotificationsAsRead() {
+  if (!state.currentUser?.id) return;
   try {
-    const userId = state.currentUser ? state.currentUser.id : 'user_rahim';
+    const userId = state.currentUser.id;
     await fetch(`/api/notifications/read-all?user_id=${userId}`, { method: 'POST' });
     if (state.notifications) {
       state.notifications.forEach(n => { n.is_read = 1; });
