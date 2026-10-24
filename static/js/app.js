@@ -12204,19 +12204,19 @@ function renderScreeningQuestions() {
   
   if (questions.length === 0) {
     container.innerHTML = `
-      <div style="text-align: center; padding: 18px 14px; background: rgba(0, 0, 0, 0.25); border: 1px dashed rgba(249, 115, 22, 0.35); border-radius: var(--radius-sm); margin-bottom: 8px;">
-        <div style="color: var(--white); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">No screening questions added yet</div>
-        <div style="color: var(--text-dim); font-size: 0.76rem; margin-bottom: 12px; max-width: 460px; margin-left: auto; margin-right: auto;">
+      <div style="text-align: center; padding: 22px 14px; background: rgba(0, 0, 0, 0.25); border: 1px dashed rgba(249, 115, 22, 0.35); border-radius: var(--radius-sm); margin-bottom: 8px;">
+        <div style="color: var(--white); font-weight: 700; font-size: 0.9rem; margin-bottom: 6px;">No screening questions added yet</div>
+        <div style="color: var(--text-dim); font-size: 0.78rem; margin-bottom: 16px; max-width: 480px; margin-left: auto; margin-right: auto;">
           Add questions to screen candidates during their application. Candidates will be prompted to answer these questions before applying.
         </div>
-        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
-          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.78rem; padding: 6px 14px;">
+        <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+          <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.8rem; padding: 8px 16px; border-color: rgba(255,255,255,0.18);">
             + Add Text Question
           </button>
-          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.78rem; padding: 6px 14px;">
+          <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.8rem; padding: 8px 16px; border-color: rgba(255,255,255,0.18);">
             + Add Multiple Choice
           </button>
-          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.78rem; padding: 6px 14px;">
+          <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.8rem; padding: 8px 16px; border-color: rgba(255,255,255,0.18);">
             + Add Yes/No Question
           </button>
         </div>
@@ -12687,17 +12687,6 @@ async function openCreateJobModal() {
                   <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 4px;">
                     Set custom questions for candidates to answer when applying. Their answers will appear in the Candidate Review dossier.
                   </div>
-                </div>
-                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
-                    + Text Answer
-                  </button>
-                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
-                    + Multiple Choice
-                  </button>
-                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
-                    + Yes/No
-                  </button>
                 </div>
               </div>
               
