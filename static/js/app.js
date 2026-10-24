@@ -9595,11 +9595,17 @@ async function openApplicationWizardModal(jobId) {
     { id: 'cv_default', name: profile.cv_name, title: 'Primary Resume', is_default: true }
   ] : []);
 
-  const questions = job.screening_questions || [
-    { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
-    { q: "Are you comfortable working rotating morning and night shifts?", type: "boolean" },
-    { q: "What is your earliest possible joining date or notice period?", type: "text" }
-  ];
+  let questions = job.screening_questions;
+  if (typeof questions === 'string') {
+    try { questions = JSON.parse(questions); } catch(e) { questions = []; }
+  }
+  if (!Array.isArray(questions) || questions.length === 0) {
+    questions = [
+      { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
+      { q: "Are you comfortable working rotating morning and night shifts?", type: "boolean" },
+      { q: "What is your earliest possible joining date or notice period?", type: "text" }
+    ];
+  }
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
@@ -9655,12 +9661,17 @@ async function openApplicationWizardModal(jobId) {
                 ${questions.map((qObj, idx) => `
                   <div>
                     <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">
-                      ${idx + 1}. ${qObj.q}
+                      ${idx + 1}. ${escapeHtml(qObj.q)}
                     </label>
-                    ${qObj.type === 'boolean' ? `
+                    ${(qObj.type === 'boolean' || qObj.type === 'yesno') ? `
                       <select name="screen_q_${idx}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                        <option value="Yes, absolutely">Yes, absolutely</option>
+                        <option value="Yes">Yes</option>
                         <option value="No">No</option>
+                      </select>
+                    ` : (qObj.type === 'multiple' && qObj.options && qObj.options.length > 0) ? `
+                      <select name="screen_q_${idx}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                        <option value="" disabled selected>-- Select an option --</option>
+                        ${qObj.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
                       </select>
                     ` : `
                       <input type="text" name="screen_q_${idx}" required placeholder="Your answer..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
@@ -9697,7 +9708,17 @@ async function submitApplicationForm(event, jobId) {
 
   const screeningAnswers = {};
   const job = state.jobs.find(j => j.id === jobId);
-  const questions = job?.screening_questions || [];
+  let questions = job?.screening_questions;
+  if (typeof questions === 'string') {
+    try { questions = JSON.parse(questions); } catch(e) { questions = []; }
+  }
+  if (!Array.isArray(questions) || questions.length === 0) {
+    questions = [
+      { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
+      { q: "Are you comfortable working rotating morning and night shifts?", type: "boolean" },
+      { q: "What is your earliest possible joining date or notice period?", type: "text" }
+    ];
+  }
 
   questions.forEach((qObj, idx) => {
     const val = form[`screen_q_${idx}`]?.value || '';
@@ -9760,8 +9781,11 @@ async function openCandidateReviewModal(appId) {
 
   const skillsList = Array.isArray(app.candidate_skills) ? app.candidate_skills : [];
   const eduList = Array.isArray(app.candidate_education) ? app.candidate_education : [];
-  const expList = Array.isArray(app.candidate_experience) ? app.candidate_experience : [];
-  const screeningEntries = Object.entries(app.screening_answers || {});
+  let screeningAnswersObj = app.screening_answers || {};
+  if (typeof screeningAnswersObj === 'string') {
+    try { screeningAnswersObj = JSON.parse(screeningAnswersObj); } catch(e) { screeningAnswersObj = {}; }
+  }
+  const screeningEntries = Object.entries(screeningAnswersObj || {});
 
   const currentStatus = app.status || 'under_review';
   const statusOptions = [
@@ -12053,7 +12077,8 @@ const createJobState = {
   degreeField: "Hospitality Management",
   selectedSkills: ["Opera PMS", "Guest Relations", "Customer Satisfaction (CSAT)"],
   customSkillsPool: [],
-  skillSearchQuery: ''
+  skillSearchQuery: '',
+  screeningQuestions: []
 };
 
 function toggleJobSalaryMode(mode) {
@@ -12086,6 +12111,197 @@ function toggleJobDegreeSelection(deg) {
     createJobState.selectedDegrees.push(deg);
   }
   updateJobDegreesUI();
+}
+
+function toggleScreeningSection() {
+  const container = document.getElementById('screening-questions-container');
+  const icon = document.getElementById('screening-toggle-icon');
+  if (container) {
+    const isVisible = container.style.display !== 'none';
+    container.style.display = isVisible ? 'none' : 'block';
+    if (icon) {
+      icon.textContent = isVisible ? '▼' : '▲';
+    }
+    if (!isVisible) {
+      renderScreeningQuestions();
+    }
+  }
+}
+
+function updateScreeningBadge() {
+  const badge = document.getElementById('screening-questions-badge');
+  if (badge) {
+    const count = (createJobState.screeningQuestions || []).length;
+    badge.textContent = `${count} question${count === 1 ? '' : 's'} added`;
+  }
+}
+
+function addScreeningQuestionWithType(type = 'question') {
+  if (!createJobState.screeningQuestions) {
+    createJobState.screeningQuestions = [];
+  }
+  createJobState.screeningQuestions.push({
+    q: '',
+    type: type,
+    options: type === 'multiple' ? ['Option 1', 'Option 2'] : []
+  });
+  renderScreeningQuestions();
+  updateScreeningBadge();
+}
+
+function addScreeningQuestion() {
+  addScreeningQuestionWithType('question');
+}
+
+function removeScreeningQuestion(idx) {
+  createJobState.screeningQuestions.splice(idx, 1);
+  renderScreeningQuestions();
+  updateScreeningBadge();
+}
+
+function updateScreeningQuestionText(idx, val) {
+  if (createJobState.screeningQuestions && createJobState.screeningQuestions[idx]) {
+    createJobState.screeningQuestions[idx].q = val;
+  }
+}
+
+function updateScreeningQuestionType(idx, type) {
+  const qObj = createJobState.screeningQuestions ? createJobState.screeningQuestions[idx] : null;
+  if (!qObj) return;
+  qObj.type = type;
+  if (type !== 'multiple') {
+    qObj.options = [];
+  } else if (!qObj.options || qObj.options.length === 0) {
+    qObj.options = ['Option 1', 'Option 2'];
+  }
+  renderScreeningQuestions();
+}
+
+function addOptionToQuestion(qIdx) {
+  const optInput = document.getElementById(`option-input-${qIdx}`);
+  if (optInput && optInput.value.trim()) {
+    if (!createJobState.screeningQuestions[qIdx].options) {
+      createJobState.screeningQuestions[qIdx].options = [];
+    }
+    createJobState.screeningQuestions[qIdx].options.push(optInput.value.trim());
+    optInput.value = '';
+    renderScreeningQuestions();
+  }
+}
+
+function removeOptionFromQuestion(qIdx, optIdx) {
+  if (createJobState.screeningQuestions[qIdx]?.options) {
+    createJobState.screeningQuestions[qIdx].options.splice(optIdx, 1);
+    renderScreeningQuestions();
+  }
+}
+
+function renderScreeningQuestions() {
+  const container = document.getElementById('screening-questions-container');
+  if (!container) return;
+
+  const questions = createJobState.screeningQuestions || [];
+  
+  if (questions.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 18px 14px; background: rgba(0, 0, 0, 0.25); border: 1px dashed rgba(249, 115, 22, 0.35); border-radius: var(--radius-sm); margin-bottom: 8px;">
+        <div style="color: var(--white); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">No screening questions added yet</div>
+        <div style="color: var(--text-dim); font-size: 0.76rem; margin-bottom: 12px; max-width: 460px; margin-left: auto; margin-right: auto;">
+          Add questions to screen candidates during their application. Candidates will be prompted to answer these questions before applying.
+        </div>
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.78rem; padding: 6px 14px;">
+            + Add Text Question
+          </button>
+          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.78rem; padding: 6px 14px;">
+            + Add Multiple Choice
+          </button>
+          <button type="button" class="btn-orange" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.78rem; padding: 6px 14px;">
+            + Add Yes/No Question
+          </button>
+        </div>
+      </div>
+    `;
+    updateScreeningBadge();
+    return;
+  }
+
+  const html = questions.map((qObj, i) => `
+    <div style="margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.1); padding: 12px; border-radius: var(--radius-md); background: rgba(15, 23, 42, 0.85);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.78rem; font-weight: 700; color: var(--orange-primary); text-transform: uppercase; letter-spacing: 0.5px;">
+            Question #${i + 1}
+          </span>
+          <span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; background: rgba(37, 99, 235, 0.2); color: #93c5fd; font-weight: 600;">
+            ${qObj.type === 'multiple' ? 'Multiple Choice' : qObj.type === 'yesno' ? 'Yes / No' : 'Text Answer'}
+          </span>
+        </div>
+        <button type="button" onclick="removeScreeningQuestion(${i})" style="background: none; border: none; color: #f87171; font-weight: 700; font-size: 0.78rem; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Remove this question">
+          ✕ Remove Question
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 160px; gap: 10px; margin-bottom: 8px;">
+        <div>
+          <input type="text" placeholder="Type question (e.g. Do you have experience with Opera PMS or Micros POS?)" value="${escapeHtml(qObj.q || '')}" oninput="updateScreeningQuestionText(${i}, this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 10px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.84rem;"/>
+        </div>
+        <div>
+          <select onchange="updateScreeningQuestionType(${i}, this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 8px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.84rem;">
+            <option value="question" ${qObj.type === 'question' ? 'selected' : ''}>Text Question</option>
+            <option value="multiple" ${qObj.type === 'multiple' ? 'selected' : ''}>Multiple Choice</option>
+            <option value="yesno" ${qObj.type === 'yesno' ? 'selected' : ''}>Yes / No</option>
+          </select>
+        </div>
+      </div>
+
+      ${qObj.type === 'multiple' ? `
+        <div style="background: rgba(255, 255, 255, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.06); margin-top: 6px;">
+          <div style="font-size: 0.74rem; color: var(--text-dim); margin-bottom: 6px; font-weight: 600;">
+            Options (Candidate will choose one during application):
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+            ${(qObj.options || []).map((opt, oi) => `
+              <span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(37, 99, 235, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; font-size: 0.78rem; padding: 4px 10px; border-radius: 9999px;">
+                ${escapeHtml(opt)}
+                <button type="button" onclick="removeOptionFromQuestion(${i}, ${oi})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0; font-size: 0.75rem; line-height: 1;" title="Remove option">✕</button>
+              </span>
+            `).join('')}
+            ${(!qObj.options || qObj.options.length === 0) ? `
+              <span style="font-size: 0.74rem; color: #f87171;">Add options below (e.g. Morning, Evening, Night)</span>
+            ` : ''}
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <input id="option-input-${i}" type="text" placeholder="Type an option and press Enter..." onkeydown="if(event.key==='Enter'){event.preventDefault();addOptionToQuestion(${i});}" style="flex: 1; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.8rem;"/>
+            <button type="button" onclick="addOptionToQuestion(${i})" class="btn-orange" style="padding: 6px 12px; font-size: 0.78rem; border-radius: var(--radius-sm);">+ Add Option</button>
+          </div>
+        </div>
+      ` : qObj.type === 'yesno' ? `
+        <div style="font-size: 0.75rem; color: #34d399; display: flex; align-items: center; gap: 4px; margin-top: 4px; background: rgba(16, 185, 129, 0.08); padding: 5px 8px; border-radius: 4px;">
+          ✓ Candidate will answer via Yes / No selector
+        </div>
+      ` : `
+        <div style="font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; gap: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.03); padding: 5px 8px; border-radius: 4px;">
+          ✎ Candidate will type freeform text answer
+        </div>
+      `}
+    </div>
+  `).join('');
+
+  container.innerHTML = html + `
+    <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+      <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.78rem; padding: 6px 12px;">
+        + Add Text Question
+      </button>
+      <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.78rem; padding: 6px 12px;">
+        + Add Multiple Choice
+      </button>
+      <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.78rem; padding: 6px 12px;">
+        + Add Yes/No Question
+      </button>
+    </div>
+  `;
+  updateScreeningBadge();
 }
 
 function updateJobDegreesUI() {
@@ -12455,6 +12671,40 @@ async function openCreateJobModal() {
                 </select>
               </div>
             </div>
+
+            <!-- Candidate Screening Questions (Prominent Section) -->
+            <div style="background: rgba(249, 115, 22, 0.04); border: 1px solid rgba(249, 115, 22, 0.35); border-radius: var(--radius-md); padding: 16px; margin-top: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="color: var(--orange-primary); font-weight: 800; font-size: 0.95rem; margin: 0;">
+                      Candidate Screening Questions
+                    </label>
+                    <span id="screening-questions-badge" style="background: rgba(249, 115, 22, 0.2); color: var(--orange-primary); font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">
+                      0 questions added
+                    </span>
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 4px;">
+                    Set custom questions for candidates to answer when applying. Their answers will appear in the Candidate Review dossier.
+                  </div>
+                </div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('question')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
+                    + Text Answer
+                  </button>
+                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('multiple')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
+                    + Multiple Choice
+                  </button>
+                  <button type="button" class="btn-secondary" onclick="addScreeningQuestionWithType('yesno')" style="font-size: 0.76rem; padding: 6px 10px; border-color: rgba(255,255,255,0.15);">
+                    + Yes/No
+                  </button>
+                </div>
+              </div>
+              
+              <div id="screening-questions-container" style="display: block;">
+                <!-- Dynamic questions rendered here -->
+              </div>
+            </div>
           </div>
 
           <div class="modal-footer">
@@ -12467,7 +12717,10 @@ async function openCreateJobModal() {
   `;
 
   // Update initial higher degree field visibility if needed
+  // Initialize screening questions state array
+  createJobState.screeningQuestions = [];
   updateJobDegreesUI();
+  renderScreeningQuestions();
 }
 
 async function submitNewJob(event) {
@@ -12516,10 +12769,13 @@ async function submitNewJob(event) {
     description: form.description.value.trim(),
     education_requirements: eduReqs,
     skill_requirements: createJobState.selectedSkills,
-    screening_questions: [
-      { q: "How many years of direct experience do you have in this department?", type: "text" },
-      { q: "Are you ready to join within 30 days?", type: "boolean" }
-    ],
+    screening_questions: (createJobState.screeningQuestions || [])
+      .filter(q => q && q.q && q.q.trim())
+      .map(q => ({
+        q: q.q.trim(),
+        type: q.type || 'question',
+        options: q.type === 'multiple' ? (q.options || []) : []
+      })),
     is_urgent: form.is_urgent.value === '1',
     deadline: form.deadline.value
   };
