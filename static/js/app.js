@@ -370,7 +370,24 @@ const HOTEL_FEATURES_SCHEMA = [
   "Grand Ballroom & Convention Hall", "Private Sea Beach Access", "Complimentary Airport Shuttle",
   "High-Speed Optical Fiber Wi-Fi", "Valet Parking", "Kids Splash Zone & Play Area",
   "24-Hour In-Room Dining", "Dedicated Butler Service", "Helipad Facility", "Steam & Sauna Bath",
-  "Concierge & Sightseeing Desk", "Currency Exchange Counter", "EV Charging Stations", "Lawn & BBQ Garden"
+];
+
+const HOTEL_LANGUAGES_PRESETS = [
+  { name: "Bengali", level: "Native" },
+  { name: "English", level: "Professional" },
+  { name: "English", level: "Fluent" },
+  { name: "Arabic", level: "Conversational" },
+  { name: "Hindi / Urdu", level: "Conversational" },
+  { name: "Mandarin Chinese", level: "Basic" },
+  { name: "French", level: "Basic" },
+  { name: "German", level: "Basic" }
+];
+
+const PREF_LOCATIONS_POOL = [
+  'Dhaka', "Cox's Bazar", 'Chattogram (Chittagong)', 'Sylhet', 'Moulvibazar (Sreemangal)',
+  'Gazipur', 'Patuakhali (Kuakata)', 'Khulna', 'Rajshahi', 'Rangpur', 'Barishal',
+  'Mymensingh', 'Cumilla (Comilla)', 'Bogura', 'Jashore (Jessore)', 'Bandarban',
+  'Rangamati', 'Dinajpur', 'Feni', 'Tangail'
 ];
 
 const HOTEL_TYPES_SCHEMA = [
@@ -481,6 +498,7 @@ function getFreshSignupState(role = 'candidate') {
     customSkillsPool: [],
     skillsSearchQuery: '',
     languages: [],
+    customLanguagesPool: [],
     languagesSearchQuery: '',
     experience: [],
     password: '',
@@ -5462,105 +5480,118 @@ function renderSignupPage(viewport) {
                 </button>
               </div>
 
-              <!-- SKILLS: Search inside, selected moves up, direct DOM update (no reload), add custom skill -->
+              <!-- SKILLS: Unified Schema Select (Just like Business Sign Up Part 2) -->
               <div class="auth-field" id="skills-section-container">
-                <label class="auth-label">Skills</label>
+                <label class="auth-label">Hospitality Skills</label>
                 <div class="schema-box-wrapper">
-                  <!-- Search inside skills -->
                   <input type="text" class="schema-search-input" id="skills-search" 
-                    placeholder="Type to search or add hospitality skills..." 
+                    placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
                     value="${signupState.skillsSearchQuery || ''}" 
-                    oninput="filterSkillsSchema(this.value)">
+                    oninput="filterSkillsSchema(this.value)"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomSkill(this.value);}">
 
-                  <!-- Selected Skills tags (Hidden when empty) -->
-                  <div class="schema-selected-tags" id="skills-selected-tags-container" style="${signupState.skills.length > 0 ? 'display: flex;' : 'display: none;'}">
-                    <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Skills (${signupState.skills.length}):</span>
-                    ${signupState.skills.map(s => `
-                      <span class="schema-tag-badge">
-                        ${s}
-                        <button type="button" class="schema-tag-remove" onclick="removeSkill('${s.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
-                      </span>
-                    `).join('')}
+                  <div id="skills-custom-add-container">
+                    ${(() => {
+                      const q = (signupState.skillsSearchQuery || '').toLowerCase().trim();
+                      const allPool = Array.from(new Set([...(signupState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                      const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+                      if (q && !hasExactMatch) {
+                        return `
+                          <div class="schema-add-chip" onclick="addCustomSkill('${signupState.skillsSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                            + Add "${signupState.skillsSearchQuery}" to skills
+                          </div>
+                        `;
+                      }
+                      return '';
+                    })()}
                   </div>
 
-                  <!-- Available pills pool -->
                   <div class="schema-pills-pool" id="skills-pills-pool">
-                    ${HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool).filter(s => {
-                      if (!signupState.skillsSearchQuery) return true;
-                      return s.toLowerCase().includes(signupState.skillsSearchQuery.toLowerCase());
-                    }).map(s => {
-                      const isSelected = signupState.skills.includes(s);
-                      return `
-                        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')">
-                          ${isSelected ? '✓ ' : '+ '}${s}
-                        </span>
-                      `;
-                    }).join('')}
-                  </div>
+                    ${(() => {
+                      const q = (signupState.skillsSearchQuery || '').toLowerCase().trim();
+                      const allPool = Array.from(new Set([...(signupState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                      
+                      // Stack logic: Selected skills at top in stack order (latest selected is at top)
+                      const selectedStack = (signupState.skills || []).filter(s => !q || s.toLowerCase().includes(q));
+                      
+                      // Remaining unselected skills below
+                      const unselectedPool = allPool.filter(s => !(signupState.skills || []).includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-                  <!-- Add New Custom Skill if not present -->
-                  <div id="skills-custom-add-container" style="${signupState.skillsSearchQuery && !HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool).some(s => s.toLowerCase() === signupState.skillsSearchQuery.toLowerCase()) ? 'display: block;' : 'display: none;'}">
-                    ${signupState.skillsSearchQuery ? `
-                      <div class="schema-add-chip" onclick="addCustomSkill('${signupState.skillsSearchQuery.replace(/'/g, "\\'")}')">
-                        + Add "${signupState.skillsSearchQuery}" as a new skill &amp; save
-                      </div>
-                    ` : ''}
+                      return [
+                        ...selectedStack.map(s => `
+                          <span class="schema-pill-item selected" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                            ✓ ${s}
+                          </span>
+                        `),
+                        ...unselectedPool.map(s => `
+                          <span class="schema-pill-item" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                            + ${s}
+                          </span>
+                        `)
+                      ].join('');
+                    })()}
                   </div>
                 </div>
               </div>
 
-              <!-- LANGUAGES: Search inside, selected moves up, direct DOM update, add custom language -->
+              <!-- LANGUAGES: Unified Schema Select (Just like Business Sign Up Part 2) -->
               <div class="auth-field" id="languages-section-container">
-                <label class="auth-label">Languages</label>
+                <label class="auth-label">Languages &amp; Fluency</label>
                 <div class="schema-box-wrapper">
-                  <!-- Search inside languages -->
                   <input type="text" class="schema-search-input" id="languages-search" 
-                    placeholder="Type to search or add languages..." 
+                    placeholder="Type language (e.g. English, Arabic, French) and press Enter to add..." 
                     value="${signupState.languagesSearchQuery || ''}" 
-                    oninput="filterLanguagesSchema(this.value)">
+                    oninput="filterLanguagesSchema(this.value)"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLanguage(this.value);}">
 
-                  <!-- Selected Languages tags (Hidden when empty) -->
-                  <div class="schema-selected-tags" id="languages-selected-tags-container" style="${signupState.languages.length > 0 ? 'display: flex;' : 'display: none;'}">
-                    <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Languages (${signupState.languages.length}):</span>
-                    ${signupState.languages.map(l => `
-                      <span class="schema-tag-badge">
-                        ${l.name} (${l.level})
-                        <button type="button" class="schema-tag-remove" onclick="removeLanguage('${l.name.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
-                      </span>
-                    `).join('')}
+                  <div id="languages-custom-add-container">
+                    ${(() => {
+                      const q = (signupState.languagesSearchQuery || '').toLowerCase().trim();
+                      const presetList = [...HOTEL_LANGUAGES_PRESETS];
+                      (signupState.customLanguagesPool || []).forEach(name => {
+                        if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                          presetList.push({ name, level: 'Fluent' });
+                        }
+                      });
+                      const allNames = Array.from(new Set([...(signupState.customLanguagesPool || []), ...presetList.map(l => l.name)]));
+                      const hasExactMatch = q && allNames.some(l => l.toLowerCase() === q);
+                      if (q && !hasExactMatch) {
+                        return `
+                          <div class="schema-add-chip" onclick="addCustomLanguage('${signupState.languagesSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                            + Add "${signupState.languagesSearchQuery}" (Fluent) to languages
+                          </div>
+                        `;
+                      }
+                      return '';
+                    })()}
                   </div>
 
-                  <!-- Available languages pills pool -->
                   <div class="schema-pills-pool" id="languages-pills-pool">
-                    ${[
-                      { name: "Bengali", level: "Native" },
-                      { name: "English", level: "Professional" },
-                      { name: "English", level: "Fluent" },
-                      { name: "Arabic", level: "Conversational" },
-                      { name: "Hindi / Urdu", level: "Conversational" },
-                      { name: "Mandarin Chinese", level: "Basic" },
-                      { name: "French", level: "Basic" },
-                      { name: "German", level: "Basic" }
-                    ].filter(lang => {
-                      if (!signupState.languagesSearchQuery) return true;
-                      return lang.name.toLowerCase().includes(signupState.languagesSearchQuery.toLowerCase());
-                    }).map(lang => {
-                      const isSelected = signupState.languages.some(l => l.name === lang.name && l.level === lang.level);
-                      return `
-                        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleLanguage('${lang.name.replace(/'/g, "\\'")}', '${lang.level}')">
-                          ${isSelected ? '✓ ' : '+ '}${lang.name} (${lang.level})
-                        </span>
-                      `;
-                    }).join('')}
-                  </div>
+                    ${(() => {
+                      const q = (signupState.languagesSearchQuery || '').toLowerCase().trim();
+                      const presetList = [...HOTEL_LANGUAGES_PRESETS];
+                      (signupState.customLanguagesPool || []).forEach(name => {
+                        if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                          presetList.push({ name, level: 'Fluent' });
+                        }
+                      });
 
-                  <!-- Add Custom Language if searched -->
-                  <div id="languages-custom-add-container" style="${signupState.languagesSearchQuery ? 'display: block;' : 'display: none;'}">
-                    ${signupState.languagesSearchQuery ? `
-                      <div class="schema-add-chip" onclick="addCustomLanguage('${signupState.languagesSearchQuery.replace(/'/g, "\\'")}')">
-                        + Add "${signupState.languagesSearchQuery}" (Fluent) &amp; save
-                      </div>
-                    ` : ''}
+                      const selectedStack = (signupState.languages || []).filter(l => !q || l.name.toLowerCase().includes(q));
+                      const unselectedPool = presetList.filter(l => !(signupState.languages || []).some(sel => sel.name === l.name && sel.level === l.level)).filter(l => !q || l.name.toLowerCase().includes(q));
+
+                      return [
+                        ...selectedStack.map(l => `
+                          <span class="schema-pill-item selected" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+                            ✓ ${l.name} (${l.level})
+                          </span>
+                        `),
+                        ...unselectedPool.map(l => `
+                          <span class="schema-pill-item" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+                            + ${l.name} (${l.level})
+                          </span>
+                        `)
+                      ].join('');
+                    })()}
                   </div>
                 </div>
               </div>
@@ -6597,153 +6628,121 @@ function filterSkillsSchema(q) {
 }
 
 function toggleSkillSelection(skill) {
+  if (!signupState.skills) signupState.skills = [];
   const idx = signupState.skills.indexOf(skill);
   if (idx >= 0) {
     signupState.skills.splice(idx, 1);
   } else {
-    signupState.skills.push(skill);
+    // Stack logic: latest selected goes to the top of the stack
+    signupState.skills.unshift(skill);
   }
   updateSkillsDOM();
   saveSignupProgress();
 }
 
 function addCustomSkill(skill) {
+  if (!skill) return;
   const trimmed = skill.trim();
-  if (trimmed && !signupState.skills.includes(trimmed)) {
+  if (trimmed) {
+    if (!signupState.customSkillsPool) signupState.customSkillsPool = [];
     if (!signupState.customSkillsPool.includes(trimmed)) signupState.customSkillsPool.push(trimmed);
-    signupState.skills.push(trimmed);
+    if (!signupState.skills) signupState.skills = [];
+    const idx = signupState.skills.indexOf(trimmed);
+    if (idx >= 0) signupState.skills.splice(idx, 1);
+    signupState.skills.unshift(trimmed);
     signupState.skillsSearchQuery = '';
     const input = document.getElementById('skills-search');
     if (input) input.value = '';
-    showToast(`Skill "${trimmed}" saved!`, 'success');
+    showToast(`Added "${trimmed}" to skills`, 'success');
     updateSkillsDOM();
     saveSignupProgress();
   }
 }
 
 function removeSkill(skill) {
-  const idx = signupState.skills.indexOf(skill);
-  if (idx >= 0) {
-    signupState.skills.splice(idx, 1);
-  }
-  updateSkillsDOM();
-  saveSignupProgress();
+  toggleSkillSelection(skill);
 }
 
 function updateSkillsDOM() {
   const q = (signupState.skillsSearchQuery || '').toLowerCase().trim();
-  const pool = HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool || []).filter(s => {
-    if (!q) return true;
-    return s.toLowerCase().includes(q);
-  });
-  const hasSelected = (signupState.skills || []).length > 0;
+  const allPool = Array.from(new Set([...(signupState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+  const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
 
-  const selectedContainer = document.getElementById('skills-selected-tags-container');
-  if (selectedContainer) {
-    if (hasSelected) {
-      selectedContainer.style.display = 'flex';
-      selectedContainer.innerHTML = `
-        <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Skills (${signupState.skills.length}):</span>
-        ${signupState.skills.map(s => `
-          <span class="schema-tag-badge">
-            ${s}
-            <button type="button" class="schema-tag-remove" onclick="removeSkill('${s.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
-          </span>
-        `).join('')}
+  const customAdd = document.getElementById('skills-custom-add-container');
+  if (customAdd) {
+    if (q && !hasExactMatch) {
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomSkill('${signupState.skillsSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${signupState.skillsSearchQuery}" to skills
+        </div>
       `;
     } else {
-      selectedContainer.style.display = 'none';
-      selectedContainer.innerHTML = '';
+      customAdd.innerHTML = '';
     }
   }
 
   const pillsPool = document.getElementById('skills-pills-pool');
   if (pillsPool) {
-    pillsPool.innerHTML = pool.map(s => {
-      const isSelected = signupState.skills.includes(s);
-      return `
-        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')">
-          ${isSelected ? '✓ ' : '+ '}${s}
-        </span>
-      `;
-    }).join('');
-  }
+    const selectedStack = (signupState.skills || []).filter(s => !q || s.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(s => !(signupState.skills || []).includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-  const customAdd = document.getElementById('skills-custom-add-container');
-  if (customAdd) {
-    if (q && !HOTEL_SKILLS_SCHEMA.concat(signupState.customSkillsPool || []).some(s => s.toLowerCase() === q)) {
-      customAdd.style.display = 'block';
-      customAdd.innerHTML = `
-        <div class="schema-add-chip" onclick="addCustomSkill('${q.replace(/'/g, "\\'")}')">
-          + Add "${q}" as a new skill &amp; save
-        </div>
-      `;
-    } else {
-      customAdd.style.display = 'none';
-      customAdd.innerHTML = '';
-    }
+    pillsPool.innerHTML = [
+      ...selectedStack.map(s => `
+        <span class="schema-pill-item selected" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${s}
+        </span>
+      `),
+      ...unselectedPool.map(s => `
+        <span class="schema-pill-item" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${s}
+        </span>
+      `)
+    ].join('');
   }
 }
 
 function updateLanguagesDOM() {
   const q = (signupState.languagesSearchQuery || '').toLowerCase().trim();
-  const allLangs = [
-    { name: "Bengali", level: "Native" },
-    { name: "English", level: "Professional" },
-    { name: "English", level: "Fluent" },
-    { name: "Arabic", level: "Conversational" },
-    { name: "Hindi / Urdu", level: "Conversational" },
-    { name: "Mandarin Chinese", level: "Basic" },
-    { name: "French", level: "Basic" },
-    { name: "German", level: "Basic" }
-  ];
-  const pool = allLangs.filter(l => !q || l.name.toLowerCase().includes(q));
-  const hasSelected = (signupState.languages || []).length > 0;
+  const presetList = [...HOTEL_LANGUAGES_PRESETS];
+  (signupState.customLanguagesPool || []).forEach(name => {
+    if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      presetList.push({ name, level: 'Fluent' });
+    }
+  });
 
-  const selectedContainer = document.getElementById('languages-selected-tags-container');
-  if (selectedContainer) {
-    if (hasSelected) {
-      selectedContainer.style.display = 'flex';
-      selectedContainer.innerHTML = `
-        <span style="font-size: 0.74rem; font-weight: 700; color: var(--white); width: 100%; margin-bottom: 4px;">Selected Languages (${signupState.languages.length}):</span>
-        ${signupState.languages.map(l => `
-          <span class="schema-tag-badge">
-            ${l.name} (${l.level})
-            <button type="button" class="schema-tag-remove" onclick="removeLanguage('${l.name.replace(/'/g, "\\'")}')">${svgIcon('x', '', 12)}</button>
-          </span>
-        `).join('')}
+  const allNames = Array.from(new Set([...(signupState.customLanguagesPool || []), ...presetList.map(l => l.name)]));
+  const hasExactMatch = q && allNames.some(l => l.toLowerCase() === q);
+
+  const customAdd = document.getElementById('languages-custom-add-container');
+  if (customAdd) {
+    if (q && !hasExactMatch) {
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomLanguage('${signupState.languagesSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${signupState.languagesSearchQuery}" (Fluent) to languages
+        </div>
       `;
     } else {
-      selectedContainer.style.display = 'none';
-      selectedContainer.innerHTML = '';
+      customAdd.innerHTML = '';
     }
   }
 
   const pillsPool = document.getElementById('languages-pills-pool');
   if (pillsPool) {
-    pillsPool.innerHTML = pool.map(lang => {
-      const isSelected = signupState.languages.some(l => l.name === lang.name && l.level === lang.level);
-      return `
-        <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleLanguage('${lang.name.replace(/'/g, "\\'")}', '${lang.level}')">
-          ${isSelected ? '✓ ' : '+ '}${lang.name} (${lang.level})
-        </span>
-      `;
-    }).join('');
-  }
+    const selectedStack = (signupState.languages || []).filter(l => !q || l.name.toLowerCase().includes(q));
+    const unselectedPool = presetList.filter(l => !(signupState.languages || []).some(sel => sel.name === l.name && sel.level === l.level)).filter(l => !q || l.name.toLowerCase().includes(q));
 
-  const customAdd = document.getElementById('languages-custom-add-container');
-  if (customAdd) {
-    if (q && !allLangs.some(l => l.name.toLowerCase() === q)) {
-      customAdd.style.display = 'block';
-      customAdd.innerHTML = `
-        <div class="schema-add-chip" onclick="addCustomLanguage('${q.replace(/'/g, "\\'")}')">
-          + Add "${q}" (Fluent) &amp; save
-        </div>
-      `;
-    } else {
-      customAdd.style.display = 'none';
-      customAdd.innerHTML = '';
-    }
+    pillsPool.innerHTML = [
+      ...selectedStack.map(l => `
+        <span class="schema-pill-item selected" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+          ✓ ${l.name} (${l.level})
+        </span>
+      `),
+      ...unselectedPool.map(l => `
+        <span class="schema-pill-item" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+          + ${l.name} (${l.level})
+        </span>
+      `)
+    ].join('');
   }
 }
 
@@ -6753,40 +6752,54 @@ function filterLanguagesSchema(q) {
 }
 
 function toggleLanguage(name, level) {
-  const existingIdx = signupState.languages.findIndex(l => l.name === name);
+  if (!signupState.languages) signupState.languages = [];
+  const existingIdx = signupState.languages.findIndex(l => l.name === name && l.level === level);
   if (existingIdx >= 0) {
-    if (signupState.languages[existingIdx].level === level) {
-      signupState.languages.splice(existingIdx, 1);
-    } else {
-      signupState.languages[existingIdx].level = level;
-    }
+    signupState.languages.splice(existingIdx, 1);
   } else {
-    signupState.languages.push({ name, level });
+    // If language already selected with different level, remove it first
+    const sameNameIdx = signupState.languages.findIndex(l => l.name === name);
+    if (sameNameIdx >= 0) {
+      signupState.languages.splice(sameNameIdx, 1);
+    }
+    // Stack logic: latest selected goes to the top of the stack
+    signupState.languages.unshift({ name, level });
   }
   updateLanguagesDOM();
   saveSignupProgress();
 }
 
 function addCustomLanguage(lang) {
+  if (!lang) return;
   const trimmed = lang.trim();
-  if (trimmed && !signupState.languages.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
-    signupState.languages.push({ name: trimmed, level: 'Fluent' });
+  if (trimmed) {
+    if (!signupState.customLanguagesPool) signupState.customLanguagesPool = [];
+    if (!signupState.customLanguagesPool.includes(trimmed)) {
+      signupState.customLanguagesPool.push(trimmed);
+    }
+    if (!signupState.languages) signupState.languages = [];
+    const sameNameIdx = signupState.languages.findIndex(l => l.name.toLowerCase() === trimmed.toLowerCase());
+    if (sameNameIdx >= 0) {
+      signupState.languages.splice(sameNameIdx, 1);
+    }
+    signupState.languages.unshift({ name: trimmed, level: 'Fluent' });
     signupState.languagesSearchQuery = '';
     const input = document.getElementById('languages-search');
     if (input) input.value = '';
-    showToast(`Language "${trimmed}" added!`, 'success');
+    showToast(`Added "${trimmed}" (Fluent) to languages`, 'success');
     updateLanguagesDOM();
     saveSignupProgress();
   }
 }
 
 function removeLanguage(name) {
+  if (!signupState.languages) return;
   const existingIdx = signupState.languages.findIndex(l => l.name === name);
   if (existingIdx >= 0) {
     signupState.languages.splice(existingIdx, 1);
+    updateLanguagesDOM();
+    saveSignupProgress();
   }
-  updateLanguagesDOM();
-  saveSignupProgress();
 }
 
 // -------------------------------------------------------------
@@ -10581,53 +10594,152 @@ async function saveCredentialsChanges() {
 }
 
 // 4. Edit Skills Modal
-let editSkillsList = [];
+window.editSkillsModalState = {
+  selected: [],
+  query: '',
+  customPool: []
+};
 
 function openEditSkillsModal() {
-  editSkillsList = [...(state.profile?.skills || [])];
+  window.editSkillsModalState = {
+    selected: [...(state.profile?.skills || [])],
+    query: '',
+    customPool: []
+  };
   renderEditSkillsModalDOM();
+}
+
+function filterEditSkillsModal(q) {
+  if (!window.editSkillsModalState) return;
+  window.editSkillsModalState.query = q;
+  updateEditSkillsModalDOM();
+}
+
+function toggleEditSkillModal(skill) {
+  if (!window.editSkillsModalState) return;
+  const idx = window.editSkillsModalState.selected.indexOf(skill);
+  if (idx >= 0) {
+    window.editSkillsModalState.selected.splice(idx, 1);
+  } else {
+    // Stack logic: selected goes to top of stack
+    window.editSkillsModalState.selected.unshift(skill);
+  }
+  updateEditSkillsModalDOM();
+}
+
+function addCustomEditSkillModal(skill) {
+  if (!window.editSkillsModalState || !skill) return;
+  const trimmed = skill.trim();
+  if (trimmed) {
+    if (!window.editSkillsModalState.customPool.includes(trimmed)) {
+      window.editSkillsModalState.customPool.push(trimmed);
+    }
+    const idx = window.editSkillsModalState.selected.indexOf(trimmed);
+    if (idx >= 0) window.editSkillsModalState.selected.splice(idx, 1);
+    window.editSkillsModalState.selected.unshift(trimmed);
+    window.editSkillsModalState.query = '';
+    const input = document.getElementById('modal-skills-search');
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to skills`, 'success');
+    updateEditSkillsModalDOM();
+  }
+}
+
+function updateEditSkillsModalDOM() {
+  if (!window.editSkillsModalState) return;
+  const q = (window.editSkillsModalState.query || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(window.editSkillsModalState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+  const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('modal-skills-add-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomEditSkillModal('${window.editSkillsModalState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${window.editSkillsModalState.query}" to skills
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('modal-skills-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (window.editSkillsModalState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(s => !window.editSkillsModalState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
+
+    pillsPool.innerHTML = [
+      ...selectedStack.map(s => `
+        <span class="schema-pill-item selected" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${s}
+        </span>
+      `),
+      ...unselectedPool.map(s => `
+        <span class="schema-pill-item" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${s}
+        </span>
+      `)
+    ].join('');
+  }
 }
 
 function renderEditSkillsModalDOM() {
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-skills">
-      <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-dialog" style="max-width: 600px;">
         <div class="modal-header">
-          <h2 class="modal-title">Edit Skills</h2>
+          <div>
+            <h2 class="modal-title">Edit Hospitality Skills</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Select or add professional hotel skills, systems &amp; operational competencies</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-edit-skills')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
         <div class="modal-body">
-          <div style="margin-bottom: 14px;">
-            <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Current Skills</label>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-subtle); padding: 10px; border-radius: var(--radius-md);">
-              ${editSkillsList.map((skill, idx) => `
-                <span class="schema-chip-selected" style="padding: 4px 10px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
-                  ${skill}
-                  <button type="button" onclick="removeEditSkill(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0;">✕</button>
-                </span>
-              `).join('')}
-              ${editSkillsList.length === 0 ? '<span style="color: var(--text-dim); font-size: 0.82rem;">No skills selected yet.</span>' : ''}
-            </div>
-          </div>
+          <div class="schema-box-wrapper" style="margin-bottom: 0;">
+            <input type="text" class="schema-search-input" id="modal-skills-search" 
+              placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+              value="${window.editSkillsModalState.query || ''}" 
+              oninput="filterEditSkillsModal(this.value)"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomEditSkillModal(this.value);}">
 
-          <div>
-            <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Add a Skill</label>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="add-skill-input" placeholder="e.g. Opera Cloud, HACCP, VIP Concierge" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addNewEditSkill(); }" style="flex: 1; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-              <button type="button" class="btn-secondary" onclick="addNewEditSkill()">Add</button>
+            <div id="modal-skills-add-chip-container">
+              ${(() => {
+                const q = (window.editSkillsModalState.query || '').toLowerCase().trim();
+                const allPool = Array.from(new Set([...(window.editSkillsModalState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+                if (q && !hasExactMatch) {
+                  return `
+                    <div class="schema-add-chip" onclick="addCustomEditSkillModal('${window.editSkillsModalState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                      + Add "${window.editSkillsModalState.query}" to skills
+                    </div>
+                  `;
+                }
+                return '';
+              })()}
             </div>
-          </div>
 
-          <div style="margin-top: 14px;">
-            <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 6px;">Quick Suggestions:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-              ${['Opera PMS', 'Micros POS', 'Fidelio', 'Guest Relations', 'Concierge VIP', 'Night Audit', 'Food Safety', 'HACCP', 'Banquet Management', 'Revenue Management']
-                .filter(s => !editSkillsList.includes(s))
-                .slice(0, 6)
-                .map(s => `
-                  <button type="button" onclick="quickAddEditSkill('${s}')" class="btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;">+ ${s}</button>
-                `).join('')}
+            <div class="schema-pills-pool" id="modal-skills-pills-pool" style="max-height: 280px;">
+              ${(() => {
+                const q = (window.editSkillsModalState.query || '').toLowerCase().trim();
+                const allPool = Array.from(new Set([...(window.editSkillsModalState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                const selectedStack = (window.editSkillsModalState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
+                const unselectedPool = allPool.filter(s => !window.editSkillsModalState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
+
+                return [
+                  ...selectedStack.map(s => `
+                    <span class="schema-pill-item selected" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                      ✓ ${s}
+                    </span>
+                  `),
+                  ...unselectedPool.map(s => `
+                    <span class="schema-pill-item" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                      + ${s}
+                    </span>
+                  `)
+                ].join('');
+              })()}
             </div>
           </div>
         </div>
@@ -10640,30 +10752,10 @@ function renderEditSkillsModalDOM() {
   `;
 }
 
-function removeEditSkill(idx) {
-  editSkillsList.splice(idx, 1);
-  renderEditSkillsModalDOM();
-}
-
-function addNewEditSkill() {
-  const input = document.getElementById('add-skill-input');
-  const val = (input?.value || '').trim();
-  if (val && !editSkillsList.includes(val)) {
-    editSkillsList.push(val);
-    renderEditSkillsModalDOM();
-  }
-}
-
-function quickAddEditSkill(val) {
-  if (!editSkillsList.includes(val)) {
-    editSkillsList.push(val);
-    renderEditSkillsModalDOM();
-  }
-}
-
 async function saveSkillsChanges() {
+  const selectedSkills = window.editSkillsModalState ? window.editSkillsModalState.selected : [];
   closeModal('modal-edit-skills');
-  await saveProfileField({ skills: editSkillsList });
+  await saveProfileField({ skills: selectedSkills });
 }
 
 // 5. Edit Languages Modal
@@ -10674,16 +10766,48 @@ function openEditLanguagesModal() {
   renderEditLanguagesModalDOM();
 }
 
+function toggleEditLangPreset(name, level) {
+  const idx = editLanguagesList.findIndex(l => l.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) {
+    if (editLanguagesList[idx].level === level) {
+      editLanguagesList.splice(idx, 1);
+    } else {
+      editLanguagesList[idx].level = level;
+    }
+  } else {
+    editLanguagesList.unshift({ name, level });
+  }
+  renderEditLanguagesModalDOM();
+}
+
 function renderEditLanguagesModalDOM() {
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-languages">
       <div class="modal-dialog" style="max-width: 580px;">
         <div class="modal-header">
-          <h2 class="modal-title">Edit Languages</h2>
+          <div>
+            <h2 class="modal-title">Edit Languages</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage spoken and written language competencies</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-edit-languages')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
         <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <!-- Quick Preset Languages Schema Pills -->
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dim); margin-bottom: 6px;">Quick Presets (Click to add / toggle):</div>
+            <div class="schema-pills-pool" style="max-height: 90px; margin-bottom: 0;">
+              ${HOTEL_LANGUAGES_PRESETS.map(lp => {
+                const isSelected = editLanguagesList.some(l => l.name.toLowerCase() === lp.name.toLowerCase() && l.level === lp.level);
+                return `
+                  <span class="schema-pill-item ${isSelected ? 'selected' : ''}" onclick="toggleEditLangPreset('${lp.name.replace(/'/g, "\\'")}', '${lp.level}')">
+                    ${isSelected ? '✓ ' : '+ '}${lp.name} (${lp.level})
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
           <div id="languages-entries-list" style="display: flex; flex-direction: column; gap: 10px;">
             ${editLanguagesList.map((lang, idx) => `
               <div style="display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px;">
@@ -10698,9 +10822,9 @@ function renderEditLanguagesModalDOM() {
                 <button type="button" onclick="removeLangEntry(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 4px;" title="Remove">${svgIcon('x', '', 16)}</button>
               </div>
             `).join('')}
-            ${editLanguagesList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No languages added yet. Click below to add.</div>' : ''}
+            ${editLanguagesList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No languages added yet. Click below or use presets above.</div>' : ''}
           </div>
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addLangEntry()">+ Add Another Language</button>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addLangEntry()">+ Add Custom Language</button>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-languages')">Cancel</button>
@@ -10732,29 +10856,165 @@ async function saveLanguagesChanges() {
 }
 
 // 6. Edit Job Preferences Modal
+window.editPrefLocState = {
+  selected: [],
+  query: '',
+  customPool: []
+};
+
+function filterPrefLocationsModal(q) {
+  if (!window.editPrefLocState) return;
+  window.editPrefLocState.query = q;
+  updatePrefLocationsModalDOM();
+}
+
+function togglePrefLocationModal(loc) {
+  if (!window.editPrefLocState) return;
+  const idx = window.editPrefLocState.selected.indexOf(loc);
+  if (idx >= 0) {
+    window.editPrefLocState.selected.splice(idx, 1);
+  } else {
+    window.editPrefLocState.selected.unshift(loc);
+  }
+  updatePrefLocationsModalDOM();
+}
+
+function addCustomPrefLocationModal(loc) {
+  if (!window.editPrefLocState || !loc) return;
+  const trimmed = loc.trim();
+  if (trimmed) {
+    if (!window.editPrefLocState.customPool.includes(trimmed)) {
+      window.editPrefLocState.customPool.push(trimmed);
+    }
+    const idx = window.editPrefLocState.selected.indexOf(trimmed);
+    if (idx >= 0) window.editPrefLocState.selected.splice(idx, 1);
+    window.editPrefLocState.selected.unshift(trimmed);
+    window.editPrefLocState.query = '';
+    const input = document.getElementById('edit-pref-loc-search');
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to target locations`, 'success');
+    updatePrefLocationsModalDOM();
+  }
+}
+
+function updatePrefLocationsModalDOM() {
+  if (!window.editPrefLocState) return;
+  const q = (window.editPrefLocState.query || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(window.editPrefLocState.customPool || []), ...PREF_LOCATIONS_POOL]));
+  const hasExactMatch = q && allPool.some(l => l.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('edit-pref-loc-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomPrefLocationModal('${window.editPrefLocState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${window.editPrefLocState.query}" to target locations
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('edit-pref-loc-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (window.editPrefLocState.selected || []).filter(l => !q || l.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(l => !window.editPrefLocState.selected.includes(l)).filter(l => !q || l.toLowerCase().includes(q));
+
+    pillsPool.innerHTML = [
+      ...selectedStack.map(l => `
+        <span class="schema-pill-item selected" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${l}
+        </span>
+      `),
+      ...unselectedPool.map(l => `
+        <span class="schema-pill-item" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${l}
+        </span>
+      `)
+    ].join('');
+  }
+}
+
 function openEditJobPreferencesModal() {
   const prefs = state.profile?.preferences || {};
+  window.editPrefLocState = {
+    selected: [...(prefs.locations || ['Dhaka'])],
+    query: '',
+    customPool: []
+  };
+
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-preferences">
-      <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-dialog" style="max-width: 580px;">
         <div class="modal-header">
-          <h2 class="modal-title">Edit Job Preferences</h2>
+          <div>
+            <h2 class="modal-title">Edit Job Preferences</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Set desired salary, target locations, and joining timeline</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-edit-preferences')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
         <form onsubmit="handleSavePreferencesModal(event)">
           <div class="modal-body">
-            <div style="margin-bottom: 12px;">
+            <div style="margin-bottom: 14px;">
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Expected Monthly Salary</label>
-              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="e.g. ৳50,000 or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="e.g. ৳50,000 or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
-            <div style="margin-bottom: 12px;">
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Target Locations (comma-separated)</label>
-              <input type="text" id="edit-pref-loc" value="${(prefs.locations || ['Dhaka']).join(', ')}" placeholder="Dhaka, Cox's Bazar, Chittagong" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+
+            <!-- Target Locations Schema Select -->
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Target Locations</label>
+              <div class="schema-box-wrapper" style="margin-bottom: 0;">
+                <input type="text" class="schema-search-input" id="edit-pref-loc-search" 
+                  placeholder="Type city/district (e.g. Cox's Bazar, Sylhet) and press Enter to add..." 
+                  value="${window.editPrefLocState.query || ''}" 
+                  oninput="filterPrefLocationsModal(this.value)"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomPrefLocationModal(this.value);}">
+
+                <div id="edit-pref-loc-chip-container">
+                  ${(() => {
+                    const q = (window.editPrefLocState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.editPrefLocState.customPool || []), ...PREF_LOCATIONS_POOL]));
+                    const hasExactMatch = q && allPool.some(l => l.toLowerCase() === q);
+                    if (q && !hasExactMatch) {
+                      return `
+                        <div class="schema-add-chip" onclick="addCustomPrefLocationModal('${window.editPrefLocState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                          + Add "${window.editPrefLocState.query}" to target locations
+                        </div>
+                      `;
+                    }
+                    return '';
+                  })()}
+                </div>
+
+                <div class="schema-pills-pool" id="edit-pref-loc-pills-pool" style="max-height: 160px;">
+                  ${(() => {
+                    const q = (window.editPrefLocState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.editPrefLocState.customPool || []), ...PREF_LOCATIONS_POOL]));
+                    const selectedStack = (window.editPrefLocState.selected || []).filter(l => !q || l.toLowerCase().includes(q));
+                    const unselectedPool = allPool.filter(l => !window.editPrefLocState.selected.includes(l)).filter(l => !q || l.toLowerCase().includes(q));
+
+                    return [
+                      ...selectedStack.map(l => `
+                        <span class="schema-pill-item selected" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
+                          ✓ ${l}
+                        </span>
+                      `),
+                      ...unselectedPool.map(l => `
+                        <span class="schema-pill-item" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
+                          + ${l}
+                        </span>
+                      `)
+                    ].join('');
+                  })()}
+                </div>
+              </div>
             </div>
+
             <div style="margin-bottom: 12px;">
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Notice Period</label>
-              <select id="edit-pref-notice" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              <select id="edit-pref-notice" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                 <option value="Immediate" ${prefs.notice_period === 'Immediate' ? 'selected' : ''}>Immediate</option>
                 <option value="15 Days" ${prefs.notice_period === '15 Days' ? 'selected' : ''}>15 Days</option>
                 <option value="1 Month" ${prefs.notice_period === '1 Month' ? 'selected' : ''}>1 Month</option>
@@ -10775,8 +11035,7 @@ function openEditJobPreferencesModal() {
 async function handleSavePreferencesModal(e) {
   e.preventDefault();
   const salary = (document.getElementById('edit-pref-salary')?.value || '').trim();
-  const locRaw = (document.getElementById('edit-pref-loc')?.value || '').trim();
-  const locs = locRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const locs = window.editPrefLocState ? window.editPrefLocState.selected : ((document.getElementById('edit-pref-loc')?.value || '').split(',').map(s => s.trim()).filter(Boolean));
   const notice = document.getElementById('edit-pref-notice')?.value || 'Immediate';
 
   closeModal('modal-edit-preferences');
@@ -10787,6 +11046,88 @@ async function handleSavePreferencesModal(e) {
       notice_period: notice
     }
   });
+}
+
+// Comprehensive Edit Profile Modal - Skills Schema State & Helpers
+window.compEditSkillsState = {
+  selected: [],
+  query: '',
+  customPool: []
+};
+
+function filterCompEditSkills(q) {
+  if (!window.compEditSkillsState) return;
+  window.compEditSkillsState.query = q;
+  updateCompEditSkillsDOM();
+}
+
+function toggleCompEditSkill(skill) {
+  if (!window.compEditSkillsState) return;
+  const idx = window.compEditSkillsState.selected.indexOf(skill);
+  if (idx >= 0) {
+    window.compEditSkillsState.selected.splice(idx, 1);
+  } else {
+    // Stack logic: latest selected goes to the top of the stack
+    window.compEditSkillsState.selected.unshift(skill);
+  }
+  updateCompEditSkillsDOM();
+}
+
+function addCustomCompEditSkill(skill) {
+  if (!window.compEditSkillsState || !skill) return;
+  const trimmed = skill.trim();
+  if (trimmed) {
+    if (!window.compEditSkillsState.customPool.includes(trimmed)) {
+      window.compEditSkillsState.customPool.push(trimmed);
+    }
+    const idx = window.compEditSkillsState.selected.indexOf(trimmed);
+    if (idx >= 0) window.compEditSkillsState.selected.splice(idx, 1);
+    window.compEditSkillsState.selected.unshift(trimmed);
+    window.compEditSkillsState.query = '';
+    const input = document.getElementById('comp-skills-search');
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to skills`, 'success');
+    updateCompEditSkillsDOM();
+  }
+}
+
+function updateCompEditSkillsDOM() {
+  if (!window.compEditSkillsState) return;
+  const q = (window.compEditSkillsState.query || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(window.compEditSkillsState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+  const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('comp-skills-add-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomCompEditSkill('${window.compEditSkillsState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${window.compEditSkillsState.query}" to skills
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('comp-skills-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (window.compEditSkillsState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(s => !window.compEditSkillsState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
+
+    pillsPool.innerHTML = [
+      ...selectedStack.map(s => `
+        <span class="schema-pill-item selected" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${s}
+        </span>
+      `),
+      ...unselectedPool.map(s => `
+        <span class="schema-pill-item" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${s}
+        </span>
+      `)
+    ].join('');
+  }
 }
 
 // Edit Profile Modal
@@ -10803,6 +11144,12 @@ async function openComprehensiveEditProfileModal() {
   }
   const profile = await res.json();
   state.profile = profile;
+
+  window.compEditSkillsState = {
+    selected: [...(profile.skills || [])],
+    query: '',
+    customPool: []
+  };
 
   editPfpState.candidate = {
     raw: profile.avatar_url || null,
@@ -10926,10 +11273,56 @@ async function openComprehensiveEditProfileModal() {
               <input type="checkbox" name="open_to_work" ${(profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === undefined) ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--blue-primary); cursor: pointer;">
             </div>
 
-            <!-- Skills -->
+            <!-- Skills (Unified Schema Select System - Business Part 2 Style) -->
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Skills (comma-separated)</label>
-              <input type="text" name="skills_csv" value="${(profile.skills || []).join(', ')}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
+                Hospitality Skills &amp; Operational Competencies
+              </label>
+              <div class="schema-box-wrapper" style="margin-bottom: 0;">
+                <input type="text" class="schema-search-input" id="comp-skills-search" 
+                  placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+                  value="${window.compEditSkillsState.query || ''}" 
+                  oninput="filterCompEditSkills(this.value)"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomCompEditSkill(this.value);}">
+
+                <div id="comp-skills-add-chip-container">
+                  ${(() => {
+                    const q = (window.compEditSkillsState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.compEditSkillsState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                    const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+                    if (q && !hasExactMatch) {
+                      return `
+                        <div class="schema-add-chip" onclick="addCustomCompEditSkill('${window.compEditSkillsState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                          + Add "${window.compEditSkillsState.query}" to skills
+                        </div>
+                      `;
+                    }
+                    return '';
+                  })()}
+                </div>
+
+                <div class="schema-pills-pool" id="comp-skills-pills-pool" style="max-height: 200px;">
+                  ${(() => {
+                    const q = (window.compEditSkillsState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.compEditSkillsState.customPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                    const selectedStack = (window.compEditSkillsState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
+                    const unselectedPool = allPool.filter(s => !window.compEditSkillsState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
+
+                    return [
+                      ...selectedStack.map(s => `
+                        <span class="schema-pill-item selected" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                          ✓ ${s}
+                        </span>
+                      `),
+                      ...unselectedPool.map(s => `
+                        <span class="schema-pill-item" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                          + ${s}
+                        </span>
+                      `)
+                    ].join('');
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -10990,7 +11383,7 @@ async function handleSaveComprehensiveProfile(event) {
   const otpCode = document.getElementById('contact-otp-code')?.value.trim() || null;
   const avatarUrl = document.getElementById('edit-profile-avatar-url')?.value || null;
 
-  const skillsArr = form.skills_csv.value.split(',').map(s => s.trim()).filter(Boolean);
+  const skillsArr = window.compEditSkillsState ? window.compEditSkillsState.selected : (form.skills_csv?.value.split(',').map(s => s.trim()).filter(Boolean) || []);
 
   const payload = {
     user_id: userId,
@@ -11211,6 +11604,88 @@ async function handleSaveBusinessUserProfile(event) {
   }
 }
 
+// Business Profile Edit Modal - Amenities Schema State & Helpers
+window.editBizAmenitiesState = {
+  selected: [],
+  query: '',
+  customPool: []
+};
+
+function filterEditBizAmenities(q) {
+  if (!window.editBizAmenitiesState) return;
+  window.editBizAmenitiesState.query = q;
+  updateEditBizAmenitiesDOM();
+}
+
+function toggleEditBizAmenity(amenity) {
+  if (!window.editBizAmenitiesState) return;
+  const idx = window.editBizAmenitiesState.selected.indexOf(amenity);
+  if (idx >= 0) {
+    window.editBizAmenitiesState.selected.splice(idx, 1);
+  } else {
+    // Stack logic: latest selected goes to the top of the stack
+    window.editBizAmenitiesState.selected.unshift(amenity);
+  }
+  updateEditBizAmenitiesDOM();
+}
+
+function addCustomEditBizAmenity(amenity) {
+  if (!window.editBizAmenitiesState || !amenity) return;
+  const trimmed = amenity.trim();
+  if (trimmed) {
+    if (!window.editBizAmenitiesState.customPool.includes(trimmed)) {
+      window.editBizAmenitiesState.customPool.push(trimmed);
+    }
+    const idx = window.editBizAmenitiesState.selected.indexOf(trimmed);
+    if (idx >= 0) window.editBizAmenitiesState.selected.splice(idx, 1);
+    window.editBizAmenitiesState.selected.unshift(trimmed);
+    window.editBizAmenitiesState.query = '';
+    const input = document.getElementById('edit-biz-amenities-search');
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to amenities`, 'success');
+    updateEditBizAmenitiesDOM();
+  }
+}
+
+function updateEditBizAmenitiesDOM() {
+  if (!window.editBizAmenitiesState) return;
+  const q = (window.editBizAmenitiesState.query || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(window.editBizAmenitiesState.customPool || []), ...HOTEL_FEATURES_SCHEMA]));
+  const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('edit-biz-amenities-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomEditBizAmenity('${window.editBizAmenitiesState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${window.editBizAmenitiesState.query}" to amenities
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('edit-biz-amenities-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (window.editBizAmenitiesState.selected || []).filter(f => !q || f.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(f => !window.editBizAmenitiesState.selected.includes(f)).filter(f => !q || f.toLowerCase().includes(q));
+
+    pillsPool.innerHTML = [
+      ...selectedStack.map(f => `
+        <span class="schema-pill-item selected" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${f}
+        </span>
+      `),
+      ...unselectedPool.map(f => `
+        <span class="schema-pill-item" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${f}
+        </span>
+      `)
+    ].join('');
+  }
+}
+
 // Business (Hotel) Profile Edit Modal
 async function openEditBusinessProfileModal(bizId) {
   const bId = bizId || state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
@@ -11220,6 +11695,12 @@ async function openEditBusinessProfileModal(bizId) {
     return;
   }
   const biz = await res.json();
+
+  window.editBizAmenitiesState = {
+    selected: [...(biz.amenities || [])],
+    query: '',
+    customPool: []
+  };
 
   const currentLogo = biz.logo_url || DEFAULT_HOTEL_LOGO;
   editPfpState.bizLogo = {
@@ -11317,10 +11798,56 @@ async function openEditBusinessProfileModal(bizId) {
               <textarea name="description" rows="3" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${escapeHtml(biz.description || '')}</textarea>
             </div>
 
-            <!-- Amenities -->
+            <!-- Amenities (Unified Schema Select System - Business Part 2 Reference) -->
             <div style="margin-bottom: 14px;">
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Amenities (comma-separated)</label>
-              <input type="text" name="amenities_csv" value="${escapeHtml((biz.amenities || []).join(', '))}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
+                Property Features &amp; Amenities
+              </label>
+              <div class="schema-box-wrapper" style="margin-bottom: 0;">
+                <input type="text" class="schema-search-input" id="edit-biz-amenities-search" 
+                  placeholder="Type facility (e.g. Swimming Pool, Spa, Helipad) and press Enter to add..." 
+                  value="${window.editBizAmenitiesState.query || ''}" 
+                  oninput="filterEditBizAmenities(this.value)"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomEditBizAmenity(this.value);}">
+
+                <div id="edit-biz-amenities-chip-container">
+                  ${(() => {
+                    const q = (window.editBizAmenitiesState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.editBizAmenitiesState.customPool || []), ...HOTEL_FEATURES_SCHEMA]));
+                    const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
+                    if (q && !hasExactMatch) {
+                      return `
+                        <div class="schema-add-chip" onclick="addCustomEditBizAmenity('${window.editBizAmenitiesState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                          + Add "${window.editBizAmenitiesState.query}" to amenities
+                        </div>
+                      `;
+                    }
+                    return '';
+                  })()}
+                </div>
+
+                <div class="schema-pills-pool" id="edit-biz-amenities-pills-pool" style="max-height: 220px;">
+                  ${(() => {
+                    const q = (window.editBizAmenitiesState.query || '').toLowerCase().trim();
+                    const allPool = Array.from(new Set([...(window.editBizAmenitiesState.customPool || []), ...HOTEL_FEATURES_SCHEMA]));
+                    const selectedStack = (window.editBizAmenitiesState.selected || []).filter(f => !q || f.toLowerCase().includes(q));
+                    const unselectedPool = allPool.filter(f => !window.editBizAmenitiesState.selected.includes(f)).filter(f => !q || f.toLowerCase().includes(q));
+
+                    return [
+                      ...selectedStack.map(f => `
+                        <span class="schema-pill-item selected" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+                          ✓ ${f}
+                        </span>
+                      `),
+                      ...unselectedPool.map(f => `
+                        <span class="schema-pill-item" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
+                          + ${f}
+                        </span>
+                      `)
+                    ].join('');
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -11346,7 +11873,7 @@ async function handleSaveBusinessProfile(event, bizId) {
   const email = form.email.value.trim();
   const description = form.description.value.trim();
   const logoUrl = document.getElementById('edit-biz-logo-url')?.value || null;
-  const amenities = form.amenities_csv.value.split(',').map(s => s.trim()).filter(Boolean);
+  const amenities = window.editBizAmenitiesState ? window.editBizAmenitiesState.selected : (form.amenities_csv?.value.split(',').map(s => s.trim()).filter(Boolean) || []);
 
   const payload = {
     brand_name: brandName,
@@ -11451,8 +11978,8 @@ function updateJobDegreesUI() {
 }
 
 function filterJobSkills(query) {
-  createJobState.skillSearchQuery = (query || '').toLowerCase().trim();
-  updateJobSkillsPoolUI();
+  createJobState.skillSearchQuery = query;
+  updateJobSkillsUI();
 }
 
 function toggleJobSkillSelection(skill) {
@@ -11460,62 +11987,72 @@ function toggleJobSkillSelection(skill) {
   if (idx > -1) {
     createJobState.selectedSkills.splice(idx, 1);
   } else {
-    createJobState.selectedSkills.push(skill);
+    // Stack logic: latest selected goes to the top of the stack
+    createJobState.selectedSkills.unshift(skill);
   }
   updateJobSkillsUI();
 }
 
 function removeJobSkill(skill) {
-  const idx = createJobState.selectedSkills.indexOf(skill);
-  if (idx > -1) {
-    createJobState.selectedSkills.splice(idx, 1);
-  }
-  updateJobSkillsUI();
+  toggleJobSkillSelection(skill);
 }
 
-function addCustomJobSkill() {
-  const input = document.getElementById('input-custom-job-skill');
-  if (!input) return;
-  const val = input.value.trim();
+function addCustomJobSkill(skill) {
+  const input = document.getElementById('input-job-skill-search');
+  const val = skill || (input ? input.value : '');
   if (!val) return;
-  if (!createJobState.customSkillsPool.some(s => s.toLowerCase() === val.toLowerCase()) &&
-      !HOTEL_SKILLS_SCHEMA.some(s => s.toLowerCase() === val.toLowerCase())) {
-    createJobState.customSkillsPool.push(val);
+  const trimmed = val.trim();
+  if (trimmed) {
+    if (!createJobState.customSkillsPool.some(s => s.toLowerCase() === trimmed.toLowerCase()) &&
+        !HOTEL_SKILLS_SCHEMA.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      createJobState.customSkillsPool.push(trimmed);
+    }
+    const idx = createJobState.selectedSkills.indexOf(trimmed);
+    if (idx > -1) createJobState.selectedSkills.splice(idx, 1);
+    createJobState.selectedSkills.unshift(trimmed);
+    createJobState.skillSearchQuery = '';
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to required skills`, 'success');
+    updateJobSkillsUI();
   }
-  if (!createJobState.selectedSkills.includes(val)) {
-    createJobState.selectedSkills.push(val);
-  }
-  input.value = '';
-  updateJobSkillsUI();
 }
 
 function updateJobSkillsUI() {
-  const selectedContainer = document.getElementById('job-selected-skills-tags');
-  if (selectedContainer) {
-    selectedContainer.innerHTML = createJobState.selectedSkills.length === 0
-      ? `<span style="font-size: 0.8rem; color: var(--text-dim); font-style: italic;">No skills selected yet. Select from below or add custom skills.</span>`
-      : createJobState.selectedSkills.map(s => `
-          <span class="schema-tag-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem;">
-            ${s} <span style="cursor: pointer; opacity: 0.85; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px;" onclick="removeJobSkill('${s}')">${svgIcon('x', '', 12)}</span>
-          </span>
-        `).join('');
+  const q = (createJobState.skillSearchQuery || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(createJobState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+  const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('job-skill-add-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomJobSkill('${createJobState.skillSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${createJobState.skillSearchQuery}" to required skills
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
   }
-  updateJobSkillsPoolUI();
-}
 
-function updateJobSkillsPoolUI() {
   const pool = document.getElementById('job-skills-pool');
-  if (!pool) return;
-  const allPool = HOTEL_SKILLS_SCHEMA.concat(createJobState.customSkillsPool);
-  const q = createJobState.skillSearchQuery;
-  const filtered = allPool.filter(s => !q || s.toLowerCase().includes(q));
+  if (pool) {
+    const selectedStack = (createJobState.selectedSkills || []).filter(s => !q || s.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(s => !createJobState.selectedSkills.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-  pool.innerHTML = filtered.map(s => {
-    const isSel = createJobState.selectedSkills.includes(s);
-    return `<span class="schema-pill-item ${isSel ? 'selected' : ''}" onclick="toggleJobSkillSelection('${s}')">
-      ${isSel ? '✓ ' : '+ '}${s}
-    </span>`;
-  }).join('');
+    pool.innerHTML = [
+      ...selectedStack.map(s => `
+        <span class="schema-pill-item selected" onclick="toggleJobSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${s}
+        </span>
+      `),
+      ...unselectedPool.map(s => `
+        <span class="schema-pill-item" onclick="toggleJobSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${s}
+        </span>
+      `)
+    ].join('');
+  }
 }
 
 function showUnverifiedBusinessAlert(brandName) {
@@ -11704,44 +12241,60 @@ async function openCreateJobModal() {
               </div>
             </div>
 
-            <!-- Skill Requirements (Schema + Search + Add Custom Skills) -->
+            <!-- Skill Requirements (Unified Schema Select System - Business Part 2 Reference) -->
             <div class="schema-box-wrapper" style="margin-bottom: 0;">
               <div style="margin-bottom: 8px;">
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 2px;">
                   Skill Requirements (Hotel &amp; Resort Competencies Schema)
                 </label>
-                <div style="font-size: 0.78rem; color: var(--text-dim);">Pick from 70+ hotel operational skills or search and append custom skills.</div>
+                <div style="font-size: 0.78rem; color: var(--text-dim);">Select or add operational skills required for this role.</div>
               </div>
 
-              <!-- Selected Skills Container -->
-              <div style="margin-bottom: 12px; padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
-                <div style="font-size: 0.75rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Selected Skill Requirements:</div>
-                <div class="schema-selected-tags" id="job-selected-skills-tags">
-                  ${createJobState.selectedSkills.map(s => `
-                    <span class="schema-tag-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem;">
-                      ${s} <span style="cursor: pointer; opacity: 0.85; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px;" onclick="removeJobSkill('${s}')">${svgIcon('x', '', 12)}</span>
-                    </span>
-                  `).join('')}
-                </div>
+              <!-- Single Search Input with Enter to Add -->
+              <input type="text" class="schema-search-input" id="input-job-skill-search" 
+                placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+                value="${createJobState.skillSearchQuery || ''}" 
+                oninput="filterJobSkills(this.value)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomJobSkill(this.value);}">
+
+              <!-- Dynamic Add Chip -->
+              <div id="job-skill-add-chip-container">
+                ${(() => {
+                  const q = (createJobState.skillSearchQuery || '').toLowerCase().trim();
+                  const allPool = Array.from(new Set([...(createJobState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                  const hasExactMatch = q && allPool.some(s => s.toLowerCase() === q);
+                  if (q && !hasExactMatch) {
+                    return `
+                      <div class="schema-add-chip" onclick="addCustomJobSkill('${createJobState.skillSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                        + Add "${createJobState.skillSearchQuery}" to required skills
+                      </div>
+                    `;
+                  }
+                  return '';
+                })()}
               </div>
 
-              <!-- Search Bar & Custom Skill Adder -->
-              <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px;">
-                <input type="text" class="schema-search-input" id="input-job-skill-search" placeholder="Search 70+ skills (e.g. Opera, HACCP, Micros, Chiller)..." oninput="filterJobSkills(this.value)" style="margin-bottom: 0;">
-                <div style="display: flex; gap: 6px;">
-                  <input type="text" id="input-custom-job-skill" placeholder="Type custom skill..." style="flex: 1; height: 38px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0 12px; font-size: 0.84rem; color: var(--white);" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addCustomJobSkill(); }">
-                  <button type="button" class="btn-secondary" style="font-size: 0.8rem; padding: 0 12px; white-space: nowrap;" onclick="addCustomJobSkill()">+ Add</button>
-                </div>
-              </div>
+              <!-- Filterable Skills Pool with Selected Stack at Top -->
+              <div class="schema-pills-pool" id="job-skills-pool" style="max-height: 180px;">
+                ${(() => {
+                  const q = (createJobState.skillSearchQuery || '').toLowerCase().trim();
+                  const allPool = Array.from(new Set([...(createJobState.customSkillsPool || []), ...HOTEL_SKILLS_SCHEMA]));
+                  const selectedStack = (createJobState.selectedSkills || []).filter(s => !q || s.toLowerCase().includes(q));
+                  const unselectedPool = allPool.filter(s => !createJobState.selectedSkills.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-              <!-- Filterable Skills Pool -->
-              <div class="schema-pills-pool" id="job-skills-pool" style="max-height: 140px;">
-                ${HOTEL_SKILLS_SCHEMA.map(s => {
-                  const isSel = createJobState.selectedSkills.includes(s);
-                  return `<span class="schema-pill-item ${isSel ? 'selected' : ''}" onclick="toggleJobSkillSelection('${s}')">
-                    ${isSel ? '✓ ' : '+ '}${s}
-                  </span>`;
-                }).join('')}
+                  return [
+                    ...selectedStack.map(s => `
+                      <span class="schema-pill-item selected" onclick="toggleJobSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                        ✓ ${s}
+                      </span>
+                    `),
+                    ...unselectedPool.map(s => `
+                      <span class="schema-pill-item" onclick="toggleJobSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                        + ${s}
+                      </span>
+                    `)
+                  ].join('');
+                })()}
               </div>
             </div>
 
