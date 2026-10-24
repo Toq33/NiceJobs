@@ -7126,7 +7126,7 @@ body.screen-inbox .main-wrapper {
   max-width: 1040px !important;
   width: 95vw !important;
   max-height: 94vh !important;
-  overflow: visible !important;
+  overflow-y: auto !important;
 }
 
 #modal-cand-review .modal-body {

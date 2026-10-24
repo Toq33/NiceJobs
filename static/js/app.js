@@ -3152,7 +3152,8 @@ async function renderATSBoard(viewport) {
 }
 
 function renderCandidatesTableHTML(apps) {
-  if (apps.length === 0) {
+  window._cachedAtsApps = apps || [];
+  if (!apps || apps.length === 0) {
     return `<div style="padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">No applicants yet.</div>`;
   }
 
@@ -9871,12 +9872,8 @@ async function openApplicationWizardModal(jobId) {
   if (typeof questions === 'string') {
     try { questions = JSON.parse(questions); } catch(e) { questions = []; }
   }
-  if (!Array.isArray(questions) || questions.length === 0) {
-    questions = [
-      { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
-      { q: "Are you comfortable working rotating morning and night shifts?", type: "boolean" },
-      { q: "What is your earliest possible joining date or notice period?", type: "text" }
-    ];
+  if (!Array.isArray(questions)) {
+    questions = [];
   }
 
   const container = document.getElementById('modal-container');
@@ -9924,34 +9921,36 @@ async function openApplicationWizardModal(jobId) {
               </div>
             </div>
 
-            <!-- Screening Questions -->
-            <div>
-              <label style="display: block; font-weight: 700; font-size: 0.88rem; margin-bottom: 10px; color: var(--orange-primary);">
-                Screening Questions
-              </label>
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                ${questions.map((qObj, idx) => `
-                  <div>
-                    <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">
-                      ${idx + 1}. ${escapeHtml(qObj.q)}
-                    </label>
-                    ${(qObj.type === 'boolean' || qObj.type === 'yesno') ? `
-                      <select name="screen_q_${idx}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                        <option value="Yes">Yes</option>
-                        <option value="No">No</option>
-                      </select>
-                    ` : (qObj.type === 'multiple' && qObj.options && qObj.options.length > 0) ? `
-                      <select name="screen_q_${idx}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                        <option value="" disabled selected>-- Select an option --</option>
-                        ${qObj.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
-                      </select>
-                    ` : `
-                      <input type="text" name="screen_q_${idx}" required placeholder="Your answer..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                    `}
-                  </div>
-                `).join('')}
+            <!-- Screening Questions (Only displayed if poster specified questions) -->
+            ${questions.length > 0 ? `
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.88rem; margin-bottom: 10px; color: var(--orange-primary);">
+                  Screening Questions (${questions.length})
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  ${questions.map((qObj, idx) => `
+                    <div>
+                      <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">
+                        ${idx + 1}. ${escapeHtml(qObj.q)}
+                      </label>
+                      ${(qObj.type === 'boolean' || qObj.type === 'yesno') ? `
+                        <select name="screen_q_${idx}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      ` : (qObj.type === 'multiple' && qObj.options && qObj.options.length > 0) ? `
+                        <select name="screen_q_${idx}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                          <option value="" disabled selected>-- Select an option --</option>
+                          ${qObj.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+                        </select>
+                      ` : `
+                        <input type="text" name="screen_q_${idx}" required placeholder="Your answer..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                      `}
+                    </div>
+                  `).join('')}
+                </div>
               </div>
-            </div>
+            ` : ''}
 
             <!-- Cover Note -->
             <div>
@@ -9984,12 +9983,8 @@ async function submitApplicationForm(event, jobId) {
   if (typeof questions === 'string') {
     try { questions = JSON.parse(questions); } catch(e) { questions = []; }
   }
-  if (!Array.isArray(questions) || questions.length === 0) {
-    questions = [
-      { q: "How many years of relevant hospitality experience do you possess?", type: "text" },
-      { q: "Are you comfortable working rotating morning and night shifts?", type: "boolean" },
-      { q: "What is your earliest possible joining date or notice period?", type: "text" }
-    ];
+  if (!Array.isArray(questions)) {
+    questions = [];
   }
 
   questions.forEach((qObj, idx) => {
@@ -10045,283 +10040,349 @@ function setInterviewPreset(val) {
 }
 
 async function openCandidateReviewModal(appId) {
-  let app = null;
-
-  // 1. Fetch single application directly by ID
   try {
-    const res = await fetch(`/api/applications/${appId}`);
-    if (res.ok) {
-      app = await res.json();
+    let app = null;
+
+    // A. Check if appId is already an application object
+    if (typeof appId === 'object' && appId !== null && appId.id) {
+      app = appId;
     }
-  } catch(e) {}
 
-  // 2. Fallback to business applications list if single fetch fails
-  if (!app) {
-    const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
-    try {
-      const res = await fetch(`/api/applications?business_id=${bId}`);
-      const apps = res.ok ? await res.json() : [];
-      app = apps.find(a => a.id === appId);
-    } catch(e) {}
-  }
+    // B. Check cached ATS table apps (fastest, instant zero-latency)
+    if (!app && window._cachedAtsApps && Array.isArray(window._cachedAtsApps)) {
+      app = window._cachedAtsApps.find(a => a && a.id === appId);
+    }
 
-  // 3. Fallback to any loaded applications in memory
-  if (!app && state.applications) {
-    app = state.applications.find(a => a.id === appId);
-  }
+    // C. Check state.applications in memory
+    if (!app && state.applications && Array.isArray(state.applications)) {
+      app = state.applications.find(a => a && a.id === appId);
+    }
 
-  if (!app) {
-    showToast('Could not load candidate application dossier.', 'warning');
-    return;
-  }
+    // D. Fetch single application directly by ID
+    if (!app && appId) {
+      try {
+        const res = await fetch(`/api/applications/${appId}`);
+        if (res.ok) {
+          app = await res.json();
+        }
+      } catch(e) {}
+    }
 
-  const skillsList = Array.isArray(app.candidate_skills) ? app.candidate_skills : [];
-  const eduList = Array.isArray(app.candidate_education) ? app.candidate_education : [];
-  const expList = Array.isArray(app.candidate_experience) ? app.candidate_experience : [];
+    // E. Fallback to business applications list
+    if (!app) {
+      const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+      try {
+        const res = await fetch(`/api/applications?business_id=${bId}`);
+        const apps = res.ok ? await res.json() : [];
+        app = apps.find(a => a && a.id === appId);
+      } catch(e) {}
+    }
 
-  let screeningAnswersObj = app.screening_answers || {};
-  if (typeof screeningAnswersObj === 'string') {
-    try { screeningAnswersObj = JSON.parse(screeningAnswersObj); } catch(e) { screeningAnswersObj = {}; }
-  }
-  const screeningEntries = Object.entries(screeningAnswersObj || {});
+    if (!app) {
+      showToast('Could not load candidate application dossier.', 'warning');
+      return;
+    }
 
-  const currentStatus = app.status || 'under_review';
-  const statusOptions = [
-    { id: 'under_review', label: 'Under Review' },
-    { id: 'shortlisted', label: 'Shortlisted' },
-    { id: 'interview_scheduled', label: 'Interview Scheduled' },
-    { id: 'offer', label: 'Extend Offer' },
-    { id: 'hired', label: 'Hired' },
-    { id: 'rejected', label: 'Rejected' }
-  ];
+    // Parse candidate skills safely
+    let skillsList = [];
+    if (Array.isArray(app.candidate_skills)) {
+      skillsList = app.candidate_skills;
+    } else if (typeof app.candidate_skills === 'string') {
+      try {
+        skillsList = JSON.parse(app.candidate_skills);
+      } catch(e) {
+        skillsList = app.candidate_skills ? app.candidate_skills.split(',').map(s=>s.trim()) : [];
+      }
+    }
+    if (!Array.isArray(skillsList)) skillsList = [];
 
-  const container = document.getElementById('modal-container');
-  container.innerHTML = `
-    <div class="modal-backdrop open" id="modal-cand-review">
-      <div class="modal-dialog">
-        <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(10, 17, 40, 0.98);">
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); display: flex; align-items: center; justify-content: center; color: var(--orange-primary);">
-              ${svgIcon('candidate', '', 18)}
-            </div>
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <h2 class="modal-title" style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(app.candidate_name)}</h2>
-                <span style="background: rgba(37, 99, 235, 0.18); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">
-                  ${svgIcon('briefcase', '', 11)} ${escapeHtml(app.job_title)}
-                </span>
-                <span class="status-pill status-${app.status}" style="font-size: 0.7rem; padding: 2px 8px;">
-                  ${escapeHtml(app.status.replace('_', ' '))}
-                </span>
+    // Parse candidate education safely
+    let eduList = [];
+    if (Array.isArray(app.candidate_education)) {
+      eduList = app.candidate_education;
+    } else if (typeof app.candidate_education === 'string') {
+      try {
+        eduList = JSON.parse(app.candidate_education);
+      } catch(e) {
+        eduList = [];
+      }
+    }
+    if (!Array.isArray(eduList)) eduList = [];
+
+    // Parse candidate experience safely
+    let expList = [];
+    if (Array.isArray(app.candidate_experience)) {
+      expList = app.candidate_experience;
+    } else if (typeof app.candidate_experience === 'string') {
+      try {
+        expList = JSON.parse(app.candidate_experience);
+      } catch(e) {
+        expList = [];
+      }
+    }
+    if (!Array.isArray(expList)) expList = [];
+
+    // Parse screening answers safely
+    let screeningAnswersObj = app.screening_answers || {};
+    if (typeof screeningAnswersObj === 'string') {
+      try { screeningAnswersObj = JSON.parse(screeningAnswersObj); } catch(e) { screeningAnswersObj = {}; }
+    }
+    const screeningEntries = Object.entries(screeningAnswersObj || {});
+
+    // Safe items for experience & education
+    const expItem = (expList.length > 0 && typeof expList[0] === 'object' && expList[0] !== null) 
+      ? expList[0] 
+      : (typeof expList[0] === 'string' ? { role: expList[0], company: '' } : null);
+
+    const eduItem = (eduList.length > 0 && typeof eduList[0] === 'object' && eduList[0] !== null) 
+      ? eduList[0] 
+      : (typeof eduList[0] === 'string' ? { degree: eduList[0], institution: '' } : null);
+
+    const currentStatus = app.status || 'under_review';
+    const statusOptions = [
+      { id: 'under_review', label: 'Under Review' },
+      { id: 'shortlisted', label: 'Shortlisted' },
+      { id: 'interview_scheduled', label: 'Interview Scheduled' },
+      { id: 'offer', label: 'Extend Offer' },
+      { id: 'hired', label: 'Hired' },
+      { id: 'rejected', label: 'Rejected' }
+    ];
+
+    const container = document.getElementById('modal-container');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="modal-backdrop open" id="modal-cand-review">
+        <div class="modal-dialog">
+          <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(10, 17, 40, 0.98);">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); display: flex; align-items: center; justify-content: center; color: var(--orange-primary);">
+                ${svgIcon('candidate', '', 18)}
               </div>
-              <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">
-                Application ID: <strong>${escapeHtml(app.id)}</strong> • Applied on ${escapeHtml(app.applied_at || 'Recent')}
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <h2 class="modal-title" style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(app.candidate_name)}</h2>
+                  <span style="background: rgba(37, 99, 235, 0.18); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">
+                    ${svgIcon('briefcase', '', 11)} ${escapeHtml(app.job_title)}
+                  </span>
+                  <span class="status-pill status-${app.status}" style="font-size: 0.7rem; padding: 2px 8px;">
+                    ${escapeHtml(app.status.replace('_', ' '))}
+                  </span>
+                </div>
+                <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">
+                  Application ID: <strong>${escapeHtml(app.id)}</strong> • Applied on ${escapeHtml(app.applied_at || 'Recent')}
+                </div>
               </div>
             </div>
+            <button class="modal-close" onclick="closeModal('modal-cand-review')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
           </div>
-          <button class="modal-close" onclick="closeModal('modal-cand-review')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
-        </div>
 
-        <div class="modal-body" style="padding: 18px 24px;">
-          <div class="cand-review-grid">
-            
-            <!-- LEFT COLUMN: Candidate Profile & Background Dossier -->
-            <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="modal-body" style="padding: 18px 24px;">
+            <div class="cand-review-grid">
               
-              <!-- 1. Identity & Contact Card -->
-              <div class="cand-review-card">
-                <div style="display: flex; gap: 14px; align-items: center;">
-                  <img src="${app.candidate_avatar || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(app.candidate_name)}" 
-                       style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.15); flex-shrink: 0;">
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                      <div style="font-weight: 800; font-size: 1.05rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ${escapeHtml(app.candidate_name)}
-                      </div>
-                      ${app.candidate_open_to_work !== 0 ? `
-                        <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; flex-shrink: 0;">
-                          ● Open to Work
-                        </span>
-                      ` : ''}
-                    </div>
-                    <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600; margin-top: 1px;">
-                      ${escapeHtml(app.candidate_headline || 'Hospitality Professional')}
-                    </div>
-                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 0.78rem;">
-                      <a href="tel:${escapeHtml(app.candidate_phone)}" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                        ${svgIcon('phone', '', 12)} ${escapeHtml(app.candidate_phone)}
-                      </a>
-                      <a href="mailto:${escapeHtml(app.candidate_email)}" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                        ${svgIcon('mail', '', 12)} ${escapeHtml(app.candidate_email)}
-                      </a>
-                      ${app.candidate_location ? `
-                        <span style="color: var(--text-dim); display: flex; align-items: center; gap: 4px;">
-                          ${svgIcon('mapPin', '', 12)} ${escapeHtml(app.candidate_location)}
-                        </span>
-                      ` : ''}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 2. Attached CV Card -->
-              <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(59, 130, 246, 0.28); padding: 10px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                  <div style="color: #60a5fa; flex-shrink: 0;">${svgIcon('fileText', '', 20)}</div>
-                  <div style="min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.84rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                      ${escapeHtml(app.selected_cv || 'Targeted_Hospitality_CV.pdf')}
-                    </div>
-                    <div style="font-size: 0.72rem; color: #94a3b8;">Tailored Resume attached to this application</div>
-                  </div>
-                </div>
-                <button type="button" class="btn-orange" style="padding: 5px 12px; font-size: 0.76rem; font-weight: 700; flex-shrink: 0;" onclick="viewSubmittedApplicationCv('${app.id}')">
-                  View Full Resume ${svgIcon('share', '', 12)}
-                </button>
-              </div>
-
-              <!-- 3. Key Qualifications & Skills Snapshot -->
-              <div class="cand-review-card">
-                <div style="font-size: 0.78rem; font-weight: 700; color: #fdba74; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                  Qualifications &amp; Core Competencies
-                </div>
+              <!-- LEFT COLUMN: Candidate Profile & Background Dossier -->
+              <div style="display: flex; flex-direction: column; gap: 10px;">
                 
-                ${expList.length > 0 ? `
-                  <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-                    <span style="color: #60a5fa; flex-shrink: 0;">${svgIcon('briefcase', '', 12)}</span>
-                    <span><strong>${escapeHtml(expList[0].company || '')}</strong> • ${escapeHtml(expList[0].role || '')} (${escapeHtml(expList[0].period || '')})</span>
-                  </div>
-                ` : ''}
-
-                ${eduList.length > 0 ? `
-                  <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-                    <span style="color: #a78bfa; flex-shrink: 0;">${svgIcon('award', '', 12)}</span>
-                    <span><strong>${escapeHtml(eduList[0].institution || '')}</strong> • ${escapeHtml(eduList[0].degree || '')} ${eduList[0].gpa ? '(GPA ' + escapeHtml(eduList[0].gpa) + ')' : ''}</span>
-                  </div>
-                ` : ''}
-
-                ${skillsList.length > 0 ? `
-                  <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;">
-                    ${skillsList.slice(0, 6).map(s => `
-                      <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); color: #e2e8f0; font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 4px;">
-                        ${escapeHtml(s)}
-                      </span>
-                    `).join('')}
-                  </div>
-                ` : '<div style="font-size: 0.76rem; color: var(--text-dim);">No special skills listed.</div>'}
-              </div>
-
-              <!-- 4. Screening Answers -->
-              <div class="cand-review-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <div style="font-size: 0.78rem; font-weight: 700; color: #fdba74; text-transform: uppercase; letter-spacing: 0.5px;">
-                    Screening Questions (${screeningEntries.length})
-                  </div>
-                  <span style="font-size: 0.7rem; color: #34d399; font-weight: 700;">Verified Submission</span>
-                </div>
-                ${screeningEntries.length > 0 ? `
-                  <div style="display: flex; flex-direction: column; gap: 6px;">
-                    ${screeningEntries.map(([q, a]) => `
-                      <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); padding: 7px 10px; border-radius: 6px;">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">${escapeHtml(q)}</div>
-                        <div style="font-size: 0.82rem; font-weight: 700; color: #34d399; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
-                          ${svgIcon('check', '', 12)} ${escapeHtml(a)}
+                <!-- 1. Identity & Contact Card -->
+                <div class="cand-review-card">
+                  <div style="display: flex; gap: 14px; align-items: center;">
+                    <img src="${app.candidate_avatar || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(app.candidate_name)}" 
+                         style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.15); flex-shrink: 0;">
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="font-weight: 800; font-size: 1.05rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                          ${escapeHtml(app.candidate_name)}
                         </div>
+                        ${app.candidate_open_to_work !== 0 ? `
+                          <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; flex-shrink: 0;">
+                            ● Open to Work
+                          </span>
+                        ` : ''}
+                      </div>
+                      <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600; margin-top: 1px;">
+                        ${escapeHtml(app.candidate_headline || 'Hospitality Professional')}
+                      </div>
+                      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 0.78rem;">
+                        <a href="tel:${escapeHtml(app.candidate_phone)}" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                          ${svgIcon('phone', '', 12)} ${escapeHtml(app.candidate_phone)}
+                        </a>
+                        <a href="mailto:${escapeHtml(app.candidate_email)}" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                          ${svgIcon('mail', '', 12)} ${escapeHtml(app.candidate_email)}
+                        </a>
+                        ${app.candidate_location ? `
+                          <span style="color: var(--text-dim); display: flex; align-items: center; gap: 4px;">
+                            ${svgIcon('mapPin', '', 12)} ${escapeHtml(app.candidate_location)}
+                          </span>
+                        ` : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Attached CV Card -->
+                <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(59, 130, 246, 0.28); padding: 10px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                  <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                    <div style="color: #60a5fa; flex-shrink: 0;">${svgIcon('fileText', '', 20)}</div>
+                    <div style="min-width: 0;">
+                      <div style="font-weight: 700; font-size: 0.84rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${escapeHtml(app.selected_cv || 'Targeted_Hospitality_CV.pdf')}
+                      </div>
+                      <div style="font-size: 0.72rem; color: #94a3b8;">Tailored Resume attached to this application</div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn-orange" style="padding: 5px 12px; font-size: 0.76rem; font-weight: 700; flex-shrink: 0;" onclick="viewSubmittedApplicationCv('${app.id}')">
+                    View Full Resume ${svgIcon('share', '', 12)}
+                  </button>
+                </div>
+
+                <!-- 3. Key Qualifications & Skills Snapshot -->
+                <div class="cand-review-card">
+                  <div style="font-size: 0.78rem; font-weight: 700; color: #fdba74; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                    Qualifications &amp; Core Competencies
+                  </div>
+                  
+                  ${expItem ? `
+                    <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                      <span style="color: #60a5fa; flex-shrink: 0;">${svgIcon('briefcase', '', 12)}</span>
+                      <span><strong>${escapeHtml(expItem.company || '')}</strong> ${expItem.role ? '• ' + escapeHtml(expItem.role) : ''} ${expItem.period ? '(' + escapeHtml(expItem.period) + ')' : ''}</span>
+                    </div>
+                  ` : ''}
+
+                  ${eduItem ? `
+                    <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                      <span style="color: #a78bfa; flex-shrink: 0;">${svgIcon('award', '', 12)}</span>
+                      <span><strong>${escapeHtml(eduItem.institution || '')}</strong> ${eduItem.degree ? '• ' + escapeHtml(eduItem.degree) : ''} ${eduItem.gpa ? '(GPA ' + escapeHtml(eduItem.gpa) + ')' : ''}</span>
+                    </div>
+                  ` : ''}
+
+                  ${skillsList.length > 0 ? `
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;">
+                      ${skillsList.slice(0, 6).map(s => `
+                        <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); color: #e2e8f0; font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 4px;">
+                          ${escapeHtml(s)}
+                        </span>
+                      `).join('')}
+                    </div>
+                  ` : '<div style="font-size: 0.76rem; color: var(--text-dim);">No special skills listed.</div>'}
+                </div>
+
+                <!-- 4. Screening Answers -->
+                <div class="cand-review-card">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #fdba74; text-transform: uppercase; letter-spacing: 0.5px;">
+                      Screening Questions (${screeningEntries.length})
+                    </div>
+                    <span style="font-size: 0.7rem; color: #34d399; font-weight: 700;">Verified Submission</span>
+                  </div>
+                  ${screeningEntries.length > 0 ? `
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                      ${screeningEntries.map(([q, a]) => `
+                        <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); padding: 7px 10px; border-radius: 6px;">
+                          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">${escapeHtml(q)}</div>
+                          <div style="font-size: 0.82rem; font-weight: 700; color: #34d399; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                            ${svgIcon('check', '', 12)} ${escapeHtml(a)}
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : `
+                    <div style="font-size: 0.78rem; color: var(--text-dim); padding: 4px 0;">Standard direct application without custom pre-screening questionnaire.</div>
+                  `}
+                </div>
+
+              </div>
+
+              <!-- RIGHT COLUMN: Recruiter Pipeline Console & Actions -->
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                
+                <!-- 1. Pipeline Stage Selection -->
+                <div class="cand-review-card">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="font-weight: 700; font-size: 0.82rem; color: var(--white); margin: 0;">
+                      Pipeline Stage <span style="color: var(--orange-primary);">*</span>
+                    </label>
+                    <span style="font-size: 0.72rem; color: var(--text-dim);">Click to select</span>
+                  </div>
+                  
+                  <div class="cand-status-pills-grid">
+                    ${statusOptions.map(opt => `
+                      <div class="cand-status-pill-btn ${currentStatus === opt.id ? 'active' : ''}" 
+                           data-status="${opt.id}" 
+                           onclick="setCandidateReviewStatus('${opt.id}')">
+                        ${opt.label}
                       </div>
                     `).join('')}
                   </div>
-                ` : `
-                  <div style="font-size: 0.78rem; color: var(--text-dim); padding: 4px 0;">Standard direct application without custom pre-screening questionnaire.</div>
-                `}
-              </div>
 
-            </div>
+                  <!-- Hidden native select for form serialization -->
+                  <select id="select-cand-status" style="display: none;">
+                    ${statusOptions.map(opt => `
+                      <option value="${opt.id}" ${currentStatus === opt.id ? 'selected' : ''}>${opt.label}</option>
+                    `).join('')}
+                  </select>
+                </div>
 
-            <!-- RIGHT COLUMN: Recruiter Pipeline Console & Actions -->
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-              
-              <!-- 1. Pipeline Stage Selection -->
-              <div class="cand-review-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                  <label style="font-weight: 700; font-size: 0.82rem; color: var(--white); margin: 0;">
-                    Pipeline Stage <span style="color: var(--orange-primary);">*</span>
+                <!-- 2. Interview Details -->
+                <div class="cand-review-card">
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px; color: var(--white);">
+                    Interview Schedule (Visible to Candidate)
                   </label>
-                  <span style="font-size: 0.72rem; color: var(--text-dim);">Click to select</span>
-                </div>
-                
-                <div class="cand-status-pills-grid">
-                  ${statusOptions.map(opt => `
-                    <div class="cand-status-pill-btn ${currentStatus === opt.id ? 'active' : ''}" 
-                         data-status="${opt.id}" 
-                         onclick="setCandidateReviewStatus('${opt.id}')">
-                      ${opt.label}
-                    </div>
-                  `).join('')}
+                  <input type="text" id="input-interview-time" value="${escapeHtml(app.interview_time || '')}" 
+                         placeholder="e.g. Next Sunday 02:30 PM at Executive Lounge"
+                         style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+                  
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
+                            onclick="setInterviewPreset('Tomorrow at 10:00 AM (Hotel Lobby Lounge)')">
+                      Tomorrow 10 AM
+                    </button>
+                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
+                            onclick="setInterviewPreset('Next Sunday at 02:30 PM (HR Executive Office)')">
+                      Next Sun 2:30 PM
+                    </button>
+                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
+                            onclick="setInterviewPreset('Online Video Interview via Microsoft Teams')">
+                      Teams Video Call
+                    </button>
+                  </div>
                 </div>
 
-                <!-- Hidden native select for form serialization -->
-                <select id="select-cand-status" style="display: none;">
-                  ${statusOptions.map(opt => `
-                    <option value="${opt.id}" ${currentStatus === opt.id ? 'selected' : ''}>${opt.label}</option>
-                  `).join('')}
-                </select>
-              </div>
+                <!-- 3. Private Recruiter Notes -->
+                <div style="background: rgba(249, 115, 22, 0.06); border: 1px solid rgba(249, 115, 22, 0.25); padding: 10px 12px; border-radius: var(--radius-md);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="font-weight: 700; font-size: 0.8rem; color: #fdba74; margin: 0;">Internal Recruiter Notes</label>
+                    <span style="font-size: 0.68rem; color: #f97316; font-weight: 700; background: rgba(249,115,22,0.15); padding: 1px 6px; border-radius: 4px;">Private</span>
+                  </div>
+                  <textarea id="cand-private-notes" rows="3" placeholder="Add confidential hiring notes, interview performance rating, or candidate observations..."
+                            style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem; resize: none;">${escapeHtml(app.recruiter_notes || '')}</textarea>
+                </div>
 
-              <!-- 2. Interview Details -->
-              <div class="cand-review-card">
-                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px; color: var(--white);">
-                  Interview Schedule (Visible to Candidate)
-                </label>
-                <input type="text" id="input-interview-time" value="${escapeHtml(app.interview_time || '')}" 
-                       placeholder="e.g. Next Sunday 02:30 PM at Executive Lounge"
-                       style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
-                
-                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                  <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                          onclick="setInterviewPreset('Tomorrow at 10:00 AM (Hotel Lobby Lounge)')">
-                    Tomorrow 10 AM
+                <!-- 4. Decision Actions Footer -->
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                  <button type="button" class="btn-secondary" style="font-size: 0.8rem; padding: 9px 12px; white-space: nowrap;" 
+                          onclick="closeModal('modal-cand-review'); openConversationForJob('${app.job_id}', '${app.business_id}');">
+                    ${svgIcon('messageCircle', '', 14)} Message
                   </button>
-                  <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                          onclick="setInterviewPreset('Next Sunday at 02:30 PM (HR Executive Office)')">
-                    Next Sun 2:30 PM
-                  </button>
-                  <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                          onclick="setInterviewPreset('Online Video Interview via Microsoft Teams')">
-                    Teams Video Call
+                  <button type="button" class="btn-orange" style="flex: 1; font-size: 0.85rem; font-weight: 800; padding: 9px 16px; justify-content: center;" 
+                          onclick="saveCandidateStatus('${app.id}')">
+                    ${svgIcon('check', '', 14)} Save Pipeline Status
                   </button>
                 </div>
-              </div>
 
-              <!-- 3. Private Recruiter Notes -->
-              <div style="background: rgba(249, 115, 22, 0.06); border: 1px solid rgba(249, 115, 22, 0.25); padding: 10px 12px; border-radius: var(--radius-md);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                  <label style="font-weight: 700; font-size: 0.8rem; color: #fdba74; margin: 0;">Internal Recruiter Notes</label>
-                  <span style="font-size: 0.68rem; color: #f97316; font-weight: 700; background: rgba(249,115,22,0.15); padding: 1px 6px; border-radius: 4px;">Private</span>
-                </div>
-                <textarea id="cand-private-notes" rows="3" placeholder="Add confidential hiring notes, interview performance rating, or candidate observations..."
-                          style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem; resize: none;">${escapeHtml(app.recruiter_notes || '')}</textarea>
-              </div>
-
-              <!-- 4. Decision Actions Footer -->
-              <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
-                <button type="button" class="btn-secondary" style="font-size: 0.8rem; padding: 9px 12px; white-space: nowrap;" 
-                        onclick="closeModal('modal-cand-review'); openConversationForJob('${app.job_id}', '${app.business_id}');">
-                  ${svgIcon('messageCircle', '', 14)} Message
-                </button>
-                <button type="button" class="btn-orange" style="flex: 1; font-size: 0.85rem; font-weight: 800; padding: 9px 16px; justify-content: center;" 
-                        onclick="saveCandidateStatus('${app.id}')">
-                  ${svgIcon('check', '', 14)} Save Pipeline Status
-                </button>
               </div>
 
             </div>
-
           </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
+  } catch(err) {
+    console.error('[Candidate Review Error]', err);
+    showToast('Could not open candidate review: ' + err.message, 'danger');
+  }
 }
+
+window.openCandidateReviewModal = openCandidateReviewModal;
 
 async function saveCandidateStatus(appId) {
   const status = document.getElementById('select-cand-status')?.value || 'under_review';
