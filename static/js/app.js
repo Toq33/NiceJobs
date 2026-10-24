@@ -5519,12 +5519,12 @@ function renderSignupPage(viewport) {
 
                       return [
                         ...selectedStack.map(s => `
-                          <span class="schema-pill-item selected" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
                             ✓ ${s}
                           </span>
                         `),
                         ...unselectedPool.map(s => `
-                          <span class="schema-pill-item" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
                             + ${s}
                           </span>
                         `)
@@ -5581,12 +5581,12 @@ function renderSignupPage(viewport) {
 
                       return [
                         ...selectedStack.map(l => `
-                          <span class="schema-pill-item selected" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+                          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
                             ✓ ${l.name} (${l.level})
                           </span>
                         `),
                         ...unselectedPool.map(l => `
-                          <span class="schema-pill-item" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+                          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
                             + ${l.name} (${l.level})
                           </span>
                         `)
@@ -5970,21 +5970,23 @@ function renderSignupPage(viewport) {
                       oninput="filterFeaturesSchema(this.value)"
                       onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomFeature(this.value);}">
 
-                    ${(() => {
-                      const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
-                      const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
-                      const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
-                      if (q && !hasExactMatch) {
-                        return `
-                          <div class="schema-add-chip" onclick="addCustomFeature('${signupState.featuresSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
-                            + Add "${signupState.featuresSearchQuery}" to features
-                          </div>
-                        `;
-                      }
-                      return '';
-                    })()}
+                    <div id="features-custom-add-container">
+                      ${(() => {
+                        const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
+                        const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
+                        const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
+                        if (q && !hasExactMatch) {
+                          return `
+                            <div class="schema-add-chip" onclick="addCustomFeature('${signupState.featuresSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                              + Add "${signupState.featuresSearchQuery}" to features
+                            </div>
+                          `;
+                        }
+                        return '';
+                      })()}
+                    </div>
 
-                    <div class="schema-pills-pool">
+                    <div class="schema-pills-pool" id="features-pills-pool">
                       ${(() => {
                         const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
                         const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
@@ -5997,12 +5999,12 @@ function renderSignupPage(viewport) {
 
                         return [
                           ...selectedStack.map(f => `
-                            <span class="schema-pill-item selected" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+                            <span class="schema-pill-item selected" data-pill-key="${f}" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
                               ✓ ${f}
                             </span>
                           `),
                           ...unselectedPool.map(f => `
-                            <span class="schema-pill-item" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to select">
+                            <span class="schema-pill-item" data-pill-key="${f}" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to select">
                               + ${f}
                             </span>
                           `)
@@ -6622,6 +6624,94 @@ function removeExperienceEntry(idx) {
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
+// =============================================================
+// Schema System FLIP Animation Engine (Universal Pill Mover)
+// Smoothly animates selected pills flying upward to the stack
+// and deselected pills floating back down to their unselected place,
+// while preserving scroll position and preventing any screen flashing.
+// =============================================================
+function animateSchemaPillsPool(poolElement, renderCallback) {
+  if (!poolElement) {
+    if (typeof renderCallback === 'function') renderCallback();
+    return;
+  }
+
+  // Preserve scroll position so the pool doesn't jump
+  const savedScrollTop = poolElement.scrollTop;
+
+  // 1. FIRST: Capture bounding client rects of all existing pills
+  const firstRects = new Map();
+  const oldChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
+  oldChildren.forEach(el => {
+    const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
+    if (key) {
+      firstRects.set(key, el.getBoundingClientRect());
+    }
+  });
+
+  // 2. DOM update: Execute callback to reorder / re-render pills
+  if (typeof renderCallback === 'function') {
+    renderCallback();
+  }
+
+  // Restore scroll position immediately
+  poolElement.scrollTop = savedScrollTop;
+
+  // 3. LAST: Capture new bounding client rects
+  const newChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
+  const animatingPills = [];
+
+  newChildren.forEach(el => {
+    const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
+    if (!key) return;
+
+    const firstRect = firstRects.get(key);
+    if (firstRect) {
+      const lastRect = el.getBoundingClientRect();
+      const dx = firstRect.left - lastRect.left;
+      const dy = firstRect.top - lastRect.top;
+
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        // 4. INVERT: Snap pill to its starting position instantly
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        el.style.transition = 'none';
+        el.style.zIndex = el.classList.contains('selected') ? '8' : '5';
+        animatingPills.push(el);
+      }
+    } else {
+      // New custom chip: scale in smoothly
+      el.style.transform = 'scale(0.8)';
+      el.style.opacity = '0';
+      el.style.transition = 'none';
+      animatingPills.push(el);
+    }
+  });
+
+  if (animatingPills.length === 0) return;
+
+  // Force synchronous layout reflow so the browser registers inverted positions
+  void poolElement.offsetHeight;
+
+  // 5. PLAY: Animate smoothly to resting position (0, 0)
+  requestAnimationFrame(() => {
+    animatingPills.forEach(el => {
+      el.style.transition = 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms ease, background-color 240ms ease, border-color 240ms ease, box-shadow 240ms ease';
+      el.style.transform = 'translate(0, 0) scale(1)';
+      el.style.opacity = '1';
+    });
+
+    // Cleanup inline transition and transform styles after animation finishes
+    setTimeout(() => {
+      animatingPills.forEach(el => {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.opacity = '';
+        el.style.zIndex = '';
+      });
+    }, 420);
+  });
+}
+
 function filterSkillsSchema(q) {
   signupState.skillsSearchQuery = q;
   updateSkillsDOM();
@@ -6686,18 +6776,20 @@ function updateSkillsDOM() {
     const selectedStack = (signupState.skills || []).filter(s => !q || s.toLowerCase().includes(q));
     const unselectedPool = allPool.filter(s => !(signupState.skills || []).includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(s => `
-        <span class="schema-pill-item selected" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
-          ✓ ${s}
-        </span>
-      `),
-      ...unselectedPool.map(s => `
-        <span class="schema-pill-item" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
-          + ${s}
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(s => `
+          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${s}
+          </span>
+        `),
+        ...unselectedPool.map(s => `
+          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${s}
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -6731,18 +6823,20 @@ function updateLanguagesDOM() {
     const selectedStack = (signupState.languages || []).filter(l => !q || l.name.toLowerCase().includes(q));
     const unselectedPool = presetList.filter(l => !(signupState.languages || []).some(sel => sel.name === l.name && sel.level === l.level)).filter(l => !q || l.name.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(l => `
-        <span class="schema-pill-item selected" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
-          ✓ ${l.name} (${l.level})
-        </span>
-      `),
-      ...unselectedPool.map(l => `
-        <span class="schema-pill-item" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
-          + ${l.name} (${l.level})
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(l => `
+          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+            ✓ ${l.name} (${l.level})
+          </span>
+        `),
+        ...unselectedPool.map(l => `
+          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+            + ${l.name} (${l.level})
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -7350,14 +7444,49 @@ function handleCvFileSelected(event) {
 }
 
 // Features schema helpers
+function updateFeaturesDOM() {
+  const q = (signupState.featuresSearchQuery || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(signupState.customFeaturesPool || []), ...HOTEL_FEATURES_SCHEMA]));
+  const hasExactMatch = q && allPool.some(f => f.toLowerCase() === q);
+
+  const customAdd = document.getElementById('features-custom-add-container');
+  if (customAdd) {
+    if (q && !hasExactMatch) {
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomFeature('${signupState.featuresSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${signupState.featuresSearchQuery}" to features
+        </div>
+      `;
+    } else {
+      customAdd.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('features-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (signupState.features || []).filter(f => !q || f.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(f => !(signupState.features || []).includes(f)).filter(f => !q || f.toLowerCase().includes(q));
+
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(f => `
+          <span class="schema-pill-item selected" data-pill-key="${f}" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${f}
+          </span>
+        `),
+        ...unselectedPool.map(f => `
+          <span class="schema-pill-item" data-pill-key="${f}" onclick="toggleFeatureSelection('${f.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${f}
+          </span>
+        `)
+      ].join('');
+    });
+  }
+}
+
 function filterFeaturesSchema(q) {
   signupState.featuresSearchQuery = q;
-  renderSignupPage(document.getElementById('app-viewport'));
-  const input = document.getElementById('features-search');
-  if (input) {
-    input.focus();
-    input.setSelectionRange(q.length, q.length);
-  }
+  updateFeaturesDOM();
 }
 
 function toggleFeatureSelection(feat) {
@@ -7370,7 +7499,7 @@ function toggleFeatureSelection(feat) {
     signupState.features.unshift(feat);
   }
   saveSignupProgress();
-  renderSignupPage(document.getElementById('app-viewport'));
+  updateFeaturesDOM();
 }
 
 function addCustomFeature(feat) {
@@ -7389,20 +7518,16 @@ function addCustomFeature(feat) {
     // Stack logic: newly added feature goes to the top of the selected stack
     signupState.features.unshift(trimmed);
     signupState.featuresSearchQuery = '';
+    const input = document.getElementById('features-search');
+    if (input) input.value = '';
     saveSignupProgress();
     showToast(`Added "${trimmed}" to features`, 'success');
-    renderSignupPage(document.getElementById('app-viewport'));
+    updateFeaturesDOM();
   }
 }
 
 function removeFeature(feat) {
-  if (!signupState.features) return;
-  const idx = signupState.features.indexOf(feat);
-  if (idx >= 0) {
-    signupState.features.splice(idx, 1);
-    saveSignupProgress();
-    renderSignupPage(document.getElementById('app-viewport'));
-  }
+  toggleFeatureSelection(feat);
 }
 
 // Hotel & Resort Types schema helpers
@@ -10669,18 +10794,20 @@ function updateEditSkillsModalDOM() {
     const selectedStack = (window.editSkillsModalState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
     const unselectedPool = allPool.filter(s => !window.editSkillsModalState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(s => `
-        <span class="schema-pill-item selected" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
-          ✓ ${s}
-        </span>
-      `),
-      ...unselectedPool.map(s => `
-        <span class="schema-pill-item" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
-          + ${s}
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(s => `
+          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${s}
+          </span>
+        `),
+        ...unselectedPool.map(s => `
+          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${s}
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -10729,12 +10856,12 @@ function renderEditSkillsModalDOM() {
 
                 return [
                   ...selectedStack.map(s => `
-                    <span class="schema-pill-item selected" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                    <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
                       ✓ ${s}
                     </span>
                   `),
                   ...unselectedPool.map(s => `
-                    <span class="schema-pill-item" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                    <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleEditSkillModal('${s.replace(/'/g, "\\'")}')" title="Click to select">
                       + ${s}
                     </span>
                   `)
@@ -10921,18 +11048,20 @@ function updatePrefLocationsModalDOM() {
     const selectedStack = (window.editPrefLocState.selected || []).filter(l => !q || l.toLowerCase().includes(q));
     const unselectedPool = allPool.filter(l => !window.editPrefLocState.selected.includes(l)).filter(l => !q || l.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(l => `
-        <span class="schema-pill-item selected" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
-          ✓ ${l}
-        </span>
-      `),
-      ...unselectedPool.map(l => `
-        <span class="schema-pill-item" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
-          + ${l}
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(l => `
+          <span class="schema-pill-item selected" data-pill-key="${l}" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${l}
+          </span>
+        `),
+        ...unselectedPool.map(l => `
+          <span class="schema-pill-item" data-pill-key="${l}" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${l}
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -10997,12 +11126,12 @@ function openEditJobPreferencesModal() {
 
                     return [
                       ...selectedStack.map(l => `
-                        <span class="schema-pill-item selected" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
+                        <span class="schema-pill-item selected" data-pill-key="${l}" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to unselect">
                           ✓ ${l}
                         </span>
                       `),
                       ...unselectedPool.map(l => `
-                        <span class="schema-pill-item" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
+                        <span class="schema-pill-item" data-pill-key="${l}" onclick="togglePrefLocationModal('${l.replace(/'/g, "\\'")}')" title="Click to select">
                           + ${l}
                         </span>
                       `)
@@ -11115,18 +11244,20 @@ function updateCompEditSkillsDOM() {
     const selectedStack = (window.compEditSkillsState.selected || []).filter(s => !q || s.toLowerCase().includes(q));
     const unselectedPool = allPool.filter(s => !window.compEditSkillsState.selected.includes(s)).filter(s => !q || s.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(s => `
-        <span class="schema-pill-item selected" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
-          ✓ ${s}
-        </span>
-      `),
-      ...unselectedPool.map(s => `
-        <span class="schema-pill-item" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
-          + ${s}
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(s => `
+          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${s}
+          </span>
+        `),
+        ...unselectedPool.map(s => `
+          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${s}
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -11310,12 +11441,12 @@ async function openComprehensiveEditProfileModal() {
 
                     return [
                       ...selectedStack.map(s => `
-                        <span class="schema-pill-item selected" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                        <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
                           ✓ ${s}
                         </span>
                       `),
                       ...unselectedPool.map(s => `
-                        <span class="schema-pill-item" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                        <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleCompEditSkill('${s.replace(/'/g, "\\'")}')" title="Click to select">
                           + ${s}
                         </span>
                       `)
@@ -11671,18 +11802,20 @@ function updateEditBizAmenitiesDOM() {
     const selectedStack = (window.editBizAmenitiesState.selected || []).filter(f => !q || f.toLowerCase().includes(q));
     const unselectedPool = allPool.filter(f => !window.editBizAmenitiesState.selected.includes(f)).filter(f => !q || f.toLowerCase().includes(q));
 
-    pillsPool.innerHTML = [
-      ...selectedStack.map(f => `
-        <span class="schema-pill-item selected" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
-          ✓ ${f}
-        </span>
-      `),
-      ...unselectedPool.map(f => `
-        <span class="schema-pill-item" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
-          + ${f}
-        </span>
-      `)
-    ].join('');
+    animateSchemaPillsPool(pillsPool, () => {
+      pillsPool.innerHTML = [
+        ...selectedStack.map(f => `
+          <span class="schema-pill-item selected" data-pill-key="${f}" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+            ✓ ${f}
+          </span>
+        `),
+        ...unselectedPool.map(f => `
+          <span class="schema-pill-item" data-pill-key="${f}" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
+            + ${f}
+          </span>
+        `)
+      ].join('');
+    });
   }
 }
 
@@ -11835,12 +11968,12 @@ async function openEditBusinessProfileModal(bizId) {
 
                     return [
                       ...selectedStack.map(f => `
-                        <span class="schema-pill-item selected" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
+                        <span class="schema-pill-item selected" data-pill-key="${f}" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to unselect">
                           ✓ ${f}
                         </span>
                       `),
                       ...unselectedPool.map(f => `
-                        <span class="schema-pill-item" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
+                        <span class="schema-pill-item" data-pill-key="${f}" onclick="toggleEditBizAmenity('${f.replace(/'/g, "\\'")}')" title="Click to select">
                           + ${f}
                         </span>
                       `)
