@@ -2602,11 +2602,35 @@ def get_or_create_conversation(payload: ConversationInitPayload):
 
     return conv_data
 
+def get_media_storage_path():
+    """Returns (directory_path, url_prefix) with fallback to /tmp on read-only serverless filesystems."""
+    static_media = os.path.join(STATIC_DIR, "uploads", "messages")
+    try:
+        os.makedirs(static_media, exist_ok=True)
+        probe = os.path.join(static_media, ".probe")
+        with open(probe, "w") as f:
+            f.write("1")
+        os.remove(probe)
+        return static_media, "/static/uploads/messages"
+    except Exception:
+        tmp_media = "/tmp/uploads/messages"
+        os.makedirs(tmp_media, exist_ok=True)
+        return tmp_media, "/api/uploads/messages"
+
+@app.get("/api/uploads/messages/{filename}")
+def serve_uploaded_media(filename: str):
+    safe_name = os.path.basename(filename)
+    for p in [
+        os.path.join(STATIC_DIR, "uploads", "messages", safe_name),
+        os.path.join("/tmp/uploads/messages", safe_name)
+    ]:
+        if os.path.exists(p):
+            return FileResponse(p)
+    raise HTTPException(status_code=404, detail="Media attachment not found")
+
 @app.post("/api/messages/upload")
 async def upload_chat_media(file: UploadFile = File(...)):
-    # Create permanent media storage directory
-    media_dir = os.path.join(STATIC_DIR, "uploads", "messages")
-    os.makedirs(media_dir, exist_ok=True)
+    media_dir, url_prefix = get_media_storage_path()
 
     # Determine file type
     orig_name = file.filename or "attachment"
@@ -2630,7 +2654,7 @@ async def upload_chat_media(file: UploadFile = File(...)):
         f.write(content_bytes)
 
     file_size = len(content_bytes)
-    file_url = f"/static/uploads/messages/{safe_name}"
+    file_url = f"{url_prefix}/{safe_name}"
 
     return {
         "success": True,
