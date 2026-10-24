@@ -11,7 +11,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/static/css/styles.css?v=messaging_full_20261024_03">
+  <link rel="stylesheet" href="/static/css/styles.css?v=nav_inbox_v6_20261024">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>">
 </head>
 <body>
@@ -68,10 +68,11 @@
         <span style="font-size: 0.78rem; color: var(--text-dim);">© 2026 NiceJobs. Hospitality Careers.</span>
       </div>
       <div style="display: flex; gap: 20px; font-size: 0.82rem; font-weight: 600; align-items: center;">
-        <a href="#home" onclick="navigateTo('home')">Jobs</a>
-        <a href="#hotels" onclick="navigateTo('hotels')">Hotels</a>
-        <a href="#blog" onclick="navigateTo('blog')">Blog</a>
-        <a href="#admin-login" id="btn-footer-admin-login" onclick="navigateTo('admin-login')">Admin</a>
+        <a href="#home" onclick="navigateTo('home'); return false;">Jobs</a>
+        <a href="#hotels" onclick="navigateTo('hotels'); return false;">Hotels</a>
+        <a href="#blog" onclick="navigateTo('blog'); return false;">Blog</a>
+        <a href="#inbox" onclick="navigateTo('inbox'); return false;">Messages</a>
+        <a href="#admin-login" id="btn-footer-admin-login" onclick="navigateTo('admin-login'); return false;">Admin</a>
       </div>
     </div>
   </footer>
@@ -83,6 +84,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Scripts -->
-  <script src="/static/js/app.js?v=messaging_full_20261024_03"></script>
+  <script src="/static/js/app.js?v=nav_inbox_v6_20261024"></script>
 </body>
 </html>

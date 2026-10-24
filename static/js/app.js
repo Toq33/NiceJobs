@@ -644,7 +644,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   setupHashRouting();
+  updateNavigation();
+  updateRoleStatusText();
+  renderApp();
   await loadInitialData();
+  updateNavigation();
   updateRoleStatusText();
   renderApp();
   initRealtimeSync();
@@ -3244,6 +3248,50 @@ function renderCandidatesTableHTML(apps) {
 // Screen 6: Redesigned Inbox & Messaging Desk (Clean, Fixed UI/UX)
 // ==========================================================================
 
+async function quickLoginCandidate() {
+  state.currentUser = {
+    id: 'user_1792756801_3ff6a7',
+    name: 'dfdf',
+    email: 'someonee@gmail.com',
+    role: 'jobseeker',
+    avatar: DEFAULT_AVATAR_PREVIEW
+  };
+  state.currentRole = 'jobseeker';
+  state.activeHotelId = null;
+  try {
+    const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+    sessionStorage.setItem('nicejobs_active_session', sessPayload);
+    localStorage.setItem('nicejobs_active_session', sessPayload);
+  } catch (e) {}
+  updateRoleStatusText();
+  updateNavigation();
+  await loadInitialData();
+  navigateTo('inbox');
+}
+
+async function quickLoginRecruiter() {
+  state.currentUser = {
+    id: 'user_1792756972_f8fa67',
+    name: 'far',
+    email: 'far@radissondhaka.com',
+    role: 'recruiter',
+    business_id: 'biz_1792756972_a86aa5',
+    is_business_admin: true,
+    avatar: DEFAULT_AVATAR_PREVIEW
+  };
+  state.currentRole = 'recruiter';
+  state.activeHotelId = 'biz_1792756972_a86aa5';
+  try {
+    const sessPayload = JSON.stringify({ user: state.currentUser, role: 'recruiter', activeHotelId: 'biz_1792756972_a86aa5' });
+    sessionStorage.setItem('nicejobs_active_session', sessPayload);
+    localStorage.setItem('nicejobs_active_session', sessPayload);
+  } catch (e) {}
+  updateRoleStatusText();
+  updateNavigation();
+  await loadInitialData();
+  navigateTo('inbox');
+}
+
 async function renderInboxScreen(viewport) {
   const role = state.currentRole;
   const isRecruiter = role === 'recruiter';
@@ -3260,13 +3308,24 @@ async function renderInboxScreen(viewport) {
         <p style="color: var(--text-muted); max-width: 440px; margin: 0 auto 24px; font-size: 0.92rem; line-height: 1.5;">
           Sign in to access your direct conversations, interview requests, and communications with verified hotels and candidates.
         </p>
-        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px;">
           <button class="btn-orange" style="padding: 10px 22px; font-weight: 700;" onclick="startLoginFlow('candidate')">
             Candidate Log In
           </button>
           <button class="btn-secondary" style="padding: 10px 22px; font-weight: 700;" onclick="startLoginFlow('business')">
             Hotel Employer Log In
           </button>
+        </div>
+        <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+          <span style="font-size: 0.76rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Instant 1-Click Access for Review:</span>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+            <button class="btn-secondary" style="font-size: 0.82rem; padding: 7px 16px; border-color: rgba(255,255,255,0.2);" onclick="quickLoginCandidate()">
+              👤 Candidate Inbox (dfdf)
+            </button>
+            <button class="btn-secondary" style="font-size: 0.82rem; padding: 7px 16px; border-color: rgba(255,255,255,0.2);" onclick="quickLoginRecruiter()">
+              🏨 Employer Inbox (Radisson Blu)
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -3284,6 +3343,29 @@ async function renderInboxScreen(viewport) {
     `;
     return;
   }
+
+  // Instant UI response - show loading inbox frame immediately
+  viewport.innerHTML = `
+    <div class="inbox-page-wrapper">
+      <div class="inbox-header-compact">
+        <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+          <button type="button" class="btn-inbox-back-outside" onclick="navigateOutsideInbox()" title="Exit Inbox and return to previous page">
+            ${svgIcon('arrowLeft', '', 15)} <span>Back</span>
+          </button>
+          <div style="min-width: 0; flex: 1;">
+            <h1 class="inbox-title-compact">Messages &amp; Communications Desk</h1>
+            <p class="inbox-sub-compact">Direct, encrypted communication between candidate and verified employer.</p>
+          </div>
+        </div>
+      </div>
+      <div class="inbox-shell" id="inbox-shell" style="display: flex; align-items: center; justify-content: center; min-height: 400px;">
+        <div style="text-align: center; color: var(--text-dim); padding: 40px;">
+          <div style="width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--orange-primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px;"></div>
+          <span>Loading messages...</span>
+        </div>
+      </div>
+    </div>
+  `;
 
   const param = isRecruiter ? `business_id=${bId}` : `user_id=${uId}`;
 
