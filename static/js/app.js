@@ -10045,14 +10045,40 @@ function setInterviewPreset(val) {
 }
 
 async function openCandidateReviewModal(appId) {
-  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
-  const res = await fetch(`/api/applications?business_id=${bId}`);
-  const apps = res.ok ? await res.json() : [];
-  const app = apps.find(a => a.id === appId);
-  if (!app) return;
+  let app = null;
+
+  // 1. Fetch single application directly by ID
+  try {
+    const res = await fetch(`/api/applications/${appId}`);
+    if (res.ok) {
+      app = await res.json();
+    }
+  } catch(e) {}
+
+  // 2. Fallback to business applications list if single fetch fails
+  if (!app) {
+    const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+    try {
+      const res = await fetch(`/api/applications?business_id=${bId}`);
+      const apps = res.ok ? await res.json() : [];
+      app = apps.find(a => a.id === appId);
+    } catch(e) {}
+  }
+
+  // 3. Fallback to any loaded applications in memory
+  if (!app && state.applications) {
+    app = state.applications.find(a => a.id === appId);
+  }
+
+  if (!app) {
+    showToast('Could not load candidate application dossier.', 'warning');
+    return;
+  }
 
   const skillsList = Array.isArray(app.candidate_skills) ? app.candidate_skills : [];
   const eduList = Array.isArray(app.candidate_education) ? app.candidate_education : [];
+  const expList = Array.isArray(app.candidate_experience) ? app.candidate_experience : [];
+
   let screeningAnswersObj = app.screening_answers || {};
   if (typeof screeningAnswersObj === 'string') {
     try { screeningAnswersObj = JSON.parse(screeningAnswersObj); } catch(e) { screeningAnswersObj = {}; }

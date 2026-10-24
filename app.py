@@ -2065,6 +2065,39 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
 # APPLICATIONS & ATS
 # =======================
 
+@app.get("/api/applications/{app_id}")
+def get_application_by_id(app_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    query = """
+        SELECT a.*, 
+               j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
+               b.id as business_id, b.brand_name, b.logo_url, b.property_type,
+               u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
+               ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills,
+               ep.education as candidate_education, ep.experience as candidate_experience, ep.location as candidate_location,
+               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        JOIN businesses b ON j.business_id = b.id
+        JOIN users u ON a.user_id = u.id
+        LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+        WHERE a.id = ?
+    """
+    row = cursor.execute(query, (app_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    app_dict = dict(row)
+    for col in ["candidate_skills", "candidate_education", "candidate_experience", "screening_answers"]:
+        if app_dict.get(col) and isinstance(app_dict[col], str):
+            try:
+                app_dict[col] = json.loads(app_dict[col])
+            except Exception:
+                pass
+    return app_dict
+
 @app.get("/api/applications")
 def get_applications(
     user_id: Optional[str] = None,
