@@ -740,7 +740,7 @@ function closeMobileMenu() {
   btn?.classList.remove('is-open');
 }
 
-function navigateTo(screen, params = null) {
+async function navigateTo(screen, params = null) {
   closeMobileMenu();
   let hash = screen;
   if (params) {
@@ -749,7 +749,7 @@ function navigateTo(screen, params = null) {
   }
   window.location.hash = hash;
   parseRoute();
-  renderApp();
+  return await renderApp();
 }
 
 // ==========================================================================
@@ -965,6 +965,14 @@ function switchRole(role) {
     state.notifications = [];
     state.conversations = [];
     state.savedJobs = [];
+    try {
+      sessionStorage.removeItem('nicejobs_active_session');
+      sessionStorage.removeItem('nicejobs_candidate_session');
+      sessionStorage.removeItem('nicejobs_employer_session');
+      localStorage.removeItem('nicejobs_active_session');
+      localStorage.removeItem('nicejobs_candidate_session');
+      localStorage.removeItem('nicejobs_employer_session');
+    } catch(e) {}
     updateRoleStatusText();
     showToast('Guest mode');
     navigateTo('home');
@@ -973,6 +981,9 @@ function switchRole(role) {
   updateNavigation();
   onAuthChange();
 }
+window.logoutUser = () => switchRole('guest');
+window.switchRole = switchRole;
+
 
 async function resetDemoData() {
   try {
@@ -1182,7 +1193,8 @@ function connectRealtimeWebSocket() {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const uId = state.currentUser?.id ? `&user_id=${encodeURIComponent(state.currentUser.id)}` : '';
-  const bId = (state.currentUser?.business_id || state.activeHotelId) ? `&business_id=${encodeURIComponent(state.currentUser.business_id || state.activeHotelId)}` : '';
+  const rawBizId = state.currentUser?.business_id || state.activeHotelId || '';
+  const bId = rawBizId ? `&business_id=${encodeURIComponent(rawBizId)}` : '';
   const rId = state.currentRole ? `&role=${encodeURIComponent(state.currentRole)}` : '';
   const wsUrl = `${protocol}//${window.location.host}/ws?v=1${uId}${bId}${rId}`;
 
