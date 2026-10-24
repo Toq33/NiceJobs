@@ -653,7 +653,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function parseRoute() {
   const rawHash = window.location.hash.replace('#', '') || 'home';
   const [screen, paramStr] = rawHash.split('?');
-  const resolvedScreen = screen === 'messages' ? 'inbox' : screen;
+  const inboxAliases = ['inbox', 'messages', 'message', 'messeges', 'messege', 'messagebox', 'messegebox'];
+  const resolvedScreen = inboxAliases.includes(screen ? screen.toLowerCase() : '') ? 'inbox' : screen;
   if (resolvedScreen !== 'inbox') {
     state.lastNonInboxScreen = resolvedScreen;
   }
@@ -664,8 +665,11 @@ function parseRoute() {
     if (paramStr && state.screenParams.get('conv')) {
       state.activeConvId = state.screenParams.get('conv');
       state.inboxMobileView = 'chat';
-    } else if (!state.screenParams.get('chat')) {
-      state.inboxMobileView = 'threads';
+    } else if (state.screenParams.get('chat')) {
+      state.inboxMobileView = 'chat';
+    } else {
+      // Retain chat view if an active conversation is already selected
+      state.inboxMobileView = state.activeConvId ? 'chat' : 'threads';
     }
   }
 
@@ -1369,17 +1373,17 @@ function updateNavigation() {
     const totalUnreadNotifs = (state.notifications || []).filter(n => !n.is_read).length;
 
     linksHtml = `
-      <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
-      <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
-      <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
+      <li class="nav-item"><a href="#home" onclick="navigateTo('home'); return false;" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
+      <li class="nav-item"><a href="#hotels" onclick="navigateTo('hotels'); return false;" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
+      <li class="nav-item"><a href="#blog" onclick="navigateTo('blog'); return false;" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
       <li class="nav-item">
-        <a href="#applications" class="${screen === 'applications' ? 'active' : ''}">
+        <a href="#applications" onclick="navigateTo('applications'); return false;" class="${screen === 'applications' ? 'active' : ''}">
           Applications${unseenAppNotifs > 0 ? ` <span class="badge-count">${unseenAppNotifs}</span>` : ''}
         </a>
       </li>
-      <li class="nav-item"><a href="#saved" class="${screen === 'saved' ? 'active' : ''}">Saved</a></li>
+      <li class="nav-item"><a href="#saved" onclick="navigateTo('saved'); return false;" class="${screen === 'saved' ? 'active' : ''}">Saved</a></li>
       <li class="nav-item">
-        <a href="#inbox" class="${screen === 'inbox' ? 'active' : ''}">
+        <a href="#inbox" onclick="navigateTo('inbox'); return false;" class="${screen === 'inbox' ? 'active' : ''}">
           Messages${unseenTexts > 0 ? ` <span class="badge-count">${unseenTexts}</span>` : ''}
         </a>
       </li>
@@ -1420,12 +1424,12 @@ function updateNavigation() {
     const currentBizId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
     const unseenBizTexts = (state.conversations || []).reduce((acc, c) => acc + (c.unread_for_business || 0), 0);
     linksHtml = `
-      <li class="nav-item"><a href="#recruiter-dashboard" class="${screen === 'recruiter-dashboard' ? 'active' : ''}">Dashboard</a></li>
-      <li class="nav-item"><a href="#ats" class="${screen === 'ats' ? 'active' : ''}">Candidates</a></li>
-      <li class="nav-item"><a href="#hotels?id=${currentBizId}" class="${screen === 'hotels' ? 'active' : ''}">Hotel Profile</a></li>
-      <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
+      <li class="nav-item"><a href="#recruiter-dashboard" onclick="navigateTo('recruiter-dashboard'); return false;" class="${screen === 'recruiter-dashboard' ? 'active' : ''}">Dashboard</a></li>
+      <li class="nav-item"><a href="#ats" onclick="navigateTo('ats'); return false;" class="${screen === 'ats' ? 'active' : ''}">Candidates</a></li>
+      <li class="nav-item"><a href="#hotels?id=${currentBizId}" onclick="navigateTo('hotels', { id: '${currentBizId}' }); return false;" class="${screen === 'hotels' ? 'active' : ''}">Hotel Profile</a></li>
+      <li class="nav-item"><a href="#blog" onclick="navigateTo('blog'); return false;" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
       <li class="nav-item">
-        <a href="#inbox" class="${screen === 'inbox' ? 'active' : ''}">
+        <a href="#inbox" onclick="navigateTo('inbox'); return false;" class="${screen === 'inbox' ? 'active' : ''}">
           Messages${unseenBizTexts > 0 ? ` <span class="badge-count">${unseenBizTexts}</span>` : ''}
         </a>
       </li>
@@ -1454,10 +1458,11 @@ function updateNavigation() {
     `;
   } else if (role === 'admin' && state.currentUser && state.currentUser.role === 'admin') {
     linksHtml = `
-      <li class="nav-item"><a href="#admin" class="${screen === 'admin' ? 'active' : ''}">${svgIcon('shield_check', '', 14)} Admin Console</a></li>
-      <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
-      <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
-      <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
+      <li class="nav-item"><a href="#admin" onclick="navigateTo('admin'); return false;" class="${screen === 'admin' ? 'active' : ''}">${svgIcon('shield_check', '', 14)} Admin Console</a></li>
+      <li class="nav-item"><a href="#home" onclick="navigateTo('home'); return false;" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
+      <li class="nav-item"><a href="#hotels" onclick="navigateTo('hotels'); return false;" class="${screen === 'hotels' ? 'active' : ''}">Hotels</a></li>
+      <li class="nav-item"><a href="#blog" onclick="navigateTo('blog'); return false;" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
+      <li class="nav-item"><a href="#inbox" onclick="navigateTo('inbox'); return false;" class="${screen === 'inbox' ? 'active' : ''}">Messages</a></li>
     `;
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 10px;">
@@ -1471,10 +1476,11 @@ function updateNavigation() {
   } else {
     // Guest
     linksHtml = `
-      <li class="nav-item"><a href="#home" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
-      <li class="nav-item"><a href="#hotels" class="${screen === 'hotels' ? 'active' : ''}">Employers</a></li>
-      <li class="nav-item"><a href="#blog" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
-      <li class="nav-item"><a href="#resources" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
+      <li class="nav-item"><a href="#home" onclick="navigateTo('home'); return false;" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
+      <li class="nav-item"><a href="#hotels" onclick="navigateTo('hotels'); return false;" class="${screen === 'hotels' ? 'active' : ''}">Employers</a></li>
+      <li class="nav-item"><a href="#blog" onclick="navigateTo('blog'); return false;" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
+      <li class="nav-item"><a href="#inbox" onclick="navigateTo('inbox'); return false;" class="${screen === 'inbox' ? 'active' : ''}">Messages</a></li>
+      <li class="nav-item"><a href="#resources" onclick="navigateTo('resources'); return false;" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
     `;
     actionsHtml = `
       <button class="btn-secondary nav-guest-signin" onclick="startLoginFlow('candidate')">Log In</button>
@@ -1492,7 +1498,7 @@ function updateNavigation() {
   actionsContainer.innerHTML = actionsHtml;
 
   if (mobileNavList) {
-    mobileNavList.innerHTML = linksHtml.replace(/<a\s+href="([^"]+)"/g, '<a href="$1" onclick="closeMobileMenu()"');
+    mobileNavList.innerHTML = linksHtml;
   }
   if (mobileActions) {
     mobileActions.innerHTML = mobileActionsHtml;
@@ -3244,24 +3250,36 @@ async function renderInboxScreen(viewport) {
   const bId = state.currentUser?.business_id || state.activeHotelId;
   const uId = state.currentUser?.id;
 
-  if (isRecruiter && !bId) {
+  if (!state.currentUser || role === 'guest') {
     viewport.innerHTML = `
-      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">✉️</div>
-        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel Messages</h2>
-        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in to your verified hotel account to access candidate messaging.</p>
-        <button class="btn-orange" onclick="startLoginFlow('business')">Employer Log In</button>
+      <div class="empty-state-card" style="padding: 70px 20px; text-align: center; max-width: 620px; margin: 40px auto; background: var(--bg-card); border-radius: 18px; border: 1px solid var(--border-subtle);">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(37, 99, 235, 0.12); color: #60a5fa; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px;">
+          ${svgIcon('messageCircle', '', 32)}
+        </div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px; font-size: 1.4rem;">Direct Messages &amp; Communications Desk</h2>
+        <p style="color: var(--text-muted); max-width: 440px; margin: 0 auto 24px; font-size: 0.92rem; line-height: 1.5;">
+          Sign in to access your direct conversations, interview requests, and communications with verified hotels and candidates.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <button class="btn-orange" style="padding: 10px 22px; font-weight: 700;" onclick="startLoginFlow('candidate')">
+            Candidate Log In
+          </button>
+          <button class="btn-secondary" style="padding: 10px 22px; font-weight: 700;" onclick="startLoginFlow('business')">
+            Hotel Employer Log In
+          </button>
+        </div>
       </div>
     `;
     return;
   }
-  if (!isRecruiter && !uId) {
+
+  if (isRecruiter && !bId) {
     viewport.innerHTML = `
-      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center; max-width: 620px; margin: 40px auto; background: var(--bg-card); border-radius: 18px; border: 1px solid var(--border-subtle);">
         <div style="font-size: 3rem; margin-bottom: 16px;">✉️</div>
-        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Messages</h2>
-        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in as a candidate to view your interview requests and direct messages.</p>
-        <button class="btn-orange" onclick="startLoginFlow('candidate')">Candidate Log In</button>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel Associated</h2>
+        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in with your verified hotel account credentials to access candidate communications.</p>
+        <button class="btn-orange" onclick="startLoginFlow('business')">Employer Log In</button>
       </div>
     `;
     return;
@@ -3293,6 +3311,10 @@ async function renderInboxScreen(viewport) {
   if (convs.length > 0 && !activeConv) {
     activeConv = convs[0];
     state.activeConvId = convs[0].id;
+  }
+
+  if (activeConv) {
+    state.inboxMobileView = 'chat';
   }
 
   let messages = [];
