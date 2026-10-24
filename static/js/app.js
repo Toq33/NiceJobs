@@ -1226,8 +1226,15 @@ async function handleRealtimeEvent(payload) {
         playRealtimeChime();
         const msgContainer = document.getElementById('chat-stream-scroll') || document.getElementById('inbox-chat-messages');
         if (msgContainer) {
+          if (data.message_id && msgContainer.querySelector(`[data-msg-id="${data.message_id}"]`)) {
+            return;
+          }
+          const emptyPrompt = msgContainer.querySelector('.empty-chat-prompt');
+          if (emptyPrompt) emptyPrompt.remove();
+
           const newMsgEl = document.createElement('div');
           newMsgEl.className = 'chat-bubble-row theirs';
+          if (data.message_id) newMsgEl.setAttribute('data-msg-id', data.message_id);
           newMsgEl.style.animation = 'fadeIn 0.25s ease';
           const contentHtml = (typeof renderChatMessageContentHtml === 'function') 
             ? renderChatMessageContentHtml(data.content)
@@ -1240,6 +1247,14 @@ async function handleRealtimeEvent(payload) {
           `;
           msgContainer.appendChild(newMsgEl);
           msgContainer.scrollTop = msgContainer.scrollHeight;
+
+          const activeRow = document.querySelector('.thread-row.active');
+          if (activeRow) {
+            const snip = activeRow.querySelector('.thread-snippet');
+            if (snip) snip.textContent = data.content.startsWith('[') ? 'Attachment' : data.content;
+            const tm = activeRow.querySelector('.thread-time-label');
+            if (tm) tm.textContent = 'Just now';
+          }
         }
       } else {
         playRealtimeChime();
@@ -3384,7 +3399,7 @@ async function renderInboxScreen(viewport) {
             <!-- Messages Stream (Only this scrolls) -->
             <div class="chat-stream-scroll" id="chat-stream-scroll">
               ${messages.length === 0 ? `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); text-align: center; padding: 40px 20px;">
+                <div class="empty-chat-prompt" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); text-align: center; padding: 40px 20px;">
                   <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(37, 99, 235, 0.15); color: #60a5fa; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
                     ${svgIcon('messageCircle', '', 24)}
                   </div>
@@ -3394,11 +3409,13 @@ async function renderInboxScreen(viewport) {
                   </p>
                 </div>
               ` : messages.map(msg => {
-                const isMine = (isRecruiter && msg.sender_role === 'business') || (!isRecruiter && msg.sender_role === 'user');
+                const isMine = (state.currentUser && msg.sender_id === state.currentUser.id)
+                  || (isRecruiter && msg.sender_role === 'business')
+                  || (!isRecruiter && msg.sender_role === 'user');
                 const bodyHtml = renderChatMessageContentHtml(msg.content);
 
                 return `
-                  <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}">
+                  <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}" data-msg-id="${msg.id}">
                     <span class="bubble-author-title">${escapeHtml(msg.sender_name)}</span>
                     ${bodyHtml}
                     <span class="bubble-timestamp">${escapeHtml(msg.timestamp)}</span>
@@ -3452,9 +3469,73 @@ async function renderInboxScreen(viewport) {
       }
     }
   }
+
+  // Start polling heartbeat fallback for live message sync
+  startInboxPolling();
+}
+
+let inboxPollingInterval = null;
+
+function stopInboxPolling() {
+  if (inboxPollingInterval) {
+    clearInterval(inboxPollingInterval);
+    inboxPollingInterval = null;
+  }
+}
+
+function startInboxPolling() {
+  stopInboxPolling();
+  inboxPollingInterval = setInterval(async () => {
+    if (state.currentScreen !== 'inbox' || !state.activeConvId) {
+      stopInboxPolling();
+      return;
+    }
+    const stream = document.getElementById('chat-stream-scroll');
+    if (!stream) return;
+
+    try {
+      const res = await fetch(`/api/conversations/${state.activeConvId}/messages`);
+      if (!res.ok) return;
+      const msgs = await res.json();
+      const isRecruiter = state.currentRole === 'recruiter';
+      let hasNew = false;
+
+      for (const msg of msgs) {
+        if (!stream.querySelector(`[data-msg-id="${msg.id}"]`)) {
+          const emptyPrompt = stream.querySelector('.empty-chat-prompt');
+          if (emptyPrompt) emptyPrompt.remove();
+
+          const isMine = (state.currentUser && msg.sender_id === state.currentUser.id)
+            || (isRecruiter && msg.sender_role === 'business')
+            || (!isRecruiter && msg.sender_role === 'user');
+          const row = document.createElement('div');
+          row.className = `chat-bubble-row ${isMine ? 'mine' : 'theirs'}`;
+          row.setAttribute('data-msg-id', msg.id);
+          row.style.animation = 'fadeIn 0.2s ease';
+          row.innerHTML = `
+            <span class="bubble-author-title">${escapeHtml(msg.sender_name)}</span>
+            ${renderChatMessageContentHtml(msg.content)}
+            <span class="bubble-timestamp">${escapeHtml(msg.timestamp || 'Just now')}</span>
+          `;
+          stream.appendChild(row);
+          hasNew = true;
+        }
+      }
+      if (hasNew) {
+        stream.scrollTop = stream.scrollHeight;
+        const activeRow = document.querySelector('.thread-row.active');
+        if (activeRow && msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1];
+          const snip = activeRow.querySelector('.thread-snippet');
+          if (snip) snip.textContent = lastMsg.content.startsWith('[') ? 'Attachment' : lastMsg.content;
+        }
+      }
+    } catch(e) {}
+  }, 2500);
 }
 
 function navigateOutsideInbox() {
+  stopInboxPolling();
   if (state.lastNonInboxScreen && state.lastNonInboxScreen !== 'inbox' && state.lastNonInboxScreen !== 'messages') {
     navigateTo(state.lastNonInboxScreen);
   } else if (window.history.length > 1) {
@@ -3493,6 +3574,9 @@ function filterInboxThreads(query) {
 async function selectConversation(convId) {
   state.activeConvId = convId;
   state.inboxMobileView = 'chat';
+  try {
+    window.history.replaceState(null, '', `#inbox?conv=${convId}&chat=1`);
+  } catch(e) {}
   const conv = (state.conversations || []).find(c => c.id === convId);
   if (conv) {
     if (state.currentRole === 'jobseeker') {
@@ -3508,7 +3592,6 @@ async function selectConversation(convId) {
     await renderInboxScreen(viewport);
   }
 }
-
 
 function insertMessageTemplate(type) {
   const input = document.getElementById('chat-input-field');
@@ -3530,6 +3613,8 @@ async function sendChatMessage() {
 
   const content = input.value.trim();
   const isRecruiter = state.currentRole === 'recruiter';
+  const tempMsgId = `msg_tmp_${Date.now()}`;
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const payload = {
     conversation_id: state.activeConvId,
@@ -3539,14 +3624,55 @@ async function sendChatMessage() {
     content: content
   };
 
+  // 1. Instantly append to chat stream so user sees their text immediately (0ms delay)
+  const stream = document.getElementById('chat-stream-scroll');
+  if (stream) {
+    const emptyPrompt = stream.querySelector('.empty-chat-prompt');
+    if (emptyPrompt) emptyPrompt.remove();
+
+    const myBubble = document.createElement('div');
+    myBubble.className = 'chat-bubble-row mine';
+    myBubble.setAttribute('data-msg-id', tempMsgId);
+    myBubble.style.animation = 'fadeIn 0.2s ease';
+    myBubble.innerHTML = `
+      <span class="bubble-author-title">${escapeHtml(payload.sender_name)}</span>
+      ${renderChatMessageContentHtml(content)}
+      <span class="bubble-timestamp">${now}</span>
+    `;
+    stream.appendChild(myBubble);
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  // 2. Clear input immediately & keep focus for smooth conversation
+  input.value = '';
+  input.focus();
+
+  // 3. Update left sidebar snippet & time immediately
+  const activeRow = document.querySelector('.thread-row.active');
+  if (activeRow) {
+    const snip = activeRow.querySelector('.thread-snippet');
+    if (snip) snip.textContent = content.startsWith('[') ? 'Attachment' : content;
+    const tm = activeRow.querySelector('.thread-time-label');
+    if (tm) tm.textContent = now;
+  }
+
+  // 4. Background network dispatch
   try {
-    await fetch('/api/messages', {
+    const res = await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    input.value = '';
-    renderInboxScreen(document.getElementById('app-viewport'));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast('Delivery warning: ' + (err.detail || 'Could not send message'), 'warning');
+    } else {
+      const respData = await res.json();
+      if (respData && respData.message_id) {
+        const tempBubble = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+        if (tempBubble) tempBubble.setAttribute('data-msg-id', respData.message_id);
+      }
+    }
   } catch (err) {
     showToast('Failed to send message: ' + err.message, 'danger');
   }
@@ -3674,6 +3800,9 @@ async function finishVoiceRecording() {
 async function sendChatDirectMessage(content) {
   if (!state.activeConvId) return;
   const isRecruiter = state.currentRole === 'recruiter';
+  const tempMsgId = `msg_tmp_${Date.now()}`;
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   const payload = {
     conversation_id: state.activeConvId,
     sender_id: state.currentUser?.id || '',
@@ -3682,17 +3811,52 @@ async function sendChatDirectMessage(content) {
     content: content
   };
 
+  // Instantly append to chat stream
+  const stream = document.getElementById('chat-stream-scroll');
+  if (stream) {
+    const emptyPrompt = stream.querySelector('.empty-chat-prompt');
+    if (emptyPrompt) emptyPrompt.remove();
+
+    const myBubble = document.createElement('div');
+    myBubble.className = 'chat-bubble-row mine';
+    myBubble.setAttribute('data-msg-id', tempMsgId);
+    myBubble.style.animation = 'fadeIn 0.2s ease';
+    myBubble.innerHTML = `
+      <span class="bubble-author-title">${escapeHtml(payload.sender_name)}</span>
+      ${renderChatMessageContentHtml(content)}
+      <span class="bubble-timestamp">${now}</span>
+    `;
+    stream.appendChild(myBubble);
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  // Update left sidebar snippet
+  const activeRow = document.querySelector('.thread-row.active');
+  if (activeRow) {
+    const snip = activeRow.querySelector('.thread-snippet');
+    if (snip) snip.textContent = content.startsWith('[IMAGE]') ? 'Photo attachment' : (content.startsWith('[VOICE]') ? 'Voice message' : 'Document attachment');
+    const tm = activeRow.querySelector('.thread-time-label');
+    if (tm) tm.textContent = now;
+  }
+
   try {
     const res = await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (res.ok) {
-      renderInboxScreen(document.getElementById('app-viewport'));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast('Delivery warning: ' + (err.detail || 'Could not send attachment'), 'warning');
+    } else {
+      const respData = await res.json();
+      if (respData && respData.message_id) {
+        const tempBubble = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+        if (tempBubble) tempBubble.setAttribute('data-msg-id', respData.message_id);
+      }
     }
   } catch (err) {
-    showToast('Failed to send message: ' + err.message, 'danger');
+    showToast('Failed to send attachment: ' + err.message, 'danger');
   }
 }
 
@@ -9527,6 +9691,7 @@ async function handleUserLogin(event) {
     state.currentRole = data.user.role;
     if (data.business) {
       state.activeHotelId = data.business.id;
+      state.currentUser.business_id = data.business.id;
       state.currentUser.title = `${data.business.org_role || 'Recruiter'} (${data.business.brand_name})`;
     } else if (data.profile) {
       state.currentUser.title = `${data.profile.current_position || 'Candidate'} • ${data.profile.department || 'Hospitality'}`;
@@ -13326,7 +13491,11 @@ async function openConversationForJob(jobId, businessId, candidateId) {
   }
 
   state.inboxMobileView = 'chat';
-  navigateTo('inbox');
+  if (state.activeConvId) {
+    navigateTo('inbox', { conv: state.activeConvId, chat: '1' });
+  } else {
+    navigateTo('inbox');
+  }
 }
 
 // Clean and shorten toast text to concise, punchy 2-4 word notifications

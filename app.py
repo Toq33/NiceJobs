@@ -90,14 +90,21 @@ class RealtimeConnectionManager:
             "timestamp": datetime.now().isoformat()
         }
         
-        # 1. Send to WebSockets
         dead_ws = []
         for ws in list(self.active_websockets):
             meta = self.metadata.get(ws, {})
-            if target_user and meta.get("user_id") and meta.get("user_id") != target_user:
-                continue
-            if target_business and meta.get("business_id") and meta.get("business_id") != target_business:
-                continue
+            u_id = meta.get("user_id")
+            b_id = meta.get("business_id")
+
+            if target_user or target_business:
+                matched = False
+                if target_user and u_id == target_user:
+                    matched = True
+                if target_business and b_id == target_business:
+                    matched = True
+                if not matched and (u_id or b_id):
+                    continue
+
             try:
                 await ws.send_json(msg)
             except Exception:
@@ -1648,6 +1655,7 @@ def login(payload: LoginPayload):
                 "email": user["email"],
                 "phone": user["phone"],
                 "role": "recruiter",
+                "business_id": biz["id"],
                 "avatar": user["avatar_url"],
                 "designation": user["designation"] or membership["org_role"],
                 "is_business_admin": True
