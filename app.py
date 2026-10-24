@@ -9,9 +9,11 @@ import time
 import secrets
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Query, Request
+import asyncio
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -50,6 +52,151 @@ def serve_index():
             }
         )
     return {"message": "NiceJobs API is running. index.html will be served here."}
+
+# =======================
+# REAL-TIME ENGINE (WEBSOCKET + SSE BROADCASTER)
+# =======================
+
+class RealtimeConnectionManager:
+    def __init__(self):
+        self.active_websockets: List[WebSocket] = []
+        self.metadata: Dict[WebSocket, Dict[str, Any]] = {}
+        self.sse_queues: List[asyncio.Queue] = []
+
+    async def connect_ws(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_websockets.append(websocket)
+        self.metadata[websocket] = {"user_id": None, "business_id": None, "role": None}
+
+    def disconnect_ws(self, websocket: WebSocket):
+        if websocket in self.active_websockets:
+            self.active_websockets.remove(websocket)
+        self.metadata.pop(websocket, None)
+
+    def set_client_metadata(self, websocket: WebSocket, user_id: Optional[str], business_id: Optional[str], role: Optional[str]):
+        if websocket in self.metadata:
+            self.metadata[websocket] = {
+                "user_id": user_id,
+                "business_id": business_id,
+                "role": role
+            }
+
+    async def broadcast_event(self, event_type: str, data: Optional[Dict[str, Any]] = None, target_user: Optional[str] = None, target_business: Optional[str] = None):
+        msg = {
+            "type": event_type,
+            "data": data or {},
+            "target_user": target_user,
+            "target_business": target_business,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 1. Send to WebSockets
+        dead_ws = []
+        for ws in list(self.active_websockets):
+            meta = self.metadata.get(ws, {})
+            if target_user and meta.get("user_id") and meta.get("user_id") != target_user:
+                continue
+            if target_business and meta.get("business_id") and meta.get("business_id") != target_business:
+                continue
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead_ws.append(ws)
+        for d in dead_ws:
+            self.disconnect_ws(d)
+
+        # 2. Send to SSE subscribers
+        raw_sse = f"data: {json.dumps(msg)}\n\n"
+        dead_queues = []
+        for q in list(self.sse_queues):
+            try:
+                q.put_nowait(raw_sse)
+            except Exception:
+                dead_queues.append(q)
+        for dq in dead_queues:
+            if dq in self.sse_queues:
+                self.sse_queues.remove(dq)
+
+realtime_manager = RealtimeConnectionManager()
+main_event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+@app.on_event("startup")
+async def capture_realtime_loop():
+    global main_event_loop
+    main_event_loop = asyncio.get_running_loop()
+
+def notify_realtime(event_type: str, data: Optional[Dict[str, Any]] = None, target_user: Optional[str] = None, target_business: Optional[str] = None):
+    try:
+        global main_event_loop
+        if main_event_loop is None or not main_event_loop.is_running():
+            try:
+                main_event_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+        
+        if main_event_loop and main_event_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                realtime_manager.broadcast_event(event_type, data, target_user, target_business),
+                main_event_loop
+            )
+    except Exception as e:
+        print(f"[REALTIME NOTIFY ERROR] {e}")
+
+@app.websocket("/ws")
+async def websocket_realtime_endpoint(websocket: WebSocket):
+    await realtime_manager.connect_ws(websocket)
+    try:
+        while True:
+            raw_text = await websocket.receive_text()
+            try:
+                msg = json.loads(raw_text)
+                action = msg.get("action")
+                if action == "identify":
+                    realtime_manager.set_client_metadata(
+                        websocket,
+                        user_id=msg.get("user_id"),
+                        business_id=msg.get("business_id"),
+                        role=msg.get("role")
+                    )
+                    await websocket.send_json({"type": "identified", "status": "ok"})
+                elif action == "ping":
+                    await websocket.send_json({"type": "pong", "time": time.time()})
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        realtime_manager.disconnect_ws(websocket)
+    except Exception:
+        realtime_manager.disconnect_ws(websocket)
+
+@app.get("/api/realtime/stream")
+async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None, business_id: Optional[str] = None):
+    queue = asyncio.Queue()
+    realtime_manager.sse_queues.append(queue)
+
+    async def event_generator():
+        try:
+            yield f"data: {json.dumps({'type': 'connected', 'status': 'ok'})}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    yield data
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            if queue in realtime_manager.sse_queues:
+                realtime_manager.sse_queues.remove(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 # =======================
 # EMAIL NOTIFICATION SYSTEM
@@ -424,6 +571,18 @@ def create_job(payload: JobCreatePayload):
     conn.close()
     invalidate_api_cache("jobs")
 
+    notify_realtime(
+        "job_created",
+        {
+            "job_id": job_id,
+            "title": payload.title,
+            "department": payload.department,
+            "business_id": payload.business_id,
+            "brand_name": biz["brand_name"] if biz else "Hospitality Employer",
+            "is_urgent": payload.is_urgent
+        }
+    )
+
     return {"success": True, "job_id": job_id, "message": "Hospitality vacancy published successfully."}
 
 @app.patch("/api/jobs/{job_id}/status")
@@ -438,6 +597,15 @@ def update_job_status(job_id: str, payload: Dict[str, str]):
     conn.commit()
     conn.close()
     invalidate_api_cache("jobs")
+
+    notify_realtime(
+        "job_status_changed",
+        {
+            "job_id": job_id,
+            "status": status
+        }
+    )
+
     return {"success": True, "job_id": job_id, "status": status}
 
 @app.get("/api/businesses")
@@ -2078,6 +2246,22 @@ NiceJobs Hospitality Talent Operations Desk"""
 
     conn.commit()
     conn.close()
+
+    if job_info:
+        notify_realtime(
+            "application_created",
+            {
+                "application_id": app_id,
+                "job_id": payload.job_id,
+                "job_title": job_info["title"],
+                "business_id": job_info["business_id"],
+                "candidate_name": job_info["candidate_name"],
+                "user_id": payload.user_id,
+                "status": "submitted"
+            },
+            target_business=job_info["business_id"]
+        )
+
     return {"success": True, "application_id": app_id, "message": "Application submitted successfully!"}
 
 class ApplicationStatusUpdatePayload(BaseModel):
@@ -2187,6 +2371,20 @@ NiceJobs Career Support Desk"""
 
     conn.commit()
     conn.close()
+
+    if app_meta:
+        notify_realtime(
+            "application_status_updated",
+            {
+                "application_id": app_id,
+                "status": payload.status,
+                "job_title": app_meta["title"],
+                "brand_name": app_meta["brand_name"],
+                "candidate_name": app_meta["candidate_name"]
+            },
+            target_user=app_meta["user_id"]
+        )
+
     return {"success": True, "status": payload.status, "updated_at": now}
 
 @app.post("/api/conversations/{conv_id}/mark-read")
@@ -2314,6 +2512,20 @@ def send_message(payload: MessageSendPayload):
 
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "chat_message",
+        {
+            "conversation_id": payload.conversation_id,
+            "message_id": msg_id,
+            "sender_id": payload.sender_id,
+            "sender_name": payload.sender_name,
+            "sender_role": payload.sender_role,
+            "content": payload.content,
+            "timestamp": now
+        }
+    )
+
     return {"success": True, "message_id": msg_id, "timestamp": now}
 
 # =======================
@@ -2434,6 +2646,14 @@ def review_verification(verif_id: str, payload: VerificationReviewPayload):
 
     conn.commit()
     conn.close()
+
+    if row:
+        notify_realtime(
+            "business_verified",
+            {"business_id": biz_id, "verification_status": status_val},
+            target_business=biz_id
+        )
+
     return {"success": True, "status": payload.action}
 
 @app.post("/api/admin/verify-business/{business_id}")
@@ -2445,6 +2665,13 @@ def verify_business_direct(business_id: str, payload: Optional[Dict[str, Any]] =
     cursor.execute("UPDATE business_verifications SET status = ? WHERE business_id = ?", ("approved" if new_status == "verified" else "rejected", business_id))
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "business_verified",
+        {"business_id": business_id, "verification_status": new_status},
+        target_business=business_id
+    )
+
     return {"success": True, "business_id": business_id, "verification_status": new_status}
 
 # =======================

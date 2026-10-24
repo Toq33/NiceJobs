@@ -647,6 +647,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadInitialData();
   updateRoleStatusText();
   renderApp();
+  initRealtimeSync();
 });
 
 function parseRoute() {
@@ -960,6 +961,7 @@ function switchRole(role) {
   }
 
   updateNavigation();
+  updateRealtimeHandshake();
 }
 
 async function resetDemoData() {
@@ -1001,6 +1003,276 @@ async function resetDemoData() {
     renderApp();
   } catch (err) {
     showToast('Reset failed: ' + err.message, 'danger');
+  }
+}
+
+// ==========================================================================
+// REAL-TIME SYNC SYSTEM (WEBSOCKET + SSE FALLBACK)
+// ==========================================================================
+
+let realtimeSocket = null;
+let realtimeReconnectTimeout = null;
+let realtimePingInterval = null;
+let realtimeEventSource = null;
+
+function playRealtimeChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12); // A5
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.38);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.38);
+  } catch(e) {}
+}
+
+function initRealtimeSync() {
+  if (window._realtimeInitialized) {
+    updateRealtimeHandshake();
+    return;
+  }
+  window._realtimeInitialized = true;
+  connectRealtimeWebSocket();
+}
+
+function updateRealtimeHandshake() {
+  if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+    try {
+      realtimeSocket.send(JSON.stringify({
+        action: 'identify',
+        user_id: state.currentUser?.id || null,
+        business_id: state.currentUser?.business_id || state.activeHotelId || null,
+        role: state.currentRole || 'guest'
+      }));
+    } catch(e) {}
+  }
+}
+
+function connectRealtimeWebSocket() {
+  if (realtimeSocket && (realtimeSocket.readyState === WebSocket.CONNECTING || realtimeSocket.readyState === WebSocket.OPEN)) {
+    return;
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+  try {
+    realtimeSocket = new WebSocket(wsUrl);
+
+    realtimeSocket.onopen = () => {
+      console.log('[NiceJobs Realtime] Connected to live event stream');
+      updateRealtimeHandshake();
+
+      if (realtimeReconnectTimeout) {
+        clearTimeout(realtimeReconnectTimeout);
+        realtimeReconnectTimeout = null;
+      }
+
+      if (realtimePingInterval) clearInterval(realtimePingInterval);
+      realtimePingInterval = setInterval(() => {
+        if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+          try {
+            realtimeSocket.send(JSON.stringify({ action: 'ping' }));
+          } catch(e) {}
+        }
+      }, 25000);
+    };
+
+    realtimeSocket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        handleRealtimeEvent(payload);
+      } catch(e) {}
+    };
+
+    realtimeSocket.onclose = () => {
+      if (realtimePingInterval) clearInterval(realtimePingInterval);
+      scheduleRealtimeReconnect();
+    };
+
+    realtimeSocket.onerror = () => {
+      try { realtimeSocket.close(); } catch(e) {}
+      scheduleRealtimeReconnect();
+    };
+  } catch(err) {
+    scheduleRealtimeReconnect();
+    connectRealtimeSSEFallback();
+  }
+}
+
+function scheduleRealtimeReconnect() {
+  if (realtimeReconnectTimeout) return;
+  realtimeReconnectTimeout = setTimeout(() => {
+    realtimeReconnectTimeout = null;
+    connectRealtimeWebSocket();
+  }, 3000);
+}
+
+function connectRealtimeSSEFallback() {
+  if (window.EventSource && !realtimeEventSource) {
+    try {
+      realtimeEventSource = new EventSource('/api/realtime/stream');
+      realtimeEventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          handleRealtimeEvent(payload);
+        } catch(e) {}
+      };
+      realtimeEventSource.onerror = () => {
+        if (realtimeEventSource) {
+          realtimeEventSource.close();
+          realtimeEventSource = null;
+        }
+      };
+    } catch(e) {}
+  }
+}
+
+async function handleRealtimeEvent(payload) {
+  if (!payload || !payload.type) return;
+  const { type, data } = payload;
+
+  switch (type) {
+    case 'job_created': {
+      try {
+        const res = await fetch('/api/jobs?status=active');
+        if (res.ok) state.jobs = await res.json();
+      } catch(e) {}
+
+      if (state.currentScreen === 'home') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) {
+          await renderHomeScreen(viewport);
+        }
+      } else if (state.currentScreen === 'recruiter-dashboard') {
+        const myBizId = state.currentUser?.business_id || state.activeHotelId;
+        if (data && data.business_id === myBizId) {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      
+      showToast(`✨ New Vacancy Live: ${escapeHtml(data?.title || 'Job Post')} at ${escapeHtml(data?.brand_name || 'Hospitality Employer')}`, 'success');
+      playRealtimeChime();
+      break;
+    }
+
+    case 'job_status_changed': {
+      try {
+        const res = await fetch('/api/jobs?status=active');
+        if (res.ok) state.jobs = await res.json();
+      } catch(e) {}
+      if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) renderApp();
+      }
+      break;
+    }
+
+    case 'application_created': {
+      const myBizId = state.currentUser?.business_id || state.activeHotelId;
+      if (data && data.business_id && data.business_id === myBizId) {
+        playRealtimeChime();
+        showToast(`💼 New Application! ${escapeHtml(data.candidate_name)} applied for ${escapeHtml(data.job_title)}`, 'success');
+
+        if (state.currentScreen === 'ats') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderATSBoard(viewport);
+        } else if (state.currentScreen === 'recruiter-dashboard') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'application_status_updated': {
+      if (state.currentUser && state.currentUser.role === 'jobseeker') {
+        playRealtimeChime();
+        const statusLabel = (data.status || '').replace('_', ' ').toUpperCase();
+        showToast(`🎉 Application Update: Your application for ${escapeHtml(data.job_title)} is now "${statusLabel}"`, 'success');
+
+        try {
+          const appsRes = await fetch(`/api/applications?user_id=${state.currentUser.id}`);
+          if (appsRes.ok) state.applications = await appsRes.json();
+        } catch(e) {}
+
+        if (state.currentScreen === 'applications') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderApplicationsScreen(viewport);
+        }
+      } else if (state.currentScreen === 'ats') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) await renderATSBoard(viewport);
+      }
+      break;
+    }
+
+    case 'chat_message': {
+      if (state.currentUser && state.currentUser.id === data.sender_id) {
+        return;
+      }
+
+      const currentConvId = state.activeConversationId;
+      if (state.currentScreen === 'inbox' && currentConvId === data.conversation_id) {
+        playRealtimeChime();
+        const msgContainer = document.getElementById('inbox-chat-messages');
+        if (msgContainer) {
+          const newMsgEl = document.createElement('div');
+          newMsgEl.className = 'chat-bubble chat-bubble-received';
+          newMsgEl.style.cssText = 'align-self: flex-start; max-width: 72%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); padding: 10px 14px; border-radius: 14px 14px 14px 2px; color: var(--white); margin-bottom: 8px; animation: fadeIn 0.2s ease;';
+          newMsgEl.innerHTML = `
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-bottom: 3px; font-weight: 600;">${escapeHtml(data.sender_name)}</div>
+            <div style="font-size: 0.88rem; line-height: 1.4;">${escapeHtml(data.content)}</div>
+            <div style="font-size: 0.68rem; color: var(--text-dim); text-align: right; margin-top: 4px;">${escapeHtml(data.timestamp || 'Just now')}</div>
+          `;
+          msgContainer.appendChild(newMsgEl);
+          msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+      } else {
+        playRealtimeChime();
+        showToast(`💬 ${escapeHtml(data.sender_name)}: ${escapeHtml(data.content)}`, 'info');
+        
+        try {
+          if (state.currentUser?.role === 'jobseeker') {
+            const convRes = await fetch(`/api/conversations?user_id=${state.currentUser.id}`);
+            if (convRes.ok) state.conversations = await convRes.json();
+          } else if (state.currentUser?.role === 'recruiter') {
+            const bId = state.currentUser?.business_id || state.activeHotelId;
+            if (bId) {
+              const convRes = await fetch(`/api/conversations?business_id=${bId}`);
+              if (convRes.ok) state.conversations = await convRes.json();
+            }
+          }
+          updateNavigation();
+        } catch(e) {}
+      }
+      break;
+    }
+
+    case 'business_verified': {
+      const myBizId = state.currentUser?.business_id || state.activeHotelId;
+      if (myBizId && myBizId === data.business_id) {
+        playRealtimeChime();
+        showToast('✅ Verification Approved! Your hotel establishment is officially verified.', 'success');
+        if (state.currentBusiness) {
+          state.currentBusiness.verification_status = data.verification_status || 'verified';
+        }
+        if (state.currentScreen === 'recruiter-dashboard') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      break;
+    }
   }
 }
 
