@@ -10,7 +10,7 @@ import secrets
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import asyncio
-from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.responses import StreamingResponse
@@ -2498,6 +2498,148 @@ def get_messages(conv_id: str):
     conn.close()
     return messages
 
+class ConversationInitPayload(BaseModel):
+    business_id: str
+    user_id: str
+    job_id: Optional[str] = None
+    initial_message: Optional[str] = None
+
+@app.post("/api/conversations/init")
+@app.post("/api/conversations/get-or-create")
+def get_or_create_conversation(payload: ConversationInitPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+
+    # Normalize business_id and user_id
+    biz_id = payload.business_id.strip()
+    u_id = payload.user_id.strip()
+    j_id = payload.job_id.strip() if payload.job_id else None
+
+    # Check if a conversation between this candidate and business already exists
+    if j_id:
+        cursor.execute(
+            "SELECT id FROM conversations WHERE business_id = ? AND user_id = ? AND job_id = ?",
+            (biz_id, u_id, j_id)
+        )
+    else:
+        cursor.execute(
+            "SELECT id FROM conversations WHERE business_id = ? AND user_id = ?",
+            (biz_id, u_id)
+        )
+    existing = cursor.fetchone()
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    if existing:
+        conv_id = existing["id"]
+    else:
+        # If no job_id was specified, pick the most recent application or job for context
+        if not j_id:
+            cursor.execute(
+                "SELECT job_id FROM applications WHERE user_id = ? ORDER BY applied_at DESC LIMIT 1",
+                (u_id,)
+            )
+            app_row = cursor.fetchone()
+            if app_row:
+                j_id = app_row["job_id"]
+            else:
+                cursor.execute(
+                    "SELECT id FROM jobs WHERE business_id = ? LIMIT 1",
+                    (biz_id,)
+                )
+                j_row = cursor.fetchone()
+                if j_row:
+                    j_id = j_row["id"]
+
+        conv_id = f"conv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+        initial_snippet = payload.initial_message or "Conversation opened"
+        cursor.execute("""
+            INSERT INTO conversations (id, user_id, business_id, job_id, last_message, last_message_time, unread_for_user, unread_for_business, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0)
+        """, (
+            conv_id,
+            u_id,
+            biz_id,
+            j_id,
+            initial_snippet,
+            now
+        ))
+        conn.commit()
+
+        if payload.initial_message:
+            msg_id = f"msg_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+            cursor.execute("""
+                INSERT INTO messages (id, conversation_id, sender_id, sender_role, sender_name, content, is_action_prompt, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+            """, (
+                msg_id,
+                conv_id,
+                biz_id,
+                "business",
+                "Hotel Recruiter",
+                payload.initial_message,
+                now
+            ))
+            conn.commit()
+
+    # Query full conversation details with joined fields
+    cursor.execute("""
+        SELECT c.*, 
+               b.brand_name, b.logo_url, b.property_type,
+               u.name as candidate_name, u.avatar_url as candidate_avatar,
+               j.title as job_title, j.department,
+               a.id as application_id, a.selected_cv, a.status as application_status
+        FROM conversations c
+        JOIN businesses b ON c.business_id = b.id
+        JOIN users u ON c.user_id = u.id
+        LEFT JOIN jobs j ON c.job_id = j.id
+        LEFT JOIN applications a ON (a.job_id = c.job_id AND a.user_id = c.user_id)
+        WHERE c.id = ?
+    """, (conv_id,))
+    row = cursor.fetchone()
+    conv_data = dict(row) if row else {"id": conv_id, "user_id": u_id, "business_id": biz_id, "job_id": j_id}
+    conn.close()
+
+    return conv_data
+
+@app.post("/api/messages/upload")
+async def upload_chat_media(file: UploadFile = File(...)):
+    # Create permanent media storage directory
+    media_dir = os.path.join(STATIC_DIR, "uploads", "messages")
+    os.makedirs(media_dir, exist_ok=True)
+
+    # Determine file type
+    orig_name = file.filename or "attachment"
+    ext = os.path.splitext(orig_name)[1].lower()
+    if not ext:
+        ext = ".bin"
+
+    f_type = "document"
+    if ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        f_type = "image"
+    elif ext in [".webm", ".mp3", ".wav", ".ogg", ".m4a", ".aac"]:
+        f_type = "audio"
+    elif ext in [".pdf", ".doc", ".docx", ".txt", ".xlsx", ".csv"]:
+        f_type = "document"
+
+    safe_name = f"{f_type}_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}{ext}"
+    dest_path = os.path.join(media_dir, safe_name)
+
+    content_bytes = await file.read()
+    with open(dest_path, "wb") as f:
+        f.write(content_bytes)
+
+    file_size = len(content_bytes)
+    file_url = f"/static/uploads/messages/{safe_name}"
+
+    return {
+        "success": True,
+        "file_url": file_url,
+        "file_name": orig_name,
+        "file_type": f_type,
+        "file_size": file_size
+    }
+
 class MessageSendPayload(BaseModel):
     conversation_id: str
     sender_id: str
@@ -2513,6 +2655,12 @@ def send_message(payload: MessageSendPayload):
 
     msg_id = f"msg_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Fetch conversation to route targeted real-time alerts
+    cursor.execute("SELECT user_id, business_id FROM conversations WHERE id = ?", (payload.conversation_id,))
+    conv_meta = cursor.fetchone()
+    target_user = conv_meta["user_id"] if conv_meta else None
+    target_biz = conv_meta["business_id"] if conv_meta else None
 
     cursor.execute("""
         INSERT INTO messages (id, conversation_id, sender_id, sender_role, sender_name, content, is_action_prompt, timestamp)
@@ -2534,14 +2682,24 @@ def send_message(payload: MessageSendPayload):
         snippet = "Photo attachment"
     elif snippet.startswith('[VOICE'):
         snippet = "Voice message"
+    elif snippet.startswith('[DOC]'):
+        snippet = "Document attachment"
     elif len(snippet) > 80:
         snippet = snippet[:77] + "..."
 
-    cursor.execute("""
-        UPDATE conversations 
-        SET last_message = ?, last_message_time = ?
-        WHERE id = ?
-    """, (snippet, now, payload.conversation_id))
+    # Increment unread counter for recipient
+    if payload.sender_role in ('business', 'recruiter'):
+        cursor.execute("""
+            UPDATE conversations 
+            SET last_message = ?, last_message_time = ?, unread_for_user = COALESCE(unread_for_user, 0) + 1
+            WHERE id = ?
+        """, (snippet, now, payload.conversation_id))
+    else:
+        cursor.execute("""
+            UPDATE conversations 
+            SET last_message = ?, last_message_time = ?, unread_for_business = COALESCE(unread_for_business, 0) + 1
+            WHERE id = ?
+        """, (snippet, now, payload.conversation_id))
 
     conn.commit()
     conn.close()
@@ -2556,7 +2714,9 @@ def send_message(payload: MessageSendPayload):
             "sender_role": payload.sender_role,
             "content": payload.content,
             "timestamp": now
-        }
+        },
+        target_user=target_user,
+        target_business=target_biz
     )
 
     return {"success": True, "message_id": msg_id, "timestamp": now}

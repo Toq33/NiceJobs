@@ -6709,6 +6709,24 @@ body.screen-inbox .main-wrapper {
   font-family: monospace;
 }
 
+.bubble-doc-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 340px;
+  margin-top: 4px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.bubble-doc-box:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
 .recording-active-bar {
   display: flex;
   align-items: center;

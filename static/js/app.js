@@ -1221,25 +1221,33 @@ async function handleRealtimeEvent(payload) {
         return;
       }
 
-      const currentConvId = state.activeConversationId;
+      const currentConvId = state.activeConvId || state.activeConversationId;
       if (state.currentScreen === 'inbox' && currentConvId === data.conversation_id) {
         playRealtimeChime();
-        const msgContainer = document.getElementById('inbox-chat-messages');
+        const msgContainer = document.getElementById('chat-stream-scroll') || document.getElementById('inbox-chat-messages');
         if (msgContainer) {
           const newMsgEl = document.createElement('div');
-          newMsgEl.className = 'chat-bubble chat-bubble-received';
-          newMsgEl.style.cssText = 'align-self: flex-start; max-width: 72%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); padding: 10px 14px; border-radius: 14px 14px 14px 2px; color: var(--white); margin-bottom: 8px; animation: fadeIn 0.2s ease;';
+          newMsgEl.className = 'chat-bubble-row theirs';
+          newMsgEl.style.animation = 'fadeIn 0.25s ease';
+          const contentHtml = (typeof renderChatMessageContentHtml === 'function') 
+            ? renderChatMessageContentHtml(data.content)
+            : `<div class="bubble-text-box">${escapeHtml(data.content)}</div>`;
+
           newMsgEl.innerHTML = `
-            <div style="font-size: 0.72rem; color: var(--text-dim); margin-bottom: 3px; font-weight: 600;">${escapeHtml(data.sender_name)}</div>
-            <div style="font-size: 0.88rem; line-height: 1.4;">${escapeHtml(data.content)}</div>
-            <div style="font-size: 0.68rem; color: var(--text-dim); text-align: right; margin-top: 4px;">${escapeHtml(data.timestamp || 'Just now')}</div>
+            <span class="bubble-author-title">${escapeHtml(data.sender_name)}</span>
+            ${contentHtml}
+            <span class="bubble-timestamp">${escapeHtml(data.timestamp || 'Just now')}</span>
           `;
           msgContainer.appendChild(newMsgEl);
           msgContainer.scrollTop = msgContainer.scrollHeight;
         }
       } else {
         playRealtimeChime();
-        showToast(`💬 ${escapeHtml(data.sender_name)}: ${escapeHtml(data.content)}`, 'info');
+        let preview = data.content || '';
+        if (preview.startsWith('[IMAGE]')) preview = '📷 Sent a photo';
+        else if (preview.startsWith('[VOICE]')) preview = '🎙️ Sent a voice message';
+        else if (preview.startsWith('[DOC]')) preview = '📄 Sent a document';
+        showToast(`💬 ${escapeHtml(data.sender_name)}: ${escapeHtml(preview)}`, 'info');
         
         try {
           if (state.currentUser?.role === 'jobseeker') {
@@ -2647,7 +2655,7 @@ async function renderApplicationsScreen(viewport) {
               <span style="font-size: 0.8rem; color: var(--text-dim);">Updated: ${app.updated_at}</span>
               <div style="display: flex; gap: 10px;">
                 <button class="btn-secondary" style="font-size: 0.82rem;" onclick="openJobDetailModal('${app.job_id}')">View Job</button>
-                <button class="btn-primary" style="font-size: 0.82rem;" onclick="openConversationForJob('${app.job_id}', '${app.business_id}')">${svgIcon('messageCircle', '', 14)} Message</button>
+                <button class="btn-primary" style="font-size: 0.82rem;" onclick="openConversationForJob('${app.job_id}', '${app.business_id}', '${app.user_id}')">${svgIcon('messageCircle', '', 14)} Message</button>
               </div>
             </div>
           </div>
@@ -3247,18 +3255,37 @@ async function renderInboxScreen(viewport) {
   const param = isRecruiter ? `business_id=${bId}` : `user_id=${uId}`;
 
   const convRes = await fetch(`/api/conversations?${param}`);
-  const convs = await convRes.json();
+  let convs = convRes.ok ? await convRes.json() : [];
 
-  if (convs.length > 0 && !state.activeConvId) {
+  let activeConv = null;
+  if (state.activeConvId) {
+    activeConv = convs.find(c => c.id === state.activeConvId);
+    if (!activeConv) {
+      try {
+        const anyRes = await fetch(`/api/conversations?business_id=${bId || ''}&user_id=${uId || ''}`);
+        if (anyRes.ok) {
+          const extra = await anyRes.json();
+          const match = extra.find(c => c.id === state.activeConvId);
+          if (match) {
+            activeConv = match;
+            convs.unshift(match);
+          }
+        }
+      } catch(e) {}
+    }
+  }
+
+  if (convs.length > 0 && !activeConv) {
+    activeConv = convs[0];
     state.activeConvId = convs[0].id;
   }
 
   let messages = [];
-  let activeConv = null;
   if (state.activeConvId) {
-    const msgRes = await fetch(`/api/conversations/${state.activeConvId}/messages`);
-    messages = await msgRes.json();
-    activeConv = convs.find(c => c.id === state.activeConvId) || convs[0];
+    try {
+      const msgRes = await fetch(`/api/conversations/${state.activeConvId}/messages`);
+      if (msgRes.ok) messages = await msgRes.json();
+    } catch(e) {}
   }
 
   viewport.innerHTML = `
@@ -3270,7 +3297,7 @@ async function renderInboxScreen(viewport) {
           </button>
           <div style="min-width: 0; flex: 1;">
             <h1 class="inbox-title-compact">Messages &amp; Communications Desk</h1>
-            <p class="inbox-sub-compact">Direct communication between candidate and hotel employer desk.</p>
+            <p class="inbox-sub-compact">Direct, encrypted communication between candidate and verified employer.</p>
           </div>
         </div>
       </div>
@@ -3285,20 +3312,23 @@ async function renderInboxScreen(viewport) {
 
           <div class="thread-list-scroll" id="thread-list-scroll">
             ${convs.length === 0 ? `
-              <div style="padding: 24px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">No active conversations.</div>
+              <div style="padding: 32px 16px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">
+                <div style="font-size: 1.8rem; margin-bottom: 8px;">💬</div>
+                No active conversations yet.<br>Messages you send or receive will appear here.
+              </div>
             ` : convs.map(c => `
-              <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? c.candidate_name : c.brand_name).toLowerCase()}" data-job="${escapeHtml(c.job_title).toLowerCase()}">
+              <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? (c.candidate_name || 'Candidate') : (c.brand_name || 'Employer')).toLowerCase()}" data-job="${escapeHtml(c.job_title || '').toLowerCase()}">
                 <div class="thread-avatar-wrap">
                   <img src="${isRecruiter ? (c.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (c.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="thread-avatar-img">
                   <span class="thread-role-badge">${isRecruiter ? svgIcon('user', '', 14) : svgIcon('hotel', '', 14)}</span>
                 </div>
                 <div class="thread-meta-body">
                   <div class="thread-headline-row">
-                    <span class="thread-sender-name">${isRecruiter ? c.candidate_name : c.brand_name}</span>
+                    <span class="thread-sender-name">${escapeHtml(isRecruiter ? (c.candidate_name || 'Candidate') : (c.brand_name || 'Employer'))}</span>
                     <span class="thread-time-label">${c.last_message_time ? c.last_message_time.split(' ')[1] : ''}</span>
                   </div>
-                  <div class="thread-job-tag">${svgIcon('briefcase', '', 13)} ${c.job_title}</div>
-                  <div class="thread-snippet">${c.last_message || 'Start conversation...'}</div>
+                  <div class="thread-job-tag">${svgIcon('briefcase', '', 13)} ${escapeHtml(c.job_title || 'Hospitality Post')}</div>
+                  <div class="thread-snippet">${escapeHtml(c.last_message || 'Start conversation...')}</div>
                 </div>
               </div>
             `).join('')}
@@ -3308,7 +3338,7 @@ async function renderInboxScreen(viewport) {
         <!-- Right Panel: Active Chat Stream -->
         <div class="inbox-chat-panel">
           ${activeConv ? `
-            <!-- Context Bar with Job Link & CV Action -->
+            <!-- Context Bar with Job Link & Actions -->
             <div class="chat-context-bar">
               <div class="chat-recipient-meta">
                 <button type="button" class="btn-chat-back-to-threads" onclick="closeMobileChat()" title="Back to conversations">
@@ -3316,17 +3346,19 @@ async function renderInboxScreen(viewport) {
                 </button>
                 <img src="${isRecruiter ? (activeConv.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (activeConv.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="chat-recipient-avatar">
                 <div style="min-width: 0;">
-                  <div class="chat-recipient-name">${isRecruiter ? activeConv.candidate_name : activeConv.brand_name}</div>
+                  <div class="chat-recipient-name">${escapeHtml(isRecruiter ? activeConv.candidate_name : activeConv.brand_name)}</div>
                   <div class="chat-job-context-pill">
-                    ${svgIcon('briefcase', '', 13)} <strong>${activeConv.job_title}</strong>
-                    ${activeConv.application_status ? `<span class="badge-featured" style="margin-left: 6px; text-transform: capitalize;">${activeConv.application_status}</span>` : ''}
+                    ${svgIcon('briefcase', '', 13)} <strong>${escapeHtml(activeConv.job_title || 'Direct Discussion')}</strong>
+                    ${activeConv.application_status ? `<span class="badge-featured" style="margin-left: 6px; text-transform: capitalize;">${escapeHtml(activeConv.application_status)}</span>` : ''}
                   </div>
                 </div>
               </div>
               <div class="chat-actions-group">
-                <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="openJobDetailModal('${activeConv.job_id}')">
-                  Job Details
-                </button>
+                ${activeConv.job_id ? `
+                  <button class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="openJobDetailModal('${activeConv.job_id}')">
+                    Job Details
+                  </button>
+                ` : ''}
                 ${isRecruiter ? (activeConv.application_id ? `
                   <button class="btn-orange" style="padding: 6px 14px; font-size: 0.8rem;" onclick="viewSubmittedApplicationCv('${activeConv.application_id}')">
                     ${svgIcon('fileText', '', 13)} View CV
@@ -3351,59 +3383,37 @@ async function renderInboxScreen(viewport) {
 
             <!-- Messages Stream (Only this scrolls) -->
             <div class="chat-stream-scroll" id="chat-stream-scroll">
-              ${messages.map(msg => {
+              ${messages.length === 0 ? `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); text-align: center; padding: 40px 20px;">
+                  <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(37, 99, 235, 0.15); color: #60a5fa; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                    ${svgIcon('messageCircle', '', 24)}
+                  </div>
+                  <h3 style="color: var(--white); font-weight: 700; margin-bottom: 6px; font-size: 1.05rem;">Direct Channel Ready</h3>
+                  <p style="max-width: 420px; font-size: 0.84rem; color: var(--text-muted); line-height: 1.5; margin: 0;">
+                    Send your first message, share documents, voice notes, or photos directly with <strong>${escapeHtml(isRecruiter ? activeConv.candidate_name : activeConv.brand_name)}</strong>.
+                  </p>
+                </div>
+              ` : messages.map(msg => {
                 const isMine = (isRecruiter && msg.sender_role === 'business') || (!isRecruiter && msg.sender_role === 'user');
-                let messageBodyHtml = '';
-                if (msg.content.startsWith('[IMAGE]:')) {
-                  const imgUrl = msg.content.substring(8).trim();
-                  messageBodyHtml = `
-                    <div class="bubble-image-wrap" onclick="viewChatImageModal('${imgUrl.replace(/'/g, "\\'")}')" title="Click to view full photo">
-                      <img src="${imgUrl}" alt="Photo attachment">
-                    </div>
-                  `;
-                } else if (msg.content.startsWith('[VOICE]:')) {
-                  const parts = msg.content.split(':');
-                  const duration = parts[1] || '0:05';
-                  const audioData = parts.slice(2).join(':');
-                  messageBodyHtml = `
-                    <div class="bubble-voice-box">
-                      <button type="button" class="voice-play-btn" onclick="togglePlayVoiceMessage(this, '${audioData.replace(/'/g, "\\'")}')" title="Play Voice Note">
-                        ${svgIcon('play', '', 14)}
-                      </button>
-                      <div class="voice-wave-bars">
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                        <div class="voice-wave-bar"></div>
-                      </div>
-                      <span class="voice-duration">${duration}</span>
-                    </div>
-                  `;
-                } else {
-                  messageBodyHtml = `<div class="bubble-text-box">${escapeHtml(msg.content)}</div>`;
-                }
+                const bodyHtml = renderChatMessageContentHtml(msg.content);
 
                 return `
                   <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}">
-                    <span class="bubble-author-title">${msg.sender_name}</span>
-                    ${messageBodyHtml}
-                    <span class="bubble-timestamp">${msg.timestamp}</span>
+                    <span class="bubble-author-title">${escapeHtml(msg.sender_name)}</span>
+                    ${bodyHtml}
+                    <span class="bubble-timestamp">${escapeHtml(msg.timestamp)}</span>
                   </div>
                 `;
               }).join('')}
             </div>
 
-            <!-- Input Bar with Image & Voice options for Candidate & Recruiter -->
+            <!-- Input Bar with Image, Voice & Document Options -->
             <div class="chat-composer-row" id="chat-composer-row">
-              <input type="file" id="chat-image-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" onchange="handleChatImageUpload(event)">
-              <button type="button" class="btn-chat-media-btn" onclick="document.getElementById('chat-image-file-input').click()" title="Send Photo / Image">
-                ${svgIcon('camera', '', 18)}
+              <input type="file" id="chat-file-input" accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf, .doc, .docx, .txt" style="display: none;" onchange="handleChatFileUpload(event)">
+              <button type="button" class="btn-chat-media-btn" onclick="document.getElementById('chat-file-input').click()" title="Send Photo or Document">
+                ${svgIcon('paperclip', '', 18)}
               </button>
-              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message... (Press Enter to send)" onkeydown="if(event.key==='Enter') sendChatMessage()">
               <button type="button" class="btn-chat-media-btn btn-chat-mic-btn" id="btn-chat-mic" onclick="startVoiceMessageRecording()" title="Record Voice Note">
                 ${svgIcon('mic', '', 18)}
               </button>
@@ -3412,8 +3422,10 @@ async function renderInboxScreen(viewport) {
               </button>
             </div>
           ` : `
-            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem;">
-              Select a conversation to start messaging.
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 30px;">
+              <div style="font-size: 2.2rem; margin-bottom: 10px;">✉️</div>
+              <h3 style="color: var(--white); font-weight: 700; margin-bottom: 4px;">No Conversation Selected</h3>
+              <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 360px;">Choose a candidate or hotel from the left list, or click 'Message' on an application or review dossier to start chatting.</p>
             </div>
           `}
         </div>
@@ -3540,19 +3552,37 @@ async function sendChatMessage() {
   }
 }
 
-// Image and Voice message recording handlers
-async function handleChatImageUpload(event) {
+async function handleChatFileUpload(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
-  let dataUrl;
-  if (file.size >= 1024 * 1024) {
-    dataUrl = await compressImageFile(file, 1400, 0.90);
-  } else {
-    dataUrl = await readFileAsDataURL(file);
+  const formData = new FormData();
+  formData.append('file', file);
+
+  showToast('Saving attachment to server...', 'info');
+  try {
+    const res = await fetch('/api/messages/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok || !data.file_url) throw new Error(data.detail || 'Upload failed');
+
+    if (data.file_type === 'image') {
+      sendChatDirectMessage(`[IMAGE]:${data.file_url}`);
+    } else if (data.file_type === 'audio') {
+      sendChatDirectMessage(`[VOICE]:Voice Note:${data.file_url}`);
+    } else {
+      sendChatDirectMessage(`[DOC]:${data.file_name || file.name}:${data.file_url}`);
+    }
+    event.target.value = '';
+  } catch (err) {
+    showToast('Failed to upload file: ' + err.message, 'danger');
   }
-  sendChatDirectMessage(`[IMAGE]:${dataUrl}`);
 }
+
+// Backwards compatibility alias
+const handleChatImageUpload = handleChatFileUpload;
 
 let chatVoiceTimer = null;
 let chatVoiceSeconds = 0;
@@ -3578,10 +3608,10 @@ async function startVoiceMessageRecording() {
   } catch (e) {}
 
   row.innerHTML = `
-    <div class="recording-active-bar" style="width: 100%;">
+    <div class="recording-active-bar" style="width: 100%; display: flex; align-items: center; gap: 10px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 8px 14px; border-radius: var(--radius-md);">
       <div class="recording-dot-pulse"></div>
       <span style="color: #ef4444; font-weight: 700; font-size: 0.85rem;" id="recording-time-display">00:00</span>
-      <span style="font-size: 0.76rem; color: rgba(255, 255, 255, 0.7);">Recording voice message...</span>
+      <span style="font-size: 0.76rem; color: rgba(255, 255, 255, 0.8);">Recording voice message...</span>
       <div style="flex: 1;"></div>
       <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelVoiceRecording()">Cancel</button>
       <button type="button" class="btn-orange" style="padding: 4px 12px; font-size: 0.75rem;" onclick="finishVoiceRecording()">Send Voice Note</button>
@@ -3612,22 +3642,33 @@ async function finishVoiceRecording() {
   const secs = String(durSec % 60).padStart(2, '0');
   const durStr = `${mins}:${secs}`;
 
-  let audioPayload = 'voice_note_clip';
+  showToast('Saving voice message to server...', 'info');
+
   if (chatVoiceMediaRecorder && chatVoiceMediaRecorder.state !== 'inactive') {
-    try {
-      chatVoiceMediaRecorder.onstop = () => {
+    chatVoiceMediaRecorder.onstop = async () => {
+      try {
         const blob = new Blob(chatVoiceAudioChunks, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          sendChatDirectMessage(`[VOICE]:${durStr}:${reader.result || audioPayload}`);
-        };
-        reader.readAsDataURL(blob);
-      };
+        const formData = new FormData();
+        formData.append('file', blob, `voice_${Date.now()}.webm`);
+        const res = await fetch('/api/messages/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.file_url) {
+          sendChatDirectMessage(`[VOICE]:${durStr}:${data.file_url}`);
+        } else {
+          showToast('Failed to save voice note', 'danger');
+          renderInboxScreen(document.getElementById('app-viewport'));
+        }
+      } catch(e) {
+        showToast('Voice note error: ' + e.message, 'danger');
+        renderInboxScreen(document.getElementById('app-viewport'));
+      }
+    };
+    try {
       chatVoiceMediaRecorder.stop();
-      return;
     } catch(e) {}
+    return;
   }
-  sendChatDirectMessage(`[VOICE]:${durStr}:${audioPayload}`);
+  renderInboxScreen(document.getElementById('app-viewport'));
 }
 
 async function sendChatDirectMessage(content) {
@@ -3642,19 +3683,21 @@ async function sendChatDirectMessage(content) {
   };
 
   try {
-    await fetch('/api/messages', {
+    const res = await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    renderInboxScreen(document.getElementById('app-viewport'));
+    if (res.ok) {
+      renderInboxScreen(document.getElementById('app-viewport'));
+    }
   } catch (err) {
     showToast('Failed to send message: ' + err.message, 'danger');
   }
 }
 
-function togglePlayVoiceMessage(btn, audioData) {
-  const waveBars = btn.parentElement.querySelectorAll('.voice-wave-bar');
+function togglePlayVoiceMessage(btn, audioUrl) {
+  const waveBars = btn.parentElement ? btn.parentElement.querySelectorAll('.voice-wave-bar') : [];
   const isPlaying = btn.classList.contains('is-playing');
 
   if (isPlaying) {
@@ -3669,7 +3712,9 @@ function togglePlayVoiceMessage(btn, audioData) {
     document.querySelectorAll('.voice-play-btn.is-playing').forEach(b => {
       b.classList.remove('is-playing');
       b.innerHTML = svgIcon('play', '', 14);
-      b.parentElement.querySelectorAll('.voice-wave-bar').forEach(bar => bar.classList.remove('playing'));
+      if (b.parentElement) {
+        b.parentElement.querySelectorAll('.voice-wave-bar').forEach(bar => bar.classList.remove('playing'));
+      }
     });
     if (window._currentVoiceAudio) {
       window._currentVoiceAudio.pause();
@@ -3679,21 +3724,20 @@ function togglePlayVoiceMessage(btn, audioData) {
     btn.innerHTML = svgIcon('pause', '', 14);
     waveBars.forEach(bar => bar.classList.add('playing'));
 
-    if (audioData && audioData.startsWith('data:audio')) {
-      const audio = new Audio(audioData);
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
       window._currentVoiceAudio = audio;
       audio.onended = () => {
         btn.classList.remove('is-playing');
         btn.innerHTML = svgIcon('play', '', 14);
         waveBars.forEach(bar => bar.classList.remove('playing'));
       };
-      audio.play().catch(() => {});
-    } else {
-      setTimeout(() => {
+      audio.play().catch(e => {
+        console.error('Audio play error:', e);
         btn.classList.remove('is-playing');
         btn.innerHTML = svgIcon('play', '', 14);
         waveBars.forEach(bar => bar.classList.remove('playing'));
-      }, 4000);
+      });
     }
   }
 }
@@ -10360,7 +10404,7 @@ async function openCandidateReviewModal(appId) {
                 <!-- 4. Decision Actions Footer -->
                 <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
                   <button type="button" class="btn-secondary" style="font-size: 0.8rem; padding: 9px 12px; white-space: nowrap;" 
-                          onclick="closeModal('modal-cand-review'); openConversationForJob('${app.job_id}', '${app.business_id}');">
+                          onclick="closeModal('modal-cand-review'); openConversationForJob('${app.job_id}', '${app.business_id}', '${app.user_id}');">
                     ${svgIcon('messageCircle', '', 14)} Message
                   </button>
                   <button type="button" class="btn-orange" style="flex: 1; font-size: 0.85rem; font-weight: 800; padding: 9px 16px; justify-content: center;" 
@@ -13236,26 +13280,51 @@ function shareJob(jobId, encodedTitle) {
   }
 }
 
-async function openConversationForJob(jobId, businessId) {
-  const userId = state.currentUser?.id;
-  if (!userId) {
-    openModal('modal-auth');
+async function openConversationForJob(jobId, businessId, candidateId) {
+  const isRecruiter = state.currentRole === 'recruiter';
+  const bId = businessId || state.currentUser?.business_id || state.activeHotelId;
+  const uId = candidateId || (!isRecruiter ? state.currentUser?.id : null);
+
+  if (!state.currentUser) {
+    if (typeof startLoginFlow === 'function') {
+      startLoginFlow(isRecruiter ? 'business' : 'candidate');
+    } else {
+      openAuthModal(isRecruiter ? 'business' : 'candidate');
+    }
     return;
   }
+
+  if (!bId || !uId) {
+    showToast('Could not initialize conversation: missing hotel or candidate identifier.', 'warning');
+    navigateTo('inbox');
+    return;
+  }
+
   try {
-    const res = await fetch(`/api/conversations?user_id=${userId}`);
+    const res = await fetch('/api/conversations/get-or-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business_id: bId,
+        user_id: uId,
+        job_id: jobId || null
+      })
+    });
     if (res.ok) {
-      const convs = await res.json();
-      const match = convs.find(c => (jobId && c.job_id === jobId) || (businessId && c.business_id === businessId));
-      if (match) {
-        state.activeConvId = match.id;
-      } else if (convs.length > 0) {
-        state.activeConvId = convs[0].id;
+      const conv = await res.json();
+      state.activeConvId = conv.id;
+      if (!state.conversations) state.conversations = [];
+      const idx = state.conversations.findIndex(c => c.id === conv.id);
+      if (idx >= 0) {
+        state.conversations[idx] = conv;
+      } else {
+        state.conversations.unshift(conv);
       }
     }
   } catch (err) {
-    console.error('Failed to resolve conversation thread:', err);
+    console.error('Failed to get-or-create conversation thread:', err);
   }
+
   state.inboxMobileView = 'chat';
   navigateTo('inbox');
 }

@@ -37,3 +37,7 @@ scratch/
 *.backup*
 *.db.backup*
 nicejobs.db.backup*
+
+# Uploaded chat media
+static/uploads/messages/*
+!static/uploads/messages/.gitkeep
