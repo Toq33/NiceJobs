@@ -162,6 +162,7 @@ const state = {
   blogs: [],
   profile: null
 };
+window.state = state;
 
 // ==========================================================================
 // Hospitality Schemas & Constant Catalogs
@@ -970,7 +971,7 @@ function switchRole(role) {
   }
 
   updateNavigation();
-  updateRealtimeHandshake();
+  onAuthChange();
 }
 
 async function resetDemoData() {
@@ -1010,6 +1011,7 @@ async function resetDemoData() {
     showToast('Demo reset!', 'success');
     await loadInitialData();
     renderApp();
+    onAuthChange();
   } catch (err) {
     showToast('Reset failed: ' + err.message, 'danger');
   }
@@ -1028,11 +1030,19 @@ const MAX_RECONNECT_DELAY = 30000;
 const realtimeProcessedEventIds = new Set();
 let realtimeSyncDebounce = null;
 
+let sharedAudioCtx = null;
+
 function playRealtimeChime() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioCtx();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+    const ctx = sharedAudioCtx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -1148,13 +1158,33 @@ function updateRealtimeHandshake() {
   }
 }
 
+function onAuthChange() {
+  if (realtimeSocket) {
+    try {
+      realtimeSocket.onclose = null;
+      realtimeSocket.close();
+    } catch(e) {}
+    realtimeSocket = null;
+  }
+  connectRealtimeWebSocket();
+  if (realtimeEventSource) {
+    try { realtimeEventSource.close(); } catch(e) {}
+    realtimeEventSource = null;
+    connectRealtimeSSEFallback();
+  }
+  scheduleSyncMissedUpdates(100);
+}
+
 function connectRealtimeWebSocket() {
   if (realtimeSocket && (realtimeSocket.readyState === WebSocket.CONNECTING || realtimeSocket.readyState === WebSocket.OPEN)) {
     return;
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  const uId = state.currentUser?.id ? `&user_id=${encodeURIComponent(state.currentUser.id)}` : '';
+  const bId = (state.currentUser?.business_id || state.activeHotelId) ? `&business_id=${encodeURIComponent(state.currentUser.business_id || state.activeHotelId)}` : '';
+  const rId = state.currentRole ? `&role=${encodeURIComponent(state.currentRole)}` : '';
+  const wsUrl = `${protocol}//${window.location.host}/ws?v=1${uId}${bId}${rId}`;
 
   try {
     realtimeSocket = new WebSocket(wsUrl);
@@ -1186,8 +1216,11 @@ function connectRealtimeWebSocket() {
     realtimeSocket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+        console.log('[NiceJobs WS RECEIVED]', payload);
         handleRealtimeEvent(payload);
-      } catch(e) {}
+      } catch(e) {
+        console.error('[NiceJobs WS Parse Error]', e);
+      }
     };
 
     realtimeSocket.onclose = () => {
@@ -1443,11 +1476,10 @@ async function handleRealtimeEvent(payload) {
       }
 
       const currentConvId = state.activeConvId || state.activeConversationId;
-      if (state.currentScreen === 'inbox' && currentConvId === data.conversation_id) {
+      const msgContainer = document.getElementById('chat-stream-scroll') || document.getElementById('inbox-chat-messages');
+      if (state.currentScreen === 'inbox' && currentConvId === data.conversation_id && msgContainer) {
         playRealtimeChime();
-        const msgContainer = document.getElementById('chat-stream-scroll') || document.getElementById('inbox-chat-messages');
-        if (msgContainer) {
-          if (data.message_id && msgContainer.querySelector(`[data-msg-id="${data.message_id}"]`)) {
+        if (data.message_id && msgContainer.querySelector(`[data-msg-id="${data.message_id}"]`)) {
             return;
           }
           const emptyPrompt = msgContainer.querySelector('.empty-chat-prompt');
@@ -1476,7 +1508,6 @@ async function handleRealtimeEvent(payload) {
             const tm = activeRow.querySelector('.thread-time-label');
             if (tm) tm.textContent = 'Just now';
           }
-        }
       } else {
         playRealtimeChime();
         let preview = data.content || '';
@@ -3501,6 +3532,7 @@ async function quickLoginCandidate() {
   } catch (e) {}
   updateRoleStatusText();
   updateNavigation();
+  onAuthChange();
   await loadInitialData();
   navigateTo('inbox');
 }
@@ -3524,9 +3556,12 @@ async function quickLoginRecruiter() {
   } catch (e) {}
   updateRoleStatusText();
   updateNavigation();
+  onAuthChange();
   await loadInitialData();
   navigateTo('inbox');
 }
+window.quickLoginCandidate = quickLoginCandidate;
+window.quickLoginRecruiter = quickLoginRecruiter;
 
 async function renderInboxScreen(viewport) {
   const role = state.currentRole;
@@ -5854,6 +5889,7 @@ async function handleCandidateLogin(event) {
     } catch (e) {}
 
     updateRoleStatusText();
+    onAuthChange();
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-seeker')?.classList.add('active');
 
@@ -5977,6 +6013,7 @@ async function handleBusinessLoginPart2(event) {
     } catch (e) {}
 
     updateRoleStatusText();
+    onAuthChange();
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-recruiter')?.classList.add('active');
 
@@ -8629,6 +8666,7 @@ async function finalizeCandidateRegistration() {
     document.getElementById('btn-role-seeker')?.classList.add('active');
     updateRoleStatusText();
     updateNavigation();
+    onAuthChange();
     showToast(data.message || 'Terms accepted! Logged in successfully.', 'success');
     await loadInitialData();
     navigateTo('profile');

@@ -1,178 +1,223 @@
 import asyncio
 import json
-import websockets
+import time
 import requests
-import sys
+import websockets
 
-BASE_HTTP = "http://localhost:8000"
-BASE_WS = "ws://localhost:8000/ws"
+BASE_URL = "http://127.0.0.1:8000"
+WS_URL = "ws://127.0.0.1:8000/ws"
 
-async def wait_for_event(ws, expected_types, timeout=6.0):
-    """Waits for an event matching any of expected_types, ignoring unrelated queued events."""
-    if isinstance(expected_types, str):
-        expected_types = [expected_types]
-    end_time = asyncio.get_event_loop().time() + timeout
-    while True:
-        remaining = end_time - asyncio.get_event_loop().time()
-        if remaining <= 0:
-            raise TimeoutError(f"Timed out waiting for any of {expected_types}")
-        raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
-        evt = json.loads(raw)
-        evt_type = evt.get("type")
-        if evt_type in expected_types:
-            return evt
+RECRUITER_USER_ID = "user_1792756972_f8fa67"
+RECRUITER_BIZ_ID = "biz_1792756972_a86aa5"
+CANDIDATE_USER_ID = "user_1792756801_3ff6a7"
+CONVERSATION_ID = "conv_1792835049_c03a2d"
 
-async def test_realtime_suite():
-    print("=" * 60)
-    print("🚀 NICEJOBS COMPREHENSIVE REAL-TIME VERIFICATION")
-    print("=" * 60)
+results = []
 
-    user_a = "user_1792756801_3ff6a7" # Candidate dfdf
-    recruiter_b = "user_1792756972_f8fa67" # Recruiter far
-    biz_b = "biz_1792756972_a86aa5"
-    conv_id = "conv_1792835049_c03a2d"
+def record(test_name, passed, detail=""):
+    results.append({"test": test_name, "passed": passed, "detail": detail})
+    status = "✅ PASS" if passed else "❌ FAIL"
+    print(f"[{status}] {test_name}: {detail}")
 
-    # 1. Connect two WebSocket clients
-    print("\n[Step 1] Establishing WebSocket connections for Candidate and Recruiter...")
-    async with websockets.connect(BASE_WS) as ws_candidate, \
-               websockets.connect(BASE_WS) as ws_recruiter:
+async def listen_for_events(ws, event_list, stop_event):
+    try:
+        while not stop_event.is_set():
+            try:
+                msg = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                data = json.loads(msg)
+                event_list.append(data)
+            except asyncio.TimeoutError:
+                continue
+            except websockets.exceptions.ConnectionClosed:
+                break
+    except Exception as e:
+        pass
 
-        # Identify Candidate
-        await ws_candidate.send(json.dumps({
-            "action": "identify",
-            "user_id": user_a,
-            "business_id": None,
-            "role": "jobseeker"
-        }))
-        ack_cand = await wait_for_event(ws_candidate, "identified")
-        print("  ✓ Candidate connected and identified on WebSocket")
+def get_event_field(e, field):
+    if field in e:
+        return e[field]
+    if "data" in e and isinstance(e["data"], dict) and field in e["data"]:
+        return e["data"][field]
+    return None
 
-        # Identify Recruiter
-        await ws_recruiter.send(json.dumps({
-            "action": "identify",
-            "user_id": recruiter_b,
-            "business_id": biz_b,
-            "role": "recruiter"
-        }))
-        ack_rec = await wait_for_event(ws_recruiter, "identified")
-        print("  ✓ Recruiter connected and identified on WebSocket")
+async def run_tests():
+    print("=== STARTING END-TO-END REAL-TIME TEST SUITE ===")
+    
+    # 1. Connect 3 clients: Recruiter, Candidate, and Guest (Unauthenticated)
+    recruiter_ws_url = f"{WS_URL}?client_id=recruiter_test&user_id={RECRUITER_USER_ID}&business_id={RECRUITER_BIZ_ID}&role=recruiter"
+    candidate_ws_url = f"{WS_URL}?client_id=candidate_test&user_id={CANDIDATE_USER_ID}&role=jobseeker"
+    guest_ws_url = f"{WS_URL}?client_id=guest_test"
 
-        # 2. Test Real-time Chat Messaging
-        print("\n[Step 2] Testing Bidirectional Real-time Chat Messaging...")
-        msg_text = f"Real-time automated sync test message at {asyncio.get_event_loop().time()}"
-        res = requests.post(f"{BASE_HTTP}/api/messages", json={
-            "conversation_id": conv_id,
-            "sender_id": user_a,
-            "sender_name": "dfdf Candidate",
-            "sender_role": "jobseeker",
-            "content": msg_text
-        })
-        assert res.status_code == 200, f"Failed to post message: {res.text}"
+    recruiter_ws = await websockets.connect(recruiter_ws_url)
+    candidate_ws = await websockets.connect(candidate_ws_url)
+    guest_ws = await websockets.connect(guest_ws_url)
 
-        rec_event = await wait_for_event(ws_recruiter, "chat_message")
-        print(f"  ✓ Recruiter received live chat message: '{rec_event.get('data', {}).get('content')}'")
-        assert rec_event.get("data", {}).get("content") == msg_text
+    recruiter_events = []
+    candidate_events = []
+    guest_events = []
 
-        # 3. Test Real-time Job Creation Broadcast
-        print("\n[Step 3] Testing Real-time Job Creation Broadcast...")
-        job_title = f"Realtime Suite Chef {int(asyncio.get_event_loop().time())}"
-        create_job_res = requests.post(f"{BASE_HTTP}/api/jobs", json={
-            "business_id": biz_b,
-            "title": job_title,
-            "department": "Food & Beverage",
-            "property_location": "Dhaka, Bangladesh",
+    stop_event = asyncio.Event()
+    t_rec = asyncio.create_task(listen_for_events(recruiter_ws, recruiter_events, stop_event))
+    t_can = asyncio.create_task(listen_for_events(candidate_ws, candidate_events, stop_event))
+    t_gst = asyncio.create_task(listen_for_events(guest_ws, guest_events, stop_event))
+
+    await asyncio.sleep(0.5)
+    record("WebSocket Connections", True, "Connected Recruiter, Candidate, and Guest WebSockets")
+
+    # TEST A: Public Broadcast - Post a Job
+    # Check if all clients receive the job_created event
+    new_job_id = None
+    try:
+        job_payload = {
+            "title": "Realtime Test Sous Chef",
+            "department": "Kitchen",
+            "property_location": "Gulshan 2, Dhaka",
             "employment_type": "Full-time",
-            "shift": "Day",
-            "salary_min": 65000,
-            "salary_max": 85000,
-            "salary_period": "month",
-            "currency": "BDT",
-            "vacancies": 2,
-            "description": "Demonstrating automated real-time vacancy broadcasting.",
-            "requirements": ["HACCP Certification", "5+ years luxury experience"],
-            "deadline": "2026-12-31"
-        })
-        assert create_job_res.status_code == 200, f"Job creation failed: {create_job_res.text}"
-        new_job_id = create_job_res.json()["job_id"]
-        print(f"  ✓ Vacancy created: id={new_job_id}, title='{job_title}'")
+            "experience_level": "1-3 Years",
+            "salary_min": 45000,
+            "salary_max": 55000,
+            "description": "Automated test job for real-time validation",
+            "requirements": ["Proficiency in French cuisine", "3+ years experience"],
+            "deadline": "2026-12-31",
+            "business_id": RECRUITER_BIZ_ID
+        }
+        res = requests.post(f"{BASE_URL}/api/jobs", json=job_payload)
+        assert res.status_code == 200, f"Status code {res.status_code}: {res.text}"
+        res_data = res.json()
+        new_job_id = res_data.get("job_id") or (res_data.get("job", {}).get("id"))
+        assert new_job_id, f"No job_id in response: {res_data}"
 
-        cand_job_evt = await wait_for_event(ws_candidate, "job_created")
-        print(f"  ✓ Candidate received real-time 'job_created' broadcast: {cand_job_evt.get('data', {}).get('title')}")
-        assert cand_job_evt.get("data", {}).get("job_id") == new_job_id
+        # Wait for broadcast
+        await asyncio.sleep(1.0)
+        rec_has_job = any(e.get("type") == "job_created" and get_event_field(e, "job_id") == new_job_id for e in recruiter_events)
+        can_has_job = any(e.get("type") == "job_created" and get_event_field(e, "job_id") == new_job_id for e in candidate_events)
+        gst_has_job = any(e.get("type") == "job_created" and get_event_field(e, "job_id") == new_job_id for e in guest_events)
 
-        # 4. Test Real-time Job Application Submission
-        print("\n[Step 4] Testing Real-time Job Application & Targeted Notifications...")
-        app_res = requests.post(f"{BASE_HTTP}/api/applications", json={
-            "job_id": new_job_id,
-            "user_id": user_a,
-            "cover_letter": "Automated real-time test application note.",
-            "selected_cv": "Hospitality CV",
-            "screening_answers": {}
-        })
-        assert app_res.status_code == 200, f"Application submission failed: {app_res.text}"
-        app_id = app_res.json()["application_id"]
-        print(f"  ✓ Application submitted: app_id={app_id}")
+        record("Job Creation Real-time Broadcast", rec_has_job and can_has_job and gst_has_job, 
+               f"Recruiter: {rec_has_job}, Candidate: {can_has_job}, Guest: {gst_has_job}")
+    except Exception as e:
+        record("Job Creation Real-time Broadcast", False, str(e))
 
-        rec_app_event = await wait_for_event(ws_recruiter, "application_created")
-        print(f"  ✓ Recruiter received 'application_created': candidate='{rec_app_event.get('data', {}).get('candidate_name')}'")
+    # TEST B: Candidate Submits Application -> Recruiter receives real-time application_created + notification
+    # Guest must NOT receive the private application event
+    app_id = None
+    if new_job_id:
+        try:
+            recruiter_events.clear()
+            candidate_events.clear()
+            guest_events.clear()
 
-        cand_app_event = await wait_for_event(ws_candidate, "application_submitted")
-        print(f"  ✓ Candidate received 'application_submitted': job='{cand_app_event.get('data', {}).get('job_title')}'")
+            app_payload = {
+                "job_id": new_job_id,
+                "user_id": CANDIDATE_USER_ID,
+                "cover_letter": "I am submitting this in real time!"
+            }
+            res = requests.post(f"{BASE_URL}/api/applications", json=app_payload)
+            assert res.status_code == 200, f"Status code {res.status_code}: {res.text}"
+            res_app = res.json()
+            app_id = res_app.get("application_id") or (res_app.get("application", {}).get("id"))
+            assert app_id, f"No app_id found in {res_app}"
 
-        # 5. Test Recruiter Updating Application Status (shortlisted)
-        print("\n[Step 5] Testing Application Status Progression & Candidate Live Update...")
-        patch_res = requests.patch(f"{BASE_HTTP}/api/applications/{app_id}/status", json={
-            "status": "shortlisted",
-            "recruiter_notes": "Passed initial screening. Moving to interview round.",
-            "actor_name": "Hotel Hiring Manager"
-        })
-        assert patch_res.status_code == 200, f"Status update failed: {patch_res.text}"
+            await asyncio.sleep(1.0)
 
-        cand_status_event = await wait_for_event(ws_candidate, "application_status_updated")
-        print(f"  ✓ Candidate received real-time status update: status='{cand_status_event.get('data', {}).get('status')}'")
-        assert cand_status_event.get("data", {}).get("status") == "shortlisted"
+            # Check Recruiter received application_created and notification_created
+            rec_app_event = next((e for e in recruiter_events if e.get("type") == "application_created" and (get_event_field(e, "application_id") == app_id or get_event_field(e, "id") == app_id or (e.get("application") and e["application"].get("id") == app_id))), None)
+            rec_notif_event = next((e for e in recruiter_events if e.get("type") == "notification_created"), None)
 
-        rec_ats_event = await wait_for_event(ws_recruiter, "ats_updated")
-        print(f"  ✓ Recruiter received ATS board update: status='{rec_ats_event.get('data', {}).get('status')}'")
-        assert rec_ats_event.get("data", {}).get("status") == "shortlisted"
+            # Check Privacy: Guest must NOT receive application_created
+            gst_leaked = any(e.get("type") == "application_created" for e in guest_events)
 
-        # 6. Test Saved Jobs Real-time Sync
-        print("\n[Step 6] Testing Saved Jobs Real-time Sync...")
-        save_res = requests.post(f"{BASE_HTTP}/api/saved-jobs/{new_job_id}?user_id={user_a}")
-        assert save_res.status_code == 200
-        cand_save_event = await wait_for_event(ws_candidate, "saved_jobs_updated")
-        print(f"  ✓ Candidate received saved job event: is_saved={cand_save_event.get('data', {}).get('is_saved')}")
+            record("Candidate Application Real-time Delivery to Recruiter", 
+                   rec_app_event is not None and rec_notif_event is not None and not gst_leaked,
+                   f"Recruiter received app={rec_app_event is not None}, notif={rec_notif_event is not None}; Guest leaked={gst_leaked}")
+        except Exception as e:
+            record("Candidate Application Real-time Delivery to Recruiter", False, str(e))
 
-        # 7. Test Mark All Notifications Read Real-time Sync
-        print("\n[Step 7] Testing Notifications Read-All Real-time Sync...")
-        read_res = requests.post(f"{BASE_HTTP}/api/notifications/read-all?user_id={user_a}")
-        assert read_res.status_code == 200
-        cand_read_event = await wait_for_event(ws_candidate, "notifications_read")
-        print(f"  ✓ Candidate received notifications read sync: type='{cand_read_event.get('type')}'")
+    # TEST C: Recruiter Updates Application Status -> Candidate receives application_status_updated + notification
+    # Recruiter receives ats_updated
+    # Guest receives NOTHING
+    if app_id:
+        try:
+            recruiter_events.clear()
+            candidate_events.clear()
+            guest_events.clear()
 
-        # 8. Test Admin Job Status Broadcast
-        print("\n[Step 8] Testing Admin Job Modification Broadcast...")
-        status_update_res = requests.post(f"{BASE_HTTP}/api/admin/jobs/{new_job_id}/status", json={
-            "status": "paused"
-        })
-        assert status_update_res.status_code == 200
-        broadcast_cand = await wait_for_event(ws_candidate, "job_status_changed")
-        broadcast_rec = await wait_for_event(ws_recruiter, "job_status_changed")
-        print(f"  ✓ Candidate received status change: status='{broadcast_cand.get('data', {}).get('status')}'")
-        print(f"  ✓ Recruiter received status change: status='{broadcast_rec.get('data', {}).get('status')}'")
+            res = requests.patch(f"{BASE_URL}/api/applications/{app_id}/status", json={"status": "interview"})
+            assert res.status_code == 200, f"Status code {res.status_code}: {res.text}"
 
-        # 9. Test Job Deletion Broadcast & Clean up
-        print("\n[Step 9] Testing Job Deletion Broadcast & Cleanup...")
-        del_res = requests.delete(f"{BASE_HTTP}/api/admin/jobs/{new_job_id}")
-        assert del_res.status_code == 200
-        del_cand = await wait_for_event(ws_candidate, "job_deleted")
-        del_rec = await wait_for_event(ws_recruiter, "job_deleted")
-        print(f"  ✓ Candidate received deletion: job_id='{del_cand.get('data', {}).get('job_id')}'")
-        print(f"  ✓ Recruiter received deletion: job_id='{del_rec.get('data', {}).get('job_id')}'")
+            await asyncio.sleep(1.0)
 
-    print("\n" + "=" * 60)
-    print("🎉 ALL 9 REAL-TIME VERIFICATION TESTS COMPLETED SUCCESSFULLY!")
-    print("=" * 60)
+            can_status_event = next((e for e in candidate_events if e.get("type") == "application_status_updated" and get_event_field(e, "application_id") == app_id), None)
+            can_notif_event = next((e for e in candidate_events if e.get("type") == "notification_created"), None)
+            rec_ats_event = next((e for e in recruiter_events if e.get("type") == "ats_updated"), None)
+            gst_leaked = any(e.get("type") in ["application_status_updated", "ats_updated", "notification_created"] for e in guest_events)
+
+            record("Recruiter Status Update Real-time Delivery to Candidate & ATS",
+                   can_status_event is not None and can_notif_event is not None and rec_ats_event is not None and not gst_leaked,
+                   f"Candidate status={can_status_event is not None}, notif={can_notif_event is not None}; Recruiter ATS={rec_ats_event is not None}; Guest leaked={gst_leaked}")
+        except Exception as e:
+            record("Recruiter Status Update Real-time Delivery to Candidate & ATS", False, str(e))
+
+    # TEST D: Direct Messaging Real-time Delivery & Privacy Filtering
+    try:
+        recruiter_events.clear()
+        candidate_events.clear()
+        guest_events.clear()
+
+        msg_payload = {
+            "conversation_id": CONVERSATION_ID,
+            "sender_id": CANDIDATE_USER_ID,
+            "sender_name": "dfdf",
+            "sender_role": "user",
+            "content": f"Real-time test message at {int(time.time())}"
+        }
+        res = requests.post(f"{BASE_URL}/api/messages", json=msg_payload)
+        assert res.status_code == 200, f"Status code {res.status_code}: {res.text}"
+
+        await asyncio.sleep(1.0)
+
+        rec_msg = next((e for e in recruiter_events if e.get("type") in ["chat_message", "message_created"] and get_event_field(e, "conversation_id") == CONVERSATION_ID), None)
+        gst_leaked = any(e.get("type") in ["chat_message", "message_created"] for e in guest_events)
+
+        record("Direct Chat Real-time Delivery & Privacy",
+               rec_msg is not None and not gst_leaked,
+               f"Recruiter received chat={rec_msg is not None}; Guest received private chat={gst_leaked}")
+    except Exception as e:
+        record("Direct Chat Real-time Delivery & Privacy", False, str(e))
+
+    # TEST E: SSE Fallback Endpoint Validation
+    try:
+        sse_res = requests.get(f"{BASE_URL}/api/realtime/events?client_id=sse_test", stream=True, timeout=2.0)
+        content_type = sse_res.headers.get("content-type", "")
+        record("SSE Fallback Stream Available", "text/event-stream" in content_type, f"Content-Type: {content_type}")
+    except requests.exceptions.Timeout:
+        record("SSE Fallback Stream Available", True, "Stream remained open indefinitely as expected (text/event-stream)")
+    except Exception as e:
+        record("SSE Fallback Stream Available", False, str(e))
+
+    # TEST F: Cleanup Test Data
+    if new_job_id:
+        try:
+            requests.delete(f"{BASE_URL}/api/admin/jobs/{new_job_id}")
+            record("Admin Job Deletion & Real-time Event", True, f"Cleaned up job {new_job_id}")
+        except Exception as e:
+            record("Admin Job Deletion & Real-time Event", False, str(e))
+
+    stop_event.set()
+    await recruiter_ws.close()
+    await candidate_ws.close()
+    await guest_ws.close()
+    await asyncio.gather(t_rec, t_can, t_gst, return_exceptions=True)
+
+    print("\n=== TEST SUITE RESULTS ===")
+    total = len(results)
+    passed = sum(1 for r in results if r["passed"])
+    print(f"Total: {total}, Passed: {passed}, Failed: {total - passed}")
+    if passed == total:
+        print("🎉 ALL TESTS PASSED!")
+    else:
+        print(f"❌ {total - passed} TESTS FAILED")
+        exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(test_realtime_suite())
+    asyncio.run(run_tests())

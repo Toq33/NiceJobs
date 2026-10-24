@@ -63,10 +63,10 @@ class RealtimeConnectionManager:
         self.metadata: Dict[WebSocket, Dict[str, Any]] = {}
         self.sse_subscribers: Dict[asyncio.Queue, Dict[str, Any]] = {}
 
-    async def connect_ws(self, websocket: WebSocket):
+    async def connect_ws(self, websocket: WebSocket, user_id: Optional[str] = None, business_id: Optional[str] = None, role: Optional[str] = None):
         await websocket.accept()
         self.active_websockets.append(websocket)
-        self.metadata[websocket] = {"user_id": None, "business_id": None, "role": None}
+        self.metadata[websocket] = {"user_id": user_id, "business_id": business_id, "role": role}
 
     def disconnect_ws(self, websocket: WebSocket):
         if websocket in self.active_websockets:
@@ -156,6 +156,17 @@ def notify_realtime(event_type: str, data: Optional[Dict[str, Any]] = None, targ
                 realtime_manager.broadcast_event(event_type, data, target_user, target_business),
                 main_event_loop
             )
+        else:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop and loop.is_running():
+                    main_event_loop = loop
+                    asyncio.run_coroutine_threadsafe(
+                        realtime_manager.broadcast_event(event_type, data, target_user, target_business),
+                        loop
+                    )
+            except Exception:
+                pass
     except Exception as e:
         print(f"[REALTIME NOTIFY ERROR] {e}")
 
@@ -207,7 +218,18 @@ def dispatch_realtime_notification(user_id: str, title: str, message: str, notif
 
 @app.websocket("/ws")
 async def websocket_realtime_endpoint(websocket: WebSocket):
-    await realtime_manager.connect_ws(websocket)
+    global main_event_loop
+    try:
+        main_event_loop = asyncio.get_running_loop()
+    except Exception:
+        pass
+
+    qp = websocket.query_params
+    u_id = qp.get("user_id")
+    b_id = qp.get("business_id")
+    r_id = qp.get("role")
+
+    await realtime_manager.connect_ws(websocket, user_id=u_id, business_id=b_id, role=r_id)
     try:
         while True:
             raw_text = await websocket.receive_text()
@@ -215,11 +237,14 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
                 msg = json.loads(raw_text)
                 action = msg.get("action")
                 if action == "identify":
+                    u_id = msg.get("user_id")
+                    b_id = msg.get("business_id")
+                    r_id = msg.get("role")
                     realtime_manager.set_client_metadata(
                         websocket,
-                        user_id=msg.get("user_id"),
-                        business_id=msg.get("business_id"),
-                        role=msg.get("role")
+                        user_id=u_id,
+                        business_id=b_id,
+                        role=r_id
                     )
                     await websocket.send_json({"type": "identified", "status": "ok"})
                 elif action == "ping":
@@ -232,7 +257,13 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
         realtime_manager.disconnect_ws(websocket)
 
 @app.get("/api/realtime/stream")
+@app.get("/api/realtime/events")
 async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None, business_id: Optional[str] = None):
+    global main_event_loop
+    try:
+        main_event_loop = asyncio.get_running_loop()
+    except Exception:
+        pass
     queue = asyncio.Queue()
     realtime_manager.sse_subscribers[queue] = {"user_id": user_id, "business_id": business_id}
 
@@ -2852,6 +2883,19 @@ def send_message(payload: MessageSendPayload):
     )
 
     return {"success": True, "message_id": msg_id, "timestamp": now}
+
+@app.post("/api/conversations/{conv_id}/messages")
+def send_conversation_message(conv_id: str, payload: Dict[str, Any]):
+    content = payload.get("content") or payload.get("text") or ""
+    msg_payload = MessageSendPayload(
+        conversation_id=conv_id,
+        sender_id=payload.get("sender_id", ""),
+        sender_role=payload.get("sender_role", "user"),
+        sender_name=payload.get("sender_name", "Anonymous"),
+        content=content,
+        is_action_prompt=bool(payload.get("is_action_prompt", False))
+    )
+    return send_message(msg_payload)
 
 # =======================
 # SAVED JOBS & NOTIFICATIONS
