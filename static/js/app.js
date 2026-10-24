@@ -1938,9 +1938,6 @@ async function renderHomeScreen(viewport) {
     <!-- CANDIDATE LOGGED-IN CONSOLE -->
     <div class="candidate-home-header" style="margin-bottom: 24px;">
       <div style="margin-bottom: 16px;">
-        <div class="hero-chip" style="margin-bottom: 12px;">
-          <span class="orange-dot"></span> Verified Opportunities
-        </div>
         <h1 class="candidate-hero-heading">
           Find Your Next <span class="text-orange">Opportunity</span>
         </h1>
