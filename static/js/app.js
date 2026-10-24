@@ -643,6 +643,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   }
+  initRealtimeSync();
   setupHashRouting();
   updateNavigation();
   updateRoleStatusText();
@@ -651,7 +652,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateNavigation();
   updateRoleStatusText();
   renderApp();
-  initRealtimeSync();
+  updateRealtimeHandshake();
 });
 
 function parseRoute() {
@@ -1022,6 +1023,10 @@ let realtimeSocket = null;
 let realtimeReconnectTimeout = null;
 let realtimePingInterval = null;
 let realtimeEventSource = null;
+let realtimeReconnectAttempts = 0;
+const MAX_RECONNECT_DELAY = 30000;
+const realtimeProcessedEventIds = new Set();
+let realtimeSyncDebounce = null;
 
 function playRealtimeChime() {
   try {
@@ -1048,7 +1053,86 @@ function initRealtimeSync() {
     return;
   }
   window._realtimeInitialized = true;
+
+  window.addEventListener('online', () => {
+    console.log('[NiceJobs Realtime] Network restored online. Checking connection...');
+    if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) {
+      if (realtimeReconnectTimeout) {
+        clearTimeout(realtimeReconnectTimeout);
+        realtimeReconnectTimeout = null;
+      }
+      realtimeReconnectAttempts = 0;
+      connectRealtimeWebSocket();
+    } else {
+      scheduleSyncMissedUpdates(150);
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) {
+        if (realtimeReconnectTimeout) {
+          clearTimeout(realtimeReconnectTimeout);
+          realtimeReconnectTimeout = null;
+        }
+        realtimeReconnectAttempts = 0;
+        connectRealtimeWebSocket();
+      } else {
+        scheduleSyncMissedUpdates(200);
+      }
+    }
+  });
+
   connectRealtimeWebSocket();
+}
+
+function scheduleSyncMissedUpdates(delayMs = 200) {
+  if (realtimeSyncDebounce) clearTimeout(realtimeSyncDebounce);
+  realtimeSyncDebounce = setTimeout(() => {
+    realtimeSyncDebounce = null;
+    syncMissedUpdates();
+  }, delayMs);
+}
+
+async function syncMissedUpdates() {
+  try {
+    const jobsRes = await fetch('/api/jobs?status=active');
+    if (jobsRes.ok) state.jobs = await jobsRes.json();
+
+    if (state.currentUser && state.currentUser.role === 'jobseeker') {
+      const [notifsRes, appsRes, savedRes, convRes] = await Promise.all([
+        fetch(`/api/notifications?user_id=${state.currentUser.id}`),
+        fetch(`/api/applications?user_id=${state.currentUser.id}`),
+        fetch(`/api/saved-jobs?user_id=${state.currentUser.id}`),
+        fetch(`/api/conversations?user_id=${state.currentUser.id}`)
+      ]);
+      if (notifsRes.ok) state.notifications = await notifsRes.json();
+      if (appsRes.ok) state.applications = await appsRes.json();
+      if (savedRes.ok) state.savedJobs = await savedRes.json();
+      if (convRes.ok) state.conversations = await convRes.json();
+    } else if (state.currentUser && state.currentUser.role === 'recruiter') {
+      const bId = state.currentUser.business_id || state.activeHotelId;
+      const [notifsRes, convRes] = await Promise.all([
+        fetch(`/api/notifications?user_id=${state.currentUser.id}`),
+        bId ? fetch(`/api/conversations?business_id=${bId}`) : Promise.resolve(null)
+      ]);
+      if (notifsRes.ok) state.notifications = await notifsRes.json();
+      if (convRes && convRes.ok) state.conversations = await convRes.json();
+    }
+
+    updateNavigation();
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport) {
+      if (state.currentScreen === 'home') await renderHomeScreen(viewport);
+      else if (state.currentScreen === 'applications') await renderApplicationsScreen(viewport);
+      else if (state.currentScreen === 'recruiter-dashboard') await renderRecruiterDashboard(viewport);
+      else if (state.currentScreen === 'ats') await renderATSBoard(viewport);
+      else if (state.currentScreen === 'saved-jobs') await renderSavedJobsScreen(viewport);
+    }
+  } catch (e) {
+    console.warn('[NiceJobs Realtime] Catch-up sync warning:', e);
+  }
 }
 
 function updateRealtimeHandshake() {
@@ -1074,15 +1158,20 @@ function connectRealtimeWebSocket() {
 
   try {
     realtimeSocket = new WebSocket(wsUrl);
+    window.realtimeSocket = realtimeSocket;
 
     realtimeSocket.onopen = () => {
       console.log('[NiceJobs Realtime] Connected to live event stream');
+      realtimeReconnectAttempts = 0;
       updateRealtimeHandshake();
 
       if (realtimeReconnectTimeout) {
         clearTimeout(realtimeReconnectTimeout);
         realtimeReconnectTimeout = null;
       }
+
+      // Perform a catch-up sync on initial connection or reconnect
+      scheduleSyncMissedUpdates(100);
 
       if (realtimePingInterval) clearInterval(realtimePingInterval);
       realtimePingInterval = setInterval(() => {
@@ -1118,16 +1207,24 @@ function connectRealtimeWebSocket() {
 
 function scheduleRealtimeReconnect() {
   if (realtimeReconnectTimeout) return;
+  realtimeReconnectAttempts++;
+  const baseDelay = Math.min(1000 * Math.pow(1.5, Math.min(realtimeReconnectAttempts, 8)), MAX_RECONNECT_DELAY);
+  const jitter = Math.random() * 600;
+  const delay = Math.round(baseDelay + jitter);
+
+  console.log(`[NiceJobs Realtime] Reconnecting in ${delay}ms (attempt #${realtimeReconnectAttempts})...`);
   realtimeReconnectTimeout = setTimeout(() => {
     realtimeReconnectTimeout = null;
     connectRealtimeWebSocket();
-  }, 3000);
+  }, delay);
 }
 
 function connectRealtimeSSEFallback() {
   if (window.EventSource && !realtimeEventSource) {
     try {
-      realtimeEventSource = new EventSource('/api/realtime/stream');
+      const uId = state.currentUser?.id || '';
+      const bId = state.currentUser?.business_id || state.activeHotelId || '';
+      realtimeEventSource = new EventSource(`/api/realtime/stream?user_id=${encodeURIComponent(uId)}&business_id=${encodeURIComponent(bId)}`);
       realtimeEventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -1146,6 +1243,18 @@ function connectRealtimeSSEFallback() {
 
 async function handleRealtimeEvent(payload) {
   if (!payload || !payload.type) return;
+
+  // Deduplicate events to prevent double processing
+  const evtId = payload.event_id || (payload.data && payload.data.event_id);
+  if (evtId) {
+    if (realtimeProcessedEventIds.has(evtId)) return;
+    realtimeProcessedEventIds.add(evtId);
+    if (realtimeProcessedEventIds.size > 300) {
+      const oldestKey = realtimeProcessedEventIds.values().next().value;
+      realtimeProcessedEventIds.delete(oldestKey);
+    }
+  }
+
   const { type, data } = payload;
 
   switch (type) {
@@ -1157,9 +1266,7 @@ async function handleRealtimeEvent(payload) {
 
       if (state.currentScreen === 'home') {
         const viewport = document.getElementById('app-viewport');
-        if (viewport) {
-          await renderHomeScreen(viewport);
-        }
+        if (viewport) await renderHomeScreen(viewport);
       } else if (state.currentScreen === 'recruiter-dashboard') {
         const myBizId = state.currentUser?.business_id || state.activeHotelId;
         if (data && data.business_id === myBizId) {
@@ -1173,14 +1280,32 @@ async function handleRealtimeEvent(payload) {
       break;
     }
 
+    case 'job_updated':
     case 'job_status_changed': {
       try {
         const res = await fetch('/api/jobs?status=active');
         if (res.ok) state.jobs = await res.json();
       } catch(e) {}
-      if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard') {
+      if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard' || state.currentScreen === 'admin-dashboard') {
         const viewport = document.getElementById('app-viewport');
         if (viewport) renderApp();
+      }
+      break;
+    }
+
+    case 'job_deleted': {
+      if (data && data.job_id) {
+        state.jobs = (state.jobs || []).filter(j => j.id !== data.job_id);
+        const card = document.querySelector(`[data-job-id="${data.job_id}"], tr[data-job-id="${data.job_id}"]`);
+        if (card) {
+          card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+          card.style.opacity = '0';
+          card.style.transform = 'scale(0.95)';
+          setTimeout(() => card.remove(), 300);
+        } else if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard' || state.currentScreen === 'admin-dashboard') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) renderApp();
+        }
       }
       break;
     }
@@ -1197,6 +1322,21 @@ async function handleRealtimeEvent(payload) {
         } else if (state.currentScreen === 'recruiter-dashboard') {
           const viewport = document.getElementById('app-viewport');
           if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'application_submitted': {
+      if (state.currentUser && state.currentUser.role === 'jobseeker') {
+        try {
+          const appsRes = await fetch(`/api/applications?user_id=${state.currentUser.id}`);
+          if (appsRes.ok) state.applications = await appsRes.json();
+        } catch(e) {}
+
+        if (state.currentScreen === 'applications') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderApplicationsScreen(viewport);
         }
       }
       break;
@@ -1220,6 +1360,79 @@ async function handleRealtimeEvent(payload) {
       } else if (state.currentScreen === 'ats') {
         const viewport = document.getElementById('app-viewport');
         if (viewport) await renderATSBoard(viewport);
+      }
+      break;
+    }
+
+    case 'ats_updated': {
+      const myBizId = state.currentUser?.business_id || state.activeHotelId;
+      if (state.currentScreen === 'ats') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) await renderATSBoard(viewport);
+      } else if (state.currentScreen === 'recruiter-dashboard') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) await renderRecruiterDashboard(viewport);
+      }
+      break;
+    }
+
+    case 'notification_created': {
+      if (!state.notifications) state.notifications = [];
+      if (!state.notifications.some(n => n.id === data.id)) {
+        state.notifications.unshift(data);
+      }
+      updateNavigation();
+      playRealtimeChime();
+      showToast(`🔔 ${escapeHtml(data.title)}: ${escapeHtml(data.message)}`, 'info');
+      const notifsModal = document.getElementById('modal-notifs');
+      if (notifsModal) {
+        openNotificationsModal();
+      }
+      break;
+    }
+
+    case 'notifications_read': {
+      if (state.notifications) {
+        state.notifications.forEach(n => { n.is_read = 1; });
+      }
+      updateNavigation();
+      const notifsModal = document.getElementById('modal-notifs');
+      if (notifsModal) {
+        openNotificationsModal();
+      }
+      break;
+    }
+
+    case 'saved_jobs_updated': {
+      if (data && data.is_saved !== undefined) {
+        if (data.is_saved) {
+          if (!state.savedJobs) state.savedJobs = [];
+          if (!state.savedJobs.some(j => j.id === data.job_id)) {
+            const match = (state.jobs || []).find(j => j.id === data.job_id);
+            if (match) state.savedJobs.push(match);
+          }
+        } else {
+          if (state.savedJobs) {
+            state.savedJobs = state.savedJobs.filter(j => j.id !== data.job_id);
+          }
+        }
+        if (state.currentScreen === 'saved-jobs') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) renderSavedJobsScreen(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'conversation_created': {
+      if (!state.conversations) state.conversations = [];
+      if (!state.conversations.some(c => c.id === data.id)) {
+        state.conversations.unshift(data);
+      }
+      updateNavigation();
+      if (state.currentScreen === 'inbox') {
+        const viewport = document.getElementById('app-viewport');
+        if (viewport) await renderInboxScreen(viewport);
       }
       break;
     }
@@ -1300,6 +1513,32 @@ async function handleRealtimeEvent(payload) {
         if (state.currentScreen === 'recruiter-dashboard') {
           const viewport = document.getElementById('app-viewport');
           if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'business_updated': {
+      const myBizId = state.currentUser?.business_id || state.activeHotelId;
+      if (data && data.business_id === myBizId) {
+        showToast('🏢 Business profile updated in real time.', 'info');
+        if (state.currentScreen === 'recruiter-dashboard') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderRecruiterDashboard(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'profile_updated': {
+      if (state.currentUser && state.currentUser.id === data.user_id) {
+        try {
+          const profRes = await fetch(`/api/profile?user_id=${state.currentUser.id}`);
+          if (profRes.ok) state.profile = await profRes.json();
+        } catch(e) {}
+        if (state.currentScreen === 'profile') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderProfileScreen(viewport);
         }
       }
       break;

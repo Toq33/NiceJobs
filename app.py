@@ -61,7 +61,7 @@ class RealtimeConnectionManager:
     def __init__(self):
         self.active_websockets: List[WebSocket] = []
         self.metadata: Dict[WebSocket, Dict[str, Any]] = {}
-        self.sse_queues: List[asyncio.Queue] = []
+        self.sse_subscribers: Dict[asyncio.Queue, Dict[str, Any]] = {}
 
     async def connect_ws(self, websocket: WebSocket):
         await websocket.accept()
@@ -87,7 +87,8 @@ class RealtimeConnectionManager:
             "data": data or {},
             "target_user": target_user,
             "target_business": target_business,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "event_id": f"evt_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
         }
         
         dead_ws = []
@@ -102,7 +103,7 @@ class RealtimeConnectionManager:
                     matched = True
                 if target_business and b_id == target_business:
                     matched = True
-                if not matched and (u_id or b_id):
+                if not matched:
                     continue
 
             try:
@@ -112,17 +113,26 @@ class RealtimeConnectionManager:
         for d in dead_ws:
             self.disconnect_ws(d)
 
-        # 2. Send to SSE subscribers
+        # 2. Send to SSE subscribers with matching targets
         raw_sse = f"data: {json.dumps(msg)}\n\n"
         dead_queues = []
-        for q in list(self.sse_queues):
+        for q, meta in list(self.sse_subscribers.items()):
+            u_id = meta.get("user_id")
+            b_id = meta.get("business_id")
+            if target_user or target_business:
+                matched = False
+                if target_user and u_id == target_user:
+                    matched = True
+                if target_business and b_id == target_business:
+                    matched = True
+                if not matched:
+                    continue
             try:
                 q.put_nowait(raw_sse)
             except Exception:
                 dead_queues.append(q)
         for dq in dead_queues:
-            if dq in self.sse_queues:
-                self.sse_queues.remove(dq)
+            self.sse_subscribers.pop(dq, None)
 
 realtime_manager = RealtimeConnectionManager()
 main_event_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -148,6 +158,52 @@ def notify_realtime(event_type: str, data: Optional[Dict[str, Any]] = None, targ
             )
     except Exception as e:
         print(f"[REALTIME NOTIFY ERROR] {e}")
+
+def dispatch_realtime_notification(user_id: str, title: str, message: str, notif_type: str = "general", link: str = "#applications", business_id: Optional[str] = None, cursor = None):
+    notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    should_close = False
+    conn = None
+    if cursor is None:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        should_close = True
+        
+    try:
+        cursor.execute("""
+            INSERT INTO notifications (id, user_id, title, message, type, link, is_read, timestamp, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0)
+        """, (notif_id, user_id, title, message, notif_type, link, now))
+        
+        if should_close and conn:
+            conn.commit()
+            conn.close()
+            
+        notif_data = {
+            "id": notif_id,
+            "user_id": user_id,
+            "title": title,
+            "message": message,
+            "type": notif_type,
+            "link": link,
+            "is_read": 0,
+            "timestamp": now
+        }
+        
+        notify_realtime(
+            "notification_created",
+            notif_data,
+            target_user=user_id,
+            target_business=business_id
+        )
+        return notif_data
+    except Exception as e:
+        print(f"[NOTIFICATION ERROR] {e}")
+        if should_close and conn:
+            try: conn.close()
+            except Exception: pass
+        return None
 
 @app.websocket("/ws")
 async def websocket_realtime_endpoint(websocket: WebSocket):
@@ -178,7 +234,7 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
 @app.get("/api/realtime/stream")
 async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None, business_id: Optional[str] = None):
     queue = asyncio.Queue()
-    realtime_manager.sse_queues.append(queue)
+    realtime_manager.sse_subscribers[queue] = {"user_id": user_id, "business_id": business_id}
 
     async def event_generator():
         try:
@@ -192,8 +248,7 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
                 except asyncio.TimeoutError:
                     yield ": keep-alive\n\n"
         finally:
-            if queue in realtime_manager.sse_queues:
-                realtime_manager.sse_queues.remove(queue)
+            realtime_manager.sse_subscribers.pop(queue, None)
 
     return StreamingResponse(
         event_generator(),
@@ -771,6 +826,13 @@ def update_business_profile(business_id: str, payload: BusinessUpdatePayload):
         cursor.execute(f"UPDATE businesses SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
     conn.close()
+
+    notify_realtime(
+        "business_updated",
+        {"business_id": business_id, "brand_name": payload.brand_name},
+        target_business=business_id
+    )
+
     return {"success": True, "message": "Business profile updated successfully."}
 
 # ==========================================================================
@@ -1499,20 +1561,15 @@ def register_business_user(payload: RegisterBusinessUserPayload):
 
     # If business has an admin, send notification to admin
     if biz["admin_user_id"]:
-        notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-        cursor.execute("""
-            INSERT INTO notifications (id, user_id, title, message, type, link, is_read, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            notif_id,
-            biz["admin_user_id"],
-            "Moderator Join Request",
-            f"A moderator ({payload.name}, {payload.designation}) is trying to join as a moderator for {biz['brand_name']}. Do you approve or not?",
-            "moderator_approval",
-            "#recruiter-dashboard",
-            0,
-            now
-        ))
+        dispatch_realtime_notification(
+            user_id=biz["admin_user_id"],
+            title="Moderator Join Request",
+            message=f"A moderator ({payload.name}, {payload.designation}) is trying to join as a moderator for {biz['brand_name']}. Do you approve or not?",
+            notif_type="moderator_approval",
+            link="#recruiter-dashboard",
+            business_id=biz["id"],
+            cursor=cursor
+        )
 
     conn.commit()
     conn.close()
@@ -1932,6 +1989,13 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
 
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "profile_updated",
+        {"user_id": effective_user_id},
+        target_user=effective_user_id
+    )
+
     return {"success": True, "message": "Career profile updated successfully."}
 
 class CvCreatePayload(BaseModel):
@@ -2239,20 +2303,28 @@ def submit_application(payload: ApplicationSubmitPayload):
 
     if job_info:
         # In-app notification to candidate
-        notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-        cursor.execute("""
-            INSERT INTO notifications (id, user_id, title, message, type, link, is_read, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            notif_id,
-            payload.user_id,
-            "Application Received!",
-            f"Your application for {job_info['title']} has been delivered to the {job_info['brand_name']} hiring team.",
-            "application",
-            "#applications",
-            0,
-            now
-        ))
+        dispatch_realtime_notification(
+            user_id=payload.user_id,
+            title="Application Received!",
+            message=f"Your application for {job_info['title']} has been delivered to the {job_info['brand_name']} hiring team.",
+            notif_type="application",
+            link="#applications",
+            cursor=cursor
+        )
+
+        # Notify business admin/recruiter if exists
+        cursor.execute("SELECT admin_user_id FROM businesses WHERE id = ?", (job_info["business_id"],))
+        biz_owner = cursor.fetchone()
+        if biz_owner and biz_owner["admin_user_id"]:
+            dispatch_realtime_notification(
+                user_id=biz_owner["admin_user_id"],
+                title="New Applicant Received",
+                message=f"{job_info['candidate_name']} applied for {job_info['title']}",
+                notif_type="application",
+                link="#ats",
+                business_id=job_info["business_id"],
+                cursor=cursor
+            )
 
         # Email notification sent to the business official address
         biz_email = job_info["business_email"] or "hr@radissonbd.com"
@@ -2297,10 +2369,24 @@ NiceJobs Hospitality Talent Operations Desk"""
                 "job_title": job_info["title"],
                 "business_id": job_info["business_id"],
                 "candidate_name": job_info["candidate_name"],
+                "candidate_email": job_info["candidate_email"],
                 "user_id": payload.user_id,
-                "status": "submitted"
+                "status": "submitted",
+                "created_at": now
             },
             target_business=job_info["business_id"]
+        )
+        notify_realtime(
+            "application_submitted",
+            {
+                "application_id": app_id,
+                "job_id": payload.job_id,
+                "job_title": job_info["title"],
+                "brand_name": job_info["brand_name"],
+                "status": "submitted",
+                "created_at": now
+            },
+            target_user=payload.user_id
         )
 
     return {"success": True, "application_id": app_id, "message": "Application submitted successfully!"}
@@ -2353,7 +2439,7 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
 
     # Send in-app notification and email to employee
     cursor.execute("""
-        SELECT a.user_id, j.title, b.brand_name, u.email AS candidate_email, u.name AS candidate_name
+        SELECT a.user_id, j.title, j.business_id, b.brand_name, u.email AS candidate_email, u.name AS candidate_name
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
         JOIN businesses b ON j.business_id = b.id
@@ -2364,27 +2450,21 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
 
     if app_meta:
         status_title = payload.status.replace('_', ' ').title()
-        notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         msg = f"{app_meta['brand_name']} updated your application for {app_meta['title']} to '{status_title}'."
         if payload.interview_time:
             msg += f" Interview Scheduled: {payload.interview_time}."
         if payload.recruiter_notes:
             msg += f" Note: {payload.recruiter_notes}"
 
-        # In-App Notification (Unseen)
-        cursor.execute("""
-            INSERT INTO notifications (id, user_id, title, message, type, link, is_read, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            notif_id,
-            app_meta["user_id"],
-            f"Application Status: {status_title}",
-            msg,
-            "application",
-            "#applications",
-            0,
-            now
-        ))
+        # In-App Notification with Real-Time Push to Candidate
+        dispatch_realtime_notification(
+            user_id=app_meta["user_id"],
+            title=f"Application Status: {status_title}",
+            message=msg,
+            notif_type="application",
+            link="#applications",
+            cursor=cursor
+        )
 
         # Email Notification to Candidate
         cand_subject = f"Application Update: {app_meta['title']} at {app_meta['brand_name']}"
@@ -2421,10 +2501,26 @@ NiceJobs Career Support Desk"""
                 "status": payload.status,
                 "job_title": app_meta["title"],
                 "brand_name": app_meta["brand_name"],
-                "candidate_name": app_meta["candidate_name"]
+                "candidate_name": app_meta["candidate_name"],
+                "interview_time": payload.interview_time,
+                "recruiter_notes": payload.recruiter_notes,
+                "updated_at": now
             },
             target_user=app_meta["user_id"]
         )
+        if app_meta.get("business_id"):
+            notify_realtime(
+                "ats_updated",
+                {
+                    "application_id": app_id,
+                    "status": payload.status,
+                    "candidate_name": app_meta["candidate_name"],
+                    "job_title": app_meta["title"],
+                    "interview_time": payload.interview_time,
+                    "updated_at": now
+                },
+                target_business=app_meta["business_id"]
+            )
 
     return {"success": True, "status": payload.status, "updated_at": now}
 
@@ -2607,6 +2703,10 @@ def get_or_create_conversation(payload: ConversationInitPayload):
     row = cursor.fetchone()
     conv_data = dict(row) if row else {"id": conv_id, "user_id": u_id, "business_id": biz_id, "job_id": j_id}
     conn.close()
+
+    if not existing:
+        notify_realtime("conversation_created", conv_data, target_user=u_id)
+        notify_realtime("conversation_created", conv_data, target_business=biz_id)
 
     return conv_data
 
@@ -2794,6 +2894,13 @@ def toggle_save_job(job_id: str, user_id: str = "user_rahim"):
 
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "saved_jobs_updated",
+        {"job_id": job_id, "is_saved": is_saved, "user_id": user_id},
+        target_user=user_id
+    )
+
     return {"is_saved": is_saved}
 
 @app.get("/api/notifications")
@@ -2821,6 +2928,13 @@ def mark_all_notifications_read(user_id: str = "user_rahim"):
     cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "notifications_read",
+        {"user_id": user_id},
+        target_user=user_id
+    )
+
     return {"success": True}
 
 # =======================
@@ -2952,20 +3066,15 @@ def approve_business_member(membership_id: str, reviewer_id: Optional[str] = Non
 
     cursor.execute("UPDATE users SET status = 'active' WHERE id = ?", (mem["user_id"],))
 
-    notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    cursor.execute("""
-        INSERT INTO notifications (id, user_id, title, message, type, link, is_read, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        notif_id,
-        mem["user_id"],
-        "Moderator Account Approved!",
-        "Your access request as business moderator has been approved by the Admin. You can now access your recruitment portal.",
-        "account_approved",
-        "#recruiter-dashboard",
-        0,
-        now
-    ))
+    dispatch_realtime_notification(
+        user_id=mem["user_id"],
+        title="Moderator Account Approved!",
+        message="Your access request as business moderator has been approved by the Admin. You can now access your recruitment portal.",
+        notif_type="account_approved",
+        link="#recruiter-dashboard",
+        business_id=mem["business_id"],
+        cursor=cursor
+    )
 
     conn.commit()
     conn.close()
@@ -2990,6 +3099,17 @@ def reject_business_member(membership_id: str, reviewer_id: Optional[str] = None
     """, (now, reviewer_id or "Business Admin", membership_id))
 
     cursor.execute("UPDATE users SET status = 'rejected' WHERE id = ?", (mem["user_id"],))
+
+    dispatch_realtime_notification(
+        user_id=mem["user_id"],
+        title="Moderator Access Not Approved",
+        message="Your access request as business moderator was not approved at this time.",
+        notif_type="account_rejected",
+        link="#home",
+        business_id=mem["business_id"],
+        cursor=cursor
+    )
+
     conn.commit()
     conn.close()
     return {"success": True, "message": "Moderator request rejected."}
@@ -3315,6 +3435,8 @@ def update_job_status(job_id: str, payload: JobStatusPayload):
     cursor.execute("UPDATE jobs SET status = ? WHERE id = ?", (payload.status, job_id))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
+    notify_realtime("job_status_changed", {"job_id": job_id, "status": payload.status})
     return {"success": True, "job_id": job_id, "status": payload.status}
 
 class JobFeaturePayload(BaseModel):
@@ -3331,6 +3453,8 @@ def toggle_job_feature(job_id: str, payload: JobFeaturePayload):
         cursor.execute("UPDATE jobs SET is_urgent = ? WHERE id = ?", (1 if payload.is_urgent else 0, job_id))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
+    notify_realtime("job_updated", {"job_id": job_id, "is_featured": payload.is_featured, "is_urgent": payload.is_urgent})
     return {"success": True, "job_id": job_id}
 
 @app.delete("/api/admin/jobs/{job_id}")
@@ -3342,6 +3466,8 @@ def delete_job(job_id: str):
     cursor.execute("DELETE FROM saved_jobs WHERE job_id = ?", (job_id,))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
+    notify_realtime("job_deleted", {"job_id": job_id})
     return {"success": True, "message": "Job post deleted successfully."}
 
 @app.get("/api/admin/businesses-list")
