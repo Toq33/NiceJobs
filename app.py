@@ -295,43 +295,72 @@ def check_conversation_authorization(conv_id: str, user_id: Optional[str] = None
     """
     if not conv_id:
         return None
-    conn = database.get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
-    conv = cursor.fetchone()
-    conn.close()
-    if not conv:
-        return None
-
-    conv_dict = dict(conv)
-    if role == "admin":
-        return conv_dict
-
-    u_id = (user_id or "").strip()
-    b_id = (business_id or "").strip()
-
-    # Direct match with candidate
-    if u_id and u_id == conv_dict.get("user_id"):
-        return conv_dict
-
-    # Direct match with business
-    if b_id and b_id == conv_dict.get("business_id"):
-        return conv_dict
-
-    # Check if the user belongs to the business
-    if u_id:
+    try:
         conn = database.get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT business_id, role FROM users WHERE id = ?", (u_id,))
-        u_row = cursor.fetchone()
-        conn.close()
-        if u_row:
-            if u_row["role"] == "admin":
-                return conv_dict
-            if u_row["business_id"] and u_row["business_id"] == conv_dict.get("business_id"):
+        cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
+        conv = cursor.fetchone()
+        if not conv:
+            conn.close()
+            return None
+
+        conv_dict = dict(conv)
+        if role == "admin":
+            conn.close()
+            return conv_dict
+
+        u_id = (user_id or "").strip()
+        b_id = (business_id or "").strip()
+
+        # Direct match with candidate
+        if u_id and u_id == conv_dict.get("user_id"):
+            conn.close()
+            return conv_dict
+
+        # Direct match with business ID
+        if b_id and b_id == conv_dict.get("business_id"):
+            conn.close()
+            return conv_dict
+
+        # If user_id itself is the business ID
+        if u_id and u_id == conv_dict.get("business_id"):
+            conn.close()
+            return conv_dict
+
+        # Check if user belongs to or manages the business
+        target_biz_id = conv_dict.get("business_id")
+        if u_id and target_biz_id:
+            # 1. Check if u_id is the primary business administrator
+            cursor.execute("SELECT id FROM businesses WHERE id = ? AND admin_user_id = ?", (target_biz_id, u_id))
+            if cursor.fetchone():
+                conn.close()
                 return conv_dict
 
-    return None
+            # 2. Check if u_id has an active business membership
+            try:
+                cursor.execute("SELECT id FROM business_memberships WHERE business_id = ? AND user_id = ?", (target_biz_id, u_id))
+                if cursor.fetchone():
+                    conn.close()
+                    return conv_dict
+            except Exception:
+                pass
+
+            # 3. Check if user has global admin role
+            cursor.execute("SELECT role FROM users WHERE id = ?", (u_id,))
+            u_row = cursor.fetchone()
+            if u_row and u_row.get("role") == "admin":
+                conn.close()
+                return conv_dict
+
+        conn.close()
+        return None
+    except Exception as e:
+        print(f"[AUTH ERROR] check_conversation_authorization: {e}")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return None
 
 def dispatch_realtime_notification(user_id: str, title: str, message: str, notif_type: str = "general", link: str = "#applications", business_id: Optional[str] = None, cursor = None):
     notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
@@ -3145,14 +3174,16 @@ class MessageSendPayload(BaseModel):
     content: str
     is_action_prompt: bool = False
     temp_id: Optional[str] = None
+    business_id: Optional[str] = None
 
 @app.post("/api/messages")
 def send_message(payload: MessageSendPayload):
     # 1. Authorization & participant validation
+    biz_identifier = payload.business_id or payload.sender_id
     conv_meta = check_conversation_authorization(
         payload.conversation_id,
         user_id=payload.sender_id,
-        business_id=payload.sender_id,
+        business_id=biz_identifier,
         role=payload.sender_role
     )
     if not conv_meta:

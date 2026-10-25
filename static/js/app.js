@@ -4214,9 +4214,19 @@ function insertMessageTemplate(type) {
 
 async function sendChatMessage() {
   const input = document.getElementById('chat-input-field');
-  if (!input || !input.value.trim() || !state.activeConvId) return;
+  if (!input) return;
+
+  if (!state.activeConvId) {
+    showToast('Please select a conversation from the list to message.', 'warning');
+    return;
+  }
 
   const content = input.value.trim();
+  if (!content) {
+    input.focus();
+    return;
+  }
+
   sendChatTypingStop();
 
   const isRecruiter = state.currentRole === 'recruiter';
@@ -4227,6 +4237,7 @@ async function sendChatMessage() {
     conversation_id: state.activeConvId,
     temp_id: tempMsgId,
     sender_id: state.currentUser?.id || (isRecruiter ? (state.currentUser?.business_id || state.activeHotelId) : ''),
+    business_id: isRecruiter ? (state.currentUser?.business_id || state.activeHotelId || '') : '',
     sender_role: isRecruiter ? 'business' : 'user',
     sender_name: isRecruiter ? (state.currentUser?.name || 'Hotel Recruiter') : (state.currentUser?.name || 'Candidate'),
     content: content
