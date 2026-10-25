@@ -80,6 +80,14 @@ class PostgresCursorWrapper:
         self._cursor.executemany(adapted_query, seq_of_parameters)
         return self
 
+    def executescript(self, script):
+        for stmt in script.split(';'):
+            stmt = stmt.strip()
+            if stmt:
+                adapted = adapt_sql_for_postgres(stmt)
+                self._cursor.execute(adapted)
+        return self
+
     def fetchone(self):
         row = self._cursor.fetchone()
         if row is None:
@@ -615,6 +623,26 @@ def init_db():
     for tbl in ["applications", "notifications", "conversations", "messages"]:
         try:
             cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN is_demo INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
+    for col, typ in [
+        ("status", "TEXT DEFAULT 'sent'"),
+        ("delivered_at", "TEXT"),
+        ("read_at", "TEXT")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE messages ADD COLUMN {col} {typ}")
+        except Exception:
+            pass
+
+    for idx_sql in [
+        "CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON messages (conversation_id, timestamp ASC)",
+        "CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_conversations_biz ON conversations (business_id)"
+    ]:
+        try:
+            cursor.execute(idx_sql)
         except Exception:
             pass
 

@@ -1165,7 +1165,140 @@ function updateRealtimeHandshake() {
         business_id: state.currentUser?.business_id || state.activeHotelId || null,
         role: state.currentRole || 'guest'
       }));
+      if (state.currentScreen === 'inbox' && state.activeConvId) {
+        joinConversationRoom(state.activeConvId);
+      }
     } catch(e) {}
+  }
+}
+
+function joinConversationRoom(convId) {
+  if (!convId || !realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) return;
+  try {
+    realtimeSocket.send(JSON.stringify({
+      action: 'conversation:join',
+      conv_id: convId
+    }));
+  } catch(e) {}
+}
+
+function leaveConversationRoom(convId) {
+  if (!convId || !realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) return;
+  try {
+    realtimeSocket.send(JSON.stringify({
+      action: 'conversation:leave',
+      conv_id: convId
+    }));
+  } catch(e) {}
+}
+
+function sendChatMessageRead(convId) {
+  if (!convId) return;
+  if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+    try {
+      realtimeSocket.send(JSON.stringify({
+        action: 'message:read',
+        conv_id: convId
+      }));
+    } catch(e) {}
+  }
+  const uId = state.currentUser?.id || '';
+  const bId = state.currentUser?.business_id || state.activeHotelId || '';
+  fetch(`/api/conversations/${convId}/mark-read?role=${state.currentRole}&user_id=${encodeURIComponent(uId)}&business_id=${encodeURIComponent(bId)}`, {
+    method: 'POST'
+  }).catch(() => {});
+}
+
+let chatTypingTimeout = null;
+let isCurrentlyTyping = false;
+
+function handleChatTypingInput() {
+  if (!state.activeConvId) return;
+  if (!isCurrentlyTyping && realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+    isCurrentlyTyping = true;
+    try {
+      realtimeSocket.send(JSON.stringify({
+        action: 'typing:start',
+        conv_id: state.activeConvId,
+        sender_name: state.currentUser?.name || (state.currentRole === 'recruiter' ? 'Hotel Recruiter' : 'Candidate')
+      }));
+    } catch(e) {}
+  }
+  if (chatTypingTimeout) clearTimeout(chatTypingTimeout);
+  chatTypingTimeout = setTimeout(sendChatTypingStop, 2500);
+}
+
+function sendChatTypingStop() {
+  if (chatTypingTimeout) {
+    clearTimeout(chatTypingTimeout);
+    chatTypingTimeout = null;
+  }
+  if (isCurrentlyTyping && realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN && state.activeConvId) {
+    isCurrentlyTyping = false;
+    try {
+      realtimeSocket.send(JSON.stringify({
+        action: 'typing:stop',
+        conv_id: state.activeConvId
+      }));
+    } catch(e) {}
+  } else {
+    isCurrentlyTyping = false;
+  }
+}
+
+function renderChatMessageStatusHtml(msg, isMine) {
+  if (!isMine) return '';
+  const status = msg.status || 'sent';
+  if (status === 'sending') {
+    return `<span class="bubble-status-mark status-sending" title="Sending...">🕒</span>`;
+  } else if (status === 'delivered') {
+    return `<span class="bubble-status-mark status-delivered" title="Delivered to recipient">✓✓</span>`;
+  } else if (status === 'read') {
+    return `<span class="bubble-status-mark status-read" title="Read by recipient">✓✓</span>`;
+  }
+  return `<span class="bubble-status-mark status-sent" title="Sent to server">✓</span>`;
+}
+
+function renderChatPresenceHtml(isOnline) {
+  return `
+    <span class="chat-presence-pill ${isOnline ? 'online' : 'offline'}" id="chat-counterpart-presence">
+      <span class="presence-dot"></span>
+      <span class="presence-label">${isOnline ? 'Active now' : 'Offline'}</span>
+    </span>
+  `;
+}
+
+function renderChatBubbleHtml(msg, isMine) {
+  const bodyHtml = (typeof renderChatMessageContentHtml === 'function')
+    ? renderChatMessageContentHtml(msg.content)
+    : `<div class="bubble-text-box">${escapeHtml(msg.content)}</div>`;
+  const statusHtml = renderChatMessageStatusHtml(msg, isMine);
+  return `
+    <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}" data-msg-id="${msg.id || msg.temp_id || ''}">
+      <span class="bubble-author-title">${escapeHtml(msg.sender_name || (isMine ? 'You' : 'Participant'))}</span>
+      ${bodyHtml}
+      <span class="bubble-timestamp">
+        <span>${escapeHtml(msg.timestamp || 'Just now')}</span>
+        ${statusHtml}
+      </span>
+    </div>
+  `;
+}
+
+function moveThreadRowToTop(convId, snippetText, timeText) {
+  const container = document.getElementById('thread-list-scroll');
+  if (!container) return;
+  const row = container.querySelector(`[data-conv-id="${convId}"], .thread-row.active`);
+  if (row) {
+    if (snippetText !== undefined) {
+      const snip = row.querySelector('.thread-snippet');
+      if (snip) snip.textContent = snippetText.startsWith('[') ? 'Attachment' : snippetText;
+    }
+    if (timeText !== undefined) {
+      const tm = row.querySelector('.thread-time-label');
+      if (tm) tm.textContent = timeText;
+    }
+    container.insertBefore(row, container.firstChild);
   }
 }
 
@@ -1483,64 +1616,198 @@ async function handleRealtimeEvent(payload) {
     }
 
     case 'chat_message': {
-      if (state.currentUser && state.currentUser.id === data.sender_id) {
-        return;
-      }
-
       const currentConvId = state.activeConvId || state.activeConversationId;
-      const msgContainer = document.getElementById('chat-stream-scroll') || document.getElementById('inbox-chat-messages');
-      if (state.currentScreen === 'inbox' && currentConvId === data.conversation_id && msgContainer) {
-        playRealtimeChime();
-        if (data.message_id && msgContainer.querySelector(`[data-msg-id="${data.message_id}"]`)) {
+      const isCurrentActive = (state.currentScreen === 'inbox' && currentConvId === data.conversation_id);
+      const isMine = (state.currentUser && data.sender_id === state.currentUser.id)
+        || (state.currentRole === 'recruiter' && data.sender_role === 'business')
+        || (state.currentRole !== 'recruiter' && data.sender_role === 'user');
+
+      const stream = document.getElementById('chat-stream-scroll');
+      if (isCurrentActive && stream) {
+        // If my message and temporary bubble exists, upgrade it
+        if (data.temp_id) {
+          const tempBubble = stream.querySelector(`[data-msg-id="${data.temp_id}"]`);
+          if (tempBubble) {
+            tempBubble.setAttribute('data-msg-id', data.message_id || data.temp_id);
+            const mark = tempBubble.querySelector('.bubble-status-mark');
+            if (mark) {
+              if (data.status === 'delivered') {
+                mark.className = 'bubble-status-mark status-delivered';
+                mark.textContent = '✓✓';
+              } else if (data.status === 'read') {
+                mark.className = 'bubble-status-mark status-read';
+                mark.textContent = '✓✓';
+              } else {
+                mark.className = 'bubble-status-mark status-sent';
+                mark.textContent = '✓';
+              }
+            }
+            moveThreadRowToTop(data.conversation_id, data.content, data.timestamp ? data.timestamp.split(' ')[1] : 'Just now');
             return;
           }
-          const emptyPrompt = msgContainer.querySelector('.empty-chat-prompt');
-          if (emptyPrompt) emptyPrompt.remove();
+        }
 
-          const newMsgEl = document.createElement('div');
-          newMsgEl.className = 'chat-bubble-row theirs';
-          if (data.message_id) newMsgEl.setAttribute('data-msg-id', data.message_id);
-          newMsgEl.style.animation = 'fadeIn 0.25s ease';
-          const contentHtml = (typeof renderChatMessageContentHtml === 'function') 
-            ? renderChatMessageContentHtml(data.content)
-            : `<div class="bubble-text-box">${escapeHtml(data.content)}</div>`;
+        // Check if message already in stream by message_id
+        if (data.message_id && stream.querySelector(`[data-msg-id="${data.message_id}"]`)) {
+          return;
+        }
 
-          newMsgEl.innerHTML = `
-            <span class="bubble-author-title">${escapeHtml(data.sender_name)}</span>
-            ${contentHtml}
-            <span class="bubble-timestamp">${escapeHtml(data.timestamp || 'Just now')}</span>
-          `;
-          msgContainer.appendChild(newMsgEl);
-          msgContainer.scrollTop = msgContainer.scrollHeight;
+        // Smart scroll detection before adding
+        const isNearBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight < 120);
 
-          const activeRow = document.querySelector('.thread-row.active');
-          if (activeRow) {
-            const snip = activeRow.querySelector('.thread-snippet');
-            if (snip) snip.textContent = data.content.startsWith('[') ? 'Attachment' : data.content;
-            const tm = activeRow.querySelector('.thread-time-label');
-            if (tm) tm.textContent = 'Just now';
-          }
+        const emptyPrompt = stream.querySelector('.empty-chat-prompt');
+        if (emptyPrompt) emptyPrompt.remove();
+
+        const typingRow = document.getElementById('chat-typing-indicator');
+        if (typingRow) typingRow.style.display = 'none';
+
+        const bubbleRow = document.createElement('div');
+        bubbleRow.className = `chat-bubble-row ${isMine ? 'mine' : 'theirs'}`;
+        if (data.message_id) bubbleRow.setAttribute('data-msg-id', data.message_id);
+        bubbleRow.style.animation = 'fadeIn 0.2s ease';
+
+        const bodyHtml = (typeof renderChatMessageContentHtml === 'function') 
+          ? renderChatMessageContentHtml(data.content)
+          : `<div class="bubble-text-box">${escapeHtml(data.content)}</div>`;
+        const statusHtml = renderChatMessageStatusHtml(data, isMine);
+
+        bubbleRow.innerHTML = `
+          <span class="bubble-author-title">${escapeHtml(data.sender_name || (isMine ? 'You' : 'Participant'))}</span>
+          ${bodyHtml}
+          <span class="bubble-timestamp">
+            <span>${escapeHtml(data.timestamp || 'Just now')}</span>
+            ${statusHtml}
+          </span>
+        `;
+
+        if (typingRow) {
+          stream.insertBefore(bubbleRow, typingRow);
+        } else {
+          stream.appendChild(bubbleRow);
+        }
+
+        if (isNearBottom || isMine) {
+          stream.scrollTop = stream.scrollHeight;
+        }
+
+        // Move thread to top
+        moveThreadRowToTop(data.conversation_id, data.content, data.timestamp ? data.timestamp.split(' ')[1] : 'Just now');
+
+        if (!isMine) {
+          playRealtimeChime();
+          // Send instant read receipt since active conversation is open in view
+          sendChatMessageRead(data.conversation_id);
+        }
       } else {
-        playRealtimeChime();
-        let preview = data.content || '';
-        if (preview.startsWith('[IMAGE]')) preview = '📷 Sent a photo';
-        else if (preview.startsWith('[VOICE]')) preview = '🎙️ Sent a voice message';
-        else if (preview.startsWith('[DOC]')) preview = '📄 Sent a document';
-        showToast(`💬 ${escapeHtml(data.sender_name)}: ${escapeHtml(preview)}`, 'info');
-        
-        try {
-          if (state.currentUser?.role === 'jobseeker') {
-            const convRes = await fetch(`/api/conversations?user_id=${state.currentUser.id}`);
-            if (convRes.ok) state.conversations = await convRes.json();
-          } else if (state.currentUser?.role === 'recruiter') {
-            const bId = state.currentUser?.business_id || state.activeHotelId;
-            if (bId) {
-              const convRes = await fetch(`/api/conversations?business_id=${bId}`);
-              if (convRes.ok) state.conversations = await convRes.json();
+        // Different conversation or different screen
+        if (!isMine) {
+          playRealtimeChime();
+          let preview = data.content || '';
+          if (preview.startsWith('[IMAGE]')) preview = '📷 Sent a photo';
+          else if (preview.startsWith('[VOICE]')) preview = '🎙️ Sent a voice message';
+          else if (preview.startsWith('[DOC]')) preview = '📄 Sent a document';
+          showToast(`💬 ${escapeHtml(data.sender_name)}: ${escapeHtml(preview)}`, 'info');
+
+          // Increment unread count in state and update navbar
+          const conv = (state.conversations || []).find(c => c.id === data.conversation_id);
+          if (conv) {
+            if (state.currentRole === 'recruiter') {
+              conv.unread_for_business = (conv.unread_for_business || 0) + 1;
+            } else {
+              conv.unread_for_user = (conv.unread_for_user || 0) + 1;
             }
+            conv.last_message = data.content;
+            conv.last_message_time = data.timestamp;
           }
           updateNavigation();
-        } catch(e) {}
+
+          // Update left sidebar thread row if inbox is currently rendered
+          if (state.currentScreen === 'inbox') {
+            const threadEl = document.querySelector(`[data-conv-id="${data.conversation_id}"]`);
+            if (threadEl) {
+              const snip = threadEl.querySelector('.thread-snippet');
+              if (snip) snip.textContent = data.content.startsWith('[') ? 'Attachment' : data.content;
+              const tm = threadEl.querySelector('.thread-time-label');
+              if (tm) tm.textContent = data.timestamp ? data.timestamp.split(' ')[1] : 'Just now';
+              
+              let pill = threadEl.querySelector('.thread-unread-pill');
+              const curCount = conv ? (state.currentRole === 'recruiter' ? conv.unread_for_business : conv.unread_for_user) : 1;
+              if (pill) {
+                pill.textContent = curCount;
+              } else {
+                const metaRow = threadEl.querySelector('.thread-meta-body > div:last-child');
+                if (metaRow) {
+                  const newPill = document.createElement('span');
+                  newPill.className = 'thread-unread-pill';
+                  newPill.textContent = curCount;
+                  metaRow.appendChild(newPill);
+                }
+              }
+              moveThreadRowToTop(data.conversation_id);
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    case 'message:read': {
+      if (state.currentScreen === 'inbox' && state.activeConvId === data.conversation_id) {
+        const stream = document.getElementById('chat-stream-scroll');
+        if (stream) {
+          const marks = stream.querySelectorAll('.chat-bubble-row.mine .bubble-status-mark');
+          marks.forEach(m => {
+            m.className = 'bubble-status-mark status-read';
+            m.textContent = '✓✓';
+            m.title = `Read by recipient at ${data.read_at || 'just now'}`;
+          });
+        }
+      }
+      break;
+    }
+
+    case 'typing:update': {
+      if (state.currentScreen === 'inbox' && state.activeConvId === data.conversation_id) {
+        const indicator = document.getElementById('chat-typing-indicator');
+        const label = document.getElementById('chat-typing-label');
+        if (indicator) {
+          if (data.is_typing) {
+            if (label) label.textContent = `${escapeHtml(data.sender_name || 'Participant')} is typing...`;
+            indicator.style.display = 'flex';
+            const stream = document.getElementById('chat-stream-scroll');
+            if (stream && (stream.scrollHeight - stream.scrollTop - stream.clientHeight < 100)) {
+              stream.scrollTop = stream.scrollHeight;
+            }
+          } else {
+            indicator.style.display = 'none';
+          }
+        }
+      }
+      break;
+    }
+
+    case 'presence:update': {
+      if (state.currentScreen === 'inbox' && state.activeConvId) {
+        const pill = document.getElementById('chat-counterpart-presence');
+        if (pill) {
+          const isOnline = data.status === 'online';
+          pill.className = `chat-presence-pill ${isOnline ? 'online' : 'offline'}`;
+          const label = pill.querySelector('.presence-label');
+          if (label) label.textContent = isOnline ? 'Active now' : 'Offline';
+        }
+      }
+      break;
+    }
+
+    case 'conversation:joined': {
+      if (state.currentScreen === 'inbox' && state.activeConvId === data.conv_id) {
+        const pill = document.getElementById('chat-counterpart-presence');
+        if (pill && data.counterpart_online !== undefined) {
+          const isOnline = Boolean(data.counterpart_online);
+          pill.className = `chat-presence-pill ${isOnline ? 'online' : 'offline'}`;
+          const label = pill.querySelector('.presence-label');
+          if (label) label.textContent = isOnline ? 'Active now' : 'Offline';
+        }
       }
       break;
     }
@@ -3650,7 +3917,7 @@ async function renderInboxScreen(viewport) {
     </div>
   `;
 
-  const param = isRecruiter ? `business_id=${bId}` : `user_id=${uId}`;
+  const param = isRecruiter ? `business_id=${encodeURIComponent(bId || '')}` : `user_id=${encodeURIComponent(uId || '')}`;
 
   const convRes = await fetch(`/api/conversations?${param}`);
   let convs = convRes.ok ? await convRes.json() : [];
@@ -3660,7 +3927,7 @@ async function renderInboxScreen(viewport) {
     activeConv = convs.find(c => c.id === state.activeConvId);
     if (!activeConv) {
       try {
-        const anyRes = await fetch(`/api/conversations?business_id=${bId || ''}&user_id=${uId || ''}`);
+        const anyRes = await fetch(`/api/conversations?business_id=${encodeURIComponent(bId || '')}&user_id=${encodeURIComponent(uId || '')}`);
         if (anyRes.ok) {
           const extra = await anyRes.json();
           const match = extra.find(c => c.id === state.activeConvId);
@@ -3683,11 +3950,23 @@ async function renderInboxScreen(viewport) {
   }
 
   let messages = [];
+  let counterpartOnline = false;
   if (state.activeConvId) {
     try {
-      const msgRes = await fetch(`/api/conversations/${state.activeConvId}/messages`);
+      const msgRes = await fetch(`/api/conversations/${state.activeConvId}/messages?user_id=${encodeURIComponent(uId || '')}&business_id=${encodeURIComponent(bId || '')}&role=${encodeURIComponent(role || '')}`);
       if (msgRes.ok) messages = await msgRes.json();
     } catch(e) {}
+
+    try {
+      const presRes = await fetch(`/api/conversations/${state.activeConvId}/presence?current_role=${encodeURIComponent(role)}&current_user_id=${encodeURIComponent(uId || '')}`);
+      if (presRes.ok) {
+        const presData = await presRes.json();
+        counterpartOnline = Boolean(presData.is_online);
+      }
+    } catch(e) {}
+
+    // Join real-time room for instant message delivery
+    joinConversationRoom(state.activeConvId);
   }
 
   viewport.innerHTML = `
@@ -3718,8 +3997,10 @@ async function renderInboxScreen(viewport) {
                 <div style="font-size: 1.8rem; margin-bottom: 8px;">💬</div>
                 No active conversations yet.<br>Messages you send or receive will appear here.
               </div>
-            ` : convs.map(c => `
-              <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? (c.candidate_name || 'Candidate') : (c.brand_name || 'Employer')).toLowerCase()}" data-job="${escapeHtml(c.job_title || '').toLowerCase()}">
+            ` : convs.map(c => {
+              const unread = isRecruiter ? (c.unread_for_business || 0) : (c.unread_for_user || 0);
+              return `
+              <div class="thread-row ${c.id === state.activeConvId ? 'active' : ''}" data-conv-id="${c.id}" onclick="selectConversation('${c.id}')" data-sender="${escapeHtml(isRecruiter ? (c.candidate_name || 'Candidate') : (c.brand_name || 'Employer')).toLowerCase()}" data-job="${escapeHtml(c.job_title || '').toLowerCase()}">
                 <div class="thread-avatar-wrap">
                   <img src="${isRecruiter ? (c.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (c.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="thread-avatar-img">
                   <span class="thread-role-badge">${isRecruiter ? svgIcon('user', '', 14) : svgIcon('hotel', '', 14)}</span>
@@ -3730,10 +4011,13 @@ async function renderInboxScreen(viewport) {
                     <span class="thread-time-label">${c.last_message_time ? c.last_message_time.split(' ')[1] : ''}</span>
                   </div>
                   <div class="thread-job-tag">${svgIcon('briefcase', '', 13)} ${escapeHtml(c.job_title || 'Hospitality Post')}</div>
-                  <div class="thread-snippet">${escapeHtml(c.last_message || 'Start conversation...')}</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="thread-snippet" style="flex: 1; min-width: 0;">${escapeHtml(c.last_message || 'Start conversation...')}</div>
+                    ${unread > 0 ? `<span class="thread-unread-pill">${unread}</span>` : ''}
+                  </div>
                 </div>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
         </div>
 
@@ -3748,7 +4032,10 @@ async function renderInboxScreen(viewport) {
                 </button>
                 <img src="${isRecruiter ? (activeConv.candidate_avatar || DEFAULT_AVATAR_PREVIEW) : (activeConv.logo_url || DEFAULT_HOTEL_LOGO)}" alt="Avatar" class="chat-recipient-avatar">
                 <div style="min-width: 0;">
-                  <div class="chat-recipient-name">${escapeHtml(isRecruiter ? activeConv.candidate_name : activeConv.brand_name)}</div>
+                  <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                    <span class="chat-recipient-name">${escapeHtml(isRecruiter ? activeConv.candidate_name : activeConv.brand_name)}</span>
+                    ${renderChatPresenceHtml(counterpartOnline)}
+                  </div>
                   <div class="chat-job-context-pill">
                     ${svgIcon('briefcase', '', 13)} <strong>${escapeHtml(activeConv.job_title || 'Direct Discussion')}</strong>
                     ${activeConv.application_status ? `<span class="badge-featured" style="margin-left: 6px; text-transform: capitalize;">${escapeHtml(activeConv.application_status)}</span>` : ''}
@@ -3799,16 +4086,16 @@ async function renderInboxScreen(viewport) {
                 const isMine = (state.currentUser && msg.sender_id === state.currentUser.id)
                   || (isRecruiter && msg.sender_role === 'business')
                   || (!isRecruiter && msg.sender_role === 'user');
-                const bodyHtml = renderChatMessageContentHtml(msg.content);
-
-                return `
-                  <div class="chat-bubble-row ${isMine ? 'mine' : 'theirs'}" data-msg-id="${msg.id}">
-                    <span class="bubble-author-title">${escapeHtml(msg.sender_name)}</span>
-                    ${bodyHtml}
-                    <span class="bubble-timestamp">${escapeHtml(msg.timestamp)}</span>
-                  </div>
-                `;
+                return renderChatBubbleHtml(msg, isMine);
               }).join('')}
+              <div class="chat-typing-row" id="chat-typing-indicator" style="display: none;">
+                <div class="chat-typing-bubble">
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                </div>
+                <span class="chat-typing-label" id="chat-typing-label">Typing...</span>
+              </div>
             </div>
 
             <!-- Input Bar with Image, Voice & Document Options -->
@@ -3817,7 +4104,7 @@ async function renderInboxScreen(viewport) {
               <button type="button" class="btn-chat-media-btn" onclick="document.getElementById('chat-file-input').click()" title="Send Photo or Document">
                 ${svgIcon('paperclip', '', 18)}
               </button>
-              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message... (Press Enter to send)" onkeydown="if(event.key==='Enter') sendChatMessage()">
+              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message... (Press Enter to send)" oninput="handleChatTypingInput()" onblur="sendChatTypingStop()" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendChatMessage(); }">
               <button type="button" class="btn-chat-media-btn btn-chat-mic-btn" id="btn-chat-mic" onclick="startVoiceMessageRecording()" title="Record Voice Note">
                 ${svgIcon('mic', '', 18)}
               </button>
@@ -3837,92 +4124,20 @@ async function renderInboxScreen(viewport) {
     </div>
   `;
 
-  // Auto-scroll to bottom of chat history (user can scroll up freely to review all earlier messages)
+  // Auto-scroll to bottom of chat history on initial render
   const scrollBox = document.getElementById('chat-stream-scroll');
   if (scrollBox) scrollBox.scrollTop = scrollBox.scrollHeight;
 
   // Mark active conversation read if viewing
   if (state.activeConvId) {
-    const activeConvObj = (state.conversations || []).find(c => c.id === state.activeConvId);
-    if (activeConvObj) {
-      if (!isRecruiter && activeConvObj.unread_for_user > 0) {
-        activeConvObj.unread_for_user = 0;
-        fetch(`/api/conversations/${state.activeConvId}/mark-read?role=jobseeker`, { method: 'POST' }).catch(() => {});
-        updateNavigation();
-      } else if (isRecruiter && activeConvObj.unread_for_business > 0) {
-        activeConvObj.unread_for_business = 0;
-        fetch(`/api/conversations/${state.activeConvId}/mark-read?role=recruiter`, { method: 'POST' }).catch(() => {});
-        updateNavigation();
-      }
-    }
+    sendChatMessageRead(state.activeConvId);
   }
-
-  // Start polling heartbeat fallback for live message sync
-  startInboxPolling();
-}
-
-let inboxPollingInterval = null;
-
-function stopInboxPolling() {
-  if (inboxPollingInterval) {
-    clearInterval(inboxPollingInterval);
-    inboxPollingInterval = null;
-  }
-}
-
-function startInboxPolling() {
-  stopInboxPolling();
-  inboxPollingInterval = setInterval(async () => {
-    if (state.currentScreen !== 'inbox' || !state.activeConvId) {
-      stopInboxPolling();
-      return;
-    }
-    const stream = document.getElementById('chat-stream-scroll');
-    if (!stream) return;
-
-    try {
-      const res = await fetch(`/api/conversations/${state.activeConvId}/messages`);
-      if (!res.ok) return;
-      const msgs = await res.json();
-      const isRecruiter = state.currentRole === 'recruiter';
-      let hasNew = false;
-
-      for (const msg of msgs) {
-        if (!stream.querySelector(`[data-msg-id="${msg.id}"]`)) {
-          const emptyPrompt = stream.querySelector('.empty-chat-prompt');
-          if (emptyPrompt) emptyPrompt.remove();
-
-          const isMine = (state.currentUser && msg.sender_id === state.currentUser.id)
-            || (isRecruiter && msg.sender_role === 'business')
-            || (!isRecruiter && msg.sender_role === 'user');
-          const row = document.createElement('div');
-          row.className = `chat-bubble-row ${isMine ? 'mine' : 'theirs'}`;
-          row.setAttribute('data-msg-id', msg.id);
-          row.style.animation = 'fadeIn 0.2s ease';
-          row.innerHTML = `
-            <span class="bubble-author-title">${escapeHtml(msg.sender_name)}</span>
-            ${renderChatMessageContentHtml(msg.content)}
-            <span class="bubble-timestamp">${escapeHtml(msg.timestamp || 'Just now')}</span>
-          `;
-          stream.appendChild(row);
-          hasNew = true;
-        }
-      }
-      if (hasNew) {
-        stream.scrollTop = stream.scrollHeight;
-        const activeRow = document.querySelector('.thread-row.active');
-        if (activeRow && msgs.length > 0) {
-          const lastMsg = msgs[msgs.length - 1];
-          const snip = activeRow.querySelector('.thread-snippet');
-          if (snip) snip.textContent = lastMsg.content.startsWith('[') ? 'Attachment' : lastMsg.content;
-        }
-      }
-    } catch(e) {}
-  }, 2500);
 }
 
 function navigateOutsideInbox() {
-  stopInboxPolling();
+  if (state.activeConvId) {
+    leaveConversationRoom(state.activeConvId);
+  }
   if (state.lastNonInboxScreen && state.lastNonInboxScreen !== 'inbox' && state.lastNonInboxScreen !== 'messages') {
     navigateTo(state.lastNonInboxScreen);
   } else if (window.history.length > 1) {
@@ -3959,6 +4174,9 @@ function filterInboxThreads(query) {
 }
 
 async function selectConversation(convId) {
+  if (state.activeConvId && state.activeConvId !== convId) {
+    leaveConversationRoom(state.activeConvId);
+  }
   state.activeConvId = convId;
   state.inboxMobileView = 'chat';
   try {
@@ -3973,7 +4191,7 @@ async function selectConversation(convId) {
     }
   }
   updateNavigation();
-  fetch(`/api/conversations/${convId}/mark-read?role=${state.currentRole}`, { method: 'POST' }).catch(() => {});
+  sendChatMessageRead(convId);
   const viewport = document.getElementById('app-viewport');
   if (viewport) {
     await renderInboxScreen(viewport);
@@ -3999,49 +4217,54 @@ async function sendChatMessage() {
   if (!input || !input.value.trim() || !state.activeConvId) return;
 
   const content = input.value.trim();
+  sendChatTypingStop();
+
   const isRecruiter = state.currentRole === 'recruiter';
-  const tempMsgId = `msg_tmp_${Date.now()}`;
-  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const tempMsgId = `msg_tmp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const payload = {
     conversation_id: state.activeConvId,
-    sender_id: state.currentUser?.id || '',
+    temp_id: tempMsgId,
+    sender_id: state.currentUser?.id || (isRecruiter ? (state.currentUser?.business_id || state.activeHotelId) : ''),
     sender_role: isRecruiter ? 'business' : 'user',
     sender_name: isRecruiter ? (state.currentUser?.name || 'Hotel Recruiter') : (state.currentUser?.name || 'Candidate'),
     content: content
   };
 
-  // 1. Instantly append to chat stream so user sees their text immediately (0ms delay)
+  // 1. Instantly append to chat stream
   const stream = document.getElementById('chat-stream-scroll');
   if (stream) {
     const emptyPrompt = stream.querySelector('.empty-chat-prompt');
     if (emptyPrompt) emptyPrompt.remove();
 
-    const myBubble = document.createElement('div');
-    myBubble.className = 'chat-bubble-row mine';
-    myBubble.setAttribute('data-msg-id', tempMsgId);
-    myBubble.style.animation = 'fadeIn 0.2s ease';
-    myBubble.innerHTML = `
+    const typingRow = document.getElementById('chat-typing-indicator');
+    const bubbleEl = document.createElement('div');
+    bubbleEl.className = 'chat-bubble-row mine';
+    bubbleEl.setAttribute('data-msg-id', tempMsgId);
+    bubbleEl.style.animation = 'fadeIn 0.2s ease';
+    bubbleEl.innerHTML = `
       <span class="bubble-author-title">${escapeHtml(payload.sender_name)}</span>
       ${renderChatMessageContentHtml(content)}
-      <span class="bubble-timestamp">${now}</span>
+      <span class="bubble-timestamp">
+        <span>${nowTime}</span>
+        <span class="bubble-status-mark status-sending" title="Sending...">🕒</span>
+      </span>
     `;
-    stream.appendChild(myBubble);
+    if (typingRow) {
+      stream.insertBefore(bubbleEl, typingRow);
+    } else {
+      stream.appendChild(bubbleEl);
+    }
     stream.scrollTop = stream.scrollHeight;
   }
 
-  // 2. Clear input immediately & keep focus for smooth conversation
+  // 2. Clear input immediately & keep focus
   input.value = '';
   input.focus();
 
-  // 3. Update left sidebar snippet & time immediately
-  const activeRow = document.querySelector('.thread-row.active');
-  if (activeRow) {
-    const snip = activeRow.querySelector('.thread-snippet');
-    if (snip) snip.textContent = content.startsWith('[') ? 'Attachment' : content;
-    const tm = activeRow.querySelector('.thread-time-label');
-    if (tm) tm.textContent = now;
-  }
+  // 3. Update left sidebar snippet & time immediately, and move thread to top
+  moveThreadRowToTop(state.activeConvId, content, nowTime);
 
   // 4. Background network dispatch
   try {
@@ -4052,15 +4275,47 @@ async function sendChatMessage() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      const tempBubble = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempBubble) {
+        const mark = tempBubble.querySelector('.bubble-status-mark');
+        if (mark) {
+          mark.textContent = '⚠️';
+          mark.title = 'Failed to send: ' + (err.detail || 'Error');
+          mark.style.color = '#ef4444';
+        }
+      }
       showToast('Delivery warning: ' + (err.detail || 'Could not send message'), 'warning');
     } else {
       const respData = await res.json();
       if (respData && respData.message_id) {
         const tempBubble = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
-        if (tempBubble) tempBubble.setAttribute('data-msg-id', respData.message_id);
+        if (tempBubble) {
+          tempBubble.setAttribute('data-msg-id', respData.message_id);
+          const mark = tempBubble.querySelector('.bubble-status-mark');
+          if (mark) {
+            if (respData.status === 'delivered') {
+              mark.className = 'bubble-status-mark status-delivered';
+              mark.textContent = '✓✓';
+              mark.title = 'Delivered to recipient';
+            } else {
+              mark.className = 'bubble-status-mark status-sent';
+              mark.textContent = '✓';
+              mark.title = 'Sent to server';
+            }
+          }
+        }
       }
     }
   } catch (err) {
+    const tempBubble = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+    if (tempBubble) {
+      const mark = tempBubble.querySelector('.bubble-status-mark');
+      if (mark) {
+        mark.textContent = '⚠️';
+        mark.title = 'Network error';
+        mark.style.color = '#ef4444';
+      }
+    }
     showToast('Failed to send message: ' + err.message, 'danger');
   }
 }

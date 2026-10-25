@@ -8,7 +8,8 @@ import uuid
 import time
 import secrets
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
+from collections import defaultdict
 import asyncio
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -62,24 +63,113 @@ class RealtimeConnectionManager:
         self.active_websockets: List[WebSocket] = []
         self.metadata: Dict[WebSocket, Dict[str, Any]] = {}
         self.sse_subscribers: Dict[asyncio.Queue, Dict[str, Any]] = {}
+        self.conversation_rooms: Dict[str, Set[WebSocket]] = defaultdict(set)
+        self.presence_counts: Dict[str, int] = defaultdict(int)
 
     async def connect_ws(self, websocket: WebSocket, user_id: Optional[str] = None, business_id: Optional[str] = None, role: Optional[str] = None):
         await websocket.accept()
         self.active_websockets.append(websocket)
         self.metadata[websocket] = {"user_id": user_id, "business_id": business_id, "role": role}
+        self._increment_presence(user_id, business_id)
 
     def disconnect_ws(self, websocket: WebSocket):
         if websocket in self.active_websockets:
             self.active_websockets.remove(websocket)
-        self.metadata.pop(websocket, None)
+        meta = self.metadata.pop(websocket, {})
+        self.leave_all_rooms(websocket)
+        self._decrement_presence(meta.get("user_id"), meta.get("business_id"))
 
     def set_client_metadata(self, websocket: WebSocket, user_id: Optional[str], business_id: Optional[str], role: Optional[str]):
         if websocket in self.metadata:
+            old_meta = self.metadata[websocket]
+            self._decrement_presence(old_meta.get("user_id"), old_meta.get("business_id"))
             self.metadata[websocket] = {
                 "user_id": user_id,
                 "business_id": business_id,
                 "role": role
             }
+            self._increment_presence(user_id, business_id)
+
+    def _increment_presence(self, user_id: Optional[str], business_id: Optional[str]):
+        if user_id:
+            key = f"user:{user_id}"
+            count = self.presence_counts[key]
+            self.presence_counts[key] = count + 1
+            if count == 0:
+                notify_realtime("presence:update", {"entity_id": user_id, "entity_type": "user", "status": "online"})
+        if business_id:
+            key = f"biz:{business_id}"
+            count = self.presence_counts[key]
+            self.presence_counts[key] = count + 1
+            if count == 0:
+                notify_realtime("presence:update", {"entity_id": business_id, "entity_type": "business", "status": "online"})
+
+    def _decrement_presence(self, user_id: Optional[str], business_id: Optional[str]):
+        if user_id:
+            key = f"user:{user_id}"
+            count = max(0, self.presence_counts[key] - 1)
+            self.presence_counts[key] = count
+            if count == 0:
+                notify_realtime("presence:update", {"entity_id": user_id, "entity_type": "user", "status": "offline"})
+        if business_id:
+            key = f"biz:{business_id}"
+            count = max(0, self.presence_counts[key] - 1)
+            self.presence_counts[key] = count
+            if count == 0:
+                notify_realtime("presence:update", {"entity_id": business_id, "entity_type": "business", "status": "offline"})
+
+    def is_user_online(self, user_id: Optional[str]) -> bool:
+        if not user_id:
+            return False
+        return self.presence_counts.get(f"user:{user_id}", 0) > 0
+
+    def is_business_online(self, business_id: Optional[str]) -> bool:
+        if not business_id:
+            return False
+        return self.presence_counts.get(f"biz:{business_id}", 0) > 0
+
+    def is_entity_online(self, entity_id: Optional[str]) -> bool:
+        if not entity_id:
+            return False
+        return (self.presence_counts.get(f"user:{entity_id}", 0) > 0 or 
+                self.presence_counts.get(f"biz:{entity_id}", 0) > 0)
+
+    def join_room(self, websocket: WebSocket, conv_id: str):
+        self.conversation_rooms[conv_id].add(websocket)
+
+    def leave_room(self, websocket: WebSocket, conv_id: str):
+        if conv_id in self.conversation_rooms:
+            self.conversation_rooms[conv_id].discard(websocket)
+            if not self.conversation_rooms[conv_id]:
+                self.conversation_rooms.pop(conv_id, None)
+
+    def leave_all_rooms(self, websocket: WebSocket):
+        empty_rooms = []
+        for conv_id, ws_set in self.conversation_rooms.items():
+            ws_set.discard(websocket)
+            if not ws_set:
+                empty_rooms.append(conv_id)
+        for c in empty_rooms:
+            self.conversation_rooms.pop(c, None)
+
+    async def broadcast_to_room(self, conv_id: str, event_type: str, data: Dict[str, Any], exclude_ws: Optional[WebSocket] = None):
+        ws_set = self.conversation_rooms.get(conv_id, set())
+        dead_ws = []
+        msg = {
+            "type": event_type,
+            "data": data,
+            "timestamp": datetime.now().isoformat(),
+            "event_id": f"evt_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+        }
+        for ws in list(ws_set):
+            if ws is exclude_ws:
+                continue
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead_ws.append(ws)
+        for d in dead_ws:
+            self.disconnect_ws(d)
 
     async def broadcast_event(self, event_type: str, data: Optional[Dict[str, Any]] = None, target_user: Optional[str] = None, target_business: Optional[str] = None):
         msg = {
@@ -170,6 +260,79 @@ def notify_realtime(event_type: str, data: Optional[Dict[str, Any]] = None, targ
     except Exception as e:
         print(f"[REALTIME NOTIFY ERROR] {e}")
 
+def notify_conversation_room(conv_id: str, event_type: str, data: Dict[str, Any], exclude_ws: Optional[WebSocket] = None):
+    try:
+        global main_event_loop
+        if main_event_loop is None or not main_event_loop.is_running():
+            try:
+                main_event_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+        
+        if main_event_loop and main_event_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                realtime_manager.broadcast_to_room(conv_id, event_type, data, exclude_ws),
+                main_event_loop
+            )
+        else:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop and loop.is_running():
+                    main_event_loop = loop
+                    asyncio.run_coroutine_threadsafe(
+                        realtime_manager.broadcast_to_room(conv_id, event_type, data, exclude_ws),
+                        loop
+                    )
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[ROOM NOTIFY ERROR] {e}")
+
+def check_conversation_authorization(conv_id: str, user_id: Optional[str] = None, business_id: Optional[str] = None, role: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Verifies that the provided user_id or business_id is an authorized participant
+    in the conversation. Returns conversation row as dict if valid, else None.
+    """
+    if not conv_id:
+        return None
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
+    conv = cursor.fetchone()
+    conn.close()
+    if not conv:
+        return None
+
+    conv_dict = dict(conv)
+    if role == "admin":
+        return conv_dict
+
+    u_id = (user_id or "").strip()
+    b_id = (business_id or "").strip()
+
+    # Direct match with candidate
+    if u_id and u_id == conv_dict.get("user_id"):
+        return conv_dict
+
+    # Direct match with business
+    if b_id and b_id == conv_dict.get("business_id"):
+        return conv_dict
+
+    # Check if the user belongs to the business
+    if u_id:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT business_id, role FROM users WHERE id = ?", (u_id,))
+        u_row = cursor.fetchone()
+        conn.close()
+        if u_row:
+            if u_row["role"] == "admin":
+                return conv_dict
+            if u_row["business_id"] and u_row["business_id"] == conv_dict.get("business_id"):
+                return conv_dict
+
+    return None
+
 def dispatch_realtime_notification(user_id: str, title: str, message: str, notif_type: str = "general", link: str = "#applications", business_id: Optional[str] = None, cursor = None):
     notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -217,6 +380,7 @@ def dispatch_realtime_notification(user_id: str, title: str, message: str, notif
         return None
 
 @app.websocket("/ws")
+@app.websocket("/api/realtime/ws")
 async def websocket_realtime_endpoint(websocket: WebSocket):
     global main_event_loop
     try:
@@ -236,6 +400,11 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
             try:
                 msg = json.loads(raw_text)
                 action = msg.get("action")
+                meta = realtime_manager.metadata.get(websocket, {})
+                u_id = meta.get("user_id")
+                b_id = meta.get("business_id")
+                r_id = meta.get("role")
+
                 if action == "identify":
                     u_id = msg.get("user_id")
                     b_id = msg.get("business_id")
@@ -247,6 +416,101 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
                         role=r_id
                     )
                     await websocket.send_json({"type": "identified", "status": "ok"})
+
+                elif action in ("conversation:join", "chat:join"):
+                    conv_id = msg.get("conv_id") or msg.get("conversation_id")
+                    if conv_id:
+                        conv_meta = check_conversation_authorization(conv_id, user_id=u_id, business_id=b_id, role=r_id)
+                        if conv_meta:
+                            realtime_manager.join_room(websocket, conv_id)
+                            # Identify counterpart in this conversation
+                            is_biz = (r_id == "recruiter") or (b_id == conv_meta["business_id"])
+                            counterpart_id = conv_meta["user_id"] if is_biz else conv_meta["business_id"]
+                            counterpart_online = realtime_manager.is_entity_online(counterpart_id)
+                            await websocket.send_json({
+                                "type": "conversation:joined",
+                                "conv_id": conv_id,
+                                "counterpart_id": counterpart_id,
+                                "counterpart_online": counterpart_online,
+                                "status": "ok"
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "conversation:error",
+                                "conv_id": conv_id,
+                                "error": "unauthorized"
+                            })
+
+                elif action in ("conversation:leave", "chat:leave"):
+                    conv_id = msg.get("conv_id") or msg.get("conversation_id")
+                    if conv_id:
+                        realtime_manager.leave_room(websocket, conv_id)
+                        await websocket.send_json({"type": "conversation:left", "conv_id": conv_id, "status": "ok"})
+
+                elif action in ("typing:start", "typing:stop"):
+                    conv_id = msg.get("conv_id") or msg.get("conversation_id")
+                    if conv_id:
+                        conv_meta = check_conversation_authorization(conv_id, user_id=u_id, business_id=b_id, role=r_id)
+                        if conv_meta:
+                            is_typing = (action == "typing:start")
+                            sender_name = msg.get("sender_name") or ("Hotel Recruiter" if r_id == "recruiter" else "Candidate")
+                            notify_conversation_room(
+                                conv_id,
+                                "typing:update",
+                                {
+                                    "conversation_id": conv_id,
+                                    "sender_id": u_id or b_id,
+                                    "sender_name": sender_name,
+                                    "is_typing": is_typing
+                                },
+                                exclude_ws=websocket
+                            )
+
+                elif action == "message:read":
+                    conv_id = msg.get("conv_id") or msg.get("conversation_id")
+                    if conv_id:
+                        conv_meta = check_conversation_authorization(conv_id, user_id=u_id, business_id=b_id, role=r_id)
+                        if conv_meta:
+                            now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            conn = database.get_db()
+                            cursor = conn.cursor()
+                            is_biz = (r_id == "recruiter") or (b_id == conv_meta["business_id"])
+                            if is_biz:
+                                cursor.execute("UPDATE conversations SET unread_for_business = 0 WHERE id = ?", (conv_id,))
+                                cursor.execute("""
+                                    UPDATE messages 
+                                    SET status = 'read', read_at = ? 
+                                    WHERE conversation_id = ? AND sender_role != 'business' AND (status IS NULL OR status != 'read')
+                                """, (now, conv_id))
+                                target_u = conv_meta["user_id"]
+                                target_b = None
+                                reader_id = b_id or conv_meta["business_id"]
+                            else:
+                                cursor.execute("UPDATE conversations SET unread_for_user = 0 WHERE id = ?", (conv_id,))
+                                cursor.execute("""
+                                    UPDATE messages 
+                                    SET status = 'read', read_at = ? 
+                                    WHERE conversation_id = ? AND sender_role = 'business' AND (status IS NULL OR status != 'read')
+                                """, (now, conv_id))
+                                target_u = None
+                                target_b = conv_meta["business_id"]
+                                reader_id = u_id or conv_meta["user_id"]
+                            conn.commit()
+                            conn.close()
+
+                            read_payload = {
+                                "conversation_id": conv_id,
+                                "reader_id": reader_id,
+                                "read_at": now
+                            }
+                            notify_conversation_room(conv_id, "message:read", read_payload, exclude_ws=websocket)
+                            notify_realtime("message:read", read_payload, target_user=target_u, target_business=target_b)
+
+                elif action == "presence:query":
+                    entity_id = msg.get("entity_id")
+                    is_online = realtime_manager.is_entity_online(entity_id) if entity_id else False
+                    await websocket.send_json({"type": "presence:status", "entity_id": entity_id, "is_online": is_online})
+
                 elif action == "ping":
                     await websocket.send_json({"type": "pong", "time": time.time()})
             except Exception:
@@ -2556,16 +2820,50 @@ NiceJobs Career Support Desk"""
     return {"success": True, "status": payload.status, "updated_at": now}
 
 @app.post("/api/conversations/{conv_id}/mark-read")
-def mark_conversation_read(conv_id: str, role: Optional[str] = "jobseeker"):
+def mark_conversation_read(conv_id: str, role: Optional[str] = "jobseeker", user_id: Optional[str] = None, business_id: Optional[str] = None):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     conn = database.get_db()
     cursor = conn.cursor()
-    if role in ("jobseeker", "user"):
-        cursor.execute("UPDATE conversations SET unread_for_user = 0 WHERE id = ?", (conv_id,))
-    else:
+    cursor.execute("SELECT user_id, business_id FROM conversations WHERE id = ?", (conv_id,))
+    conv_meta = cursor.fetchone()
+    if not conv_meta:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    is_recruiter = role in ("recruiter", "business")
+    if is_recruiter:
         cursor.execute("UPDATE conversations SET unread_for_business = 0 WHERE id = ?", (conv_id,))
+        cursor.execute("""
+            UPDATE messages 
+            SET status = 'read', read_at = ? 
+            WHERE conversation_id = ? AND sender_role != 'business' AND (status IS NULL OR status != 'read')
+        """, (now, conv_id))
+        target_u = conv_meta["user_id"]
+        target_b = None
+        reader_id = business_id or conv_meta["business_id"]
+    else:
+        cursor.execute("UPDATE conversations SET unread_for_user = 0 WHERE id = ?", (conv_id,))
+        cursor.execute("""
+            UPDATE messages 
+            SET status = 'read', read_at = ? 
+            WHERE conversation_id = ? AND sender_role = 'business' AND (status IS NULL OR status != 'read')
+        """, (now, conv_id))
+        target_u = None
+        target_b = conv_meta["business_id"]
+        reader_id = user_id or conv_meta["user_id"]
+
     conn.commit()
     conn.close()
-    return {"success": True}
+
+    read_payload = {
+        "conversation_id": conv_id,
+        "reader_id": reader_id,
+        "read_at": now
+    }
+    notify_conversation_room(conv_id, "message:read", read_payload)
+    notify_realtime("message:read", read_payload, target_user=target_u, target_business=target_b)
+
+    return {"success": True, "read_at": now}
 
 @app.get("/api/email-logs")
 def get_email_logs():
@@ -2622,16 +2920,52 @@ def get_conversations(user_id: Optional[str] = None, business_id: Optional[str] 
     return results
 
 @app.get("/api/conversations/{conv_id}/messages")
-def get_messages(conv_id: str):
+def get_messages(
+    conv_id: str,
+    user_id: Optional[str] = None,
+    business_id: Optional[str] = None,
+    role: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    if user_id or business_id:
+        conv_meta = check_conversation_authorization(conv_id, user_id=user_id, business_id=business_id, role=role)
+        if not conv_meta:
+            raise HTTPException(status_code=403, detail="Unauthorized to access this conversation")
+
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC", (conv_id,))
+    cursor.execute("""
+        SELECT * FROM messages 
+        WHERE conversation_id = ? 
+        ORDER BY timestamp ASC 
+        LIMIT ? OFFSET ?
+    """, (conv_id, limit, offset))
     rows = cursor.fetchall()
     messages = [dict(r) for r in rows]
 
     conn.close()
     return messages
+
+@app.get("/api/conversations/{conv_id}/presence")
+def get_conversation_presence(conv_id: str, current_role: Optional[str] = "jobseeker", current_user_id: Optional[str] = None):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, business_id FROM conversations WHERE id = ?", (conv_id,))
+    conv = cursor.fetchone()
+    conn.close()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    is_recruiter = current_role in ("recruiter", "business")
+    counterpart_id = conv["user_id"] if is_recruiter else conv["business_id"]
+    is_online = realtime_manager.is_entity_online(counterpart_id)
+    return {
+        "conversation_id": conv_id,
+        "counterpart_id": counterpart_id,
+        "is_online": is_online
+    }
 
 class ConversationInitPayload(BaseModel):
     business_id: str
@@ -2810,37 +3144,67 @@ class MessageSendPayload(BaseModel):
     sender_name: str
     content: str
     is_action_prompt: bool = False
+    temp_id: Optional[str] = None
 
 @app.post("/api/messages")
 def send_message(payload: MessageSendPayload):
-    conn = database.get_db()
-    cursor = conn.cursor()
+    # 1. Authorization & participant validation
+    conv_meta = check_conversation_authorization(
+        payload.conversation_id,
+        user_id=payload.sender_id,
+        business_id=payload.sender_id,
+        role=payload.sender_role
+    )
+    if not conv_meta:
+        raise HTTPException(status_code=403, detail="Not authorized to send messages in this conversation")
+
+    # 2. Content validation & sanitization
+    clean_content = (payload.content or "").strip()
+    if not clean_content:
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+    if len(clean_content) > 10000:
+        raise HTTPException(status_code=400, detail="Message exceeds maximum allowed length (10,000 characters)")
+
+    # 3. Determine recipient and delivery presence
+    is_recruiter = payload.sender_role in ('business', 'recruiter')
+    if is_recruiter:
+        recipient_id = conv_meta["user_id"]
+        target_user = recipient_id
+        target_biz = None
+    else:
+        recipient_id = conv_meta["business_id"]
+        target_user = None
+        target_biz = recipient_id
+
+    is_online = realtime_manager.is_entity_online(recipient_id)
+    initial_status = "delivered" if is_online else "sent"
 
     msg_id = f"msg_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    delivered_at = now if is_online else None
 
-    # Fetch conversation to route targeted real-time alerts
-    cursor.execute("SELECT user_id, business_id FROM conversations WHERE id = ?", (payload.conversation_id,))
-    conv_meta = cursor.fetchone()
-    target_user = conv_meta["user_id"] if conv_meta else None
-    target_biz = conv_meta["business_id"] if conv_meta else None
+    # 4. Save to persistent database
+    conn = database.get_db()
+    cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO messages (id, conversation_id, sender_id, sender_role, sender_name, content, is_action_prompt, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, conversation_id, sender_id, sender_role, sender_name, content, is_action_prompt, timestamp, status, delivered_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         msg_id,
         payload.conversation_id,
         payload.sender_id,
         payload.sender_role,
         payload.sender_name,
-        payload.content,
+        clean_content,
         1 if payload.is_action_prompt else 0,
-        now
+        now,
+        initial_status,
+        delivered_at
     ))
 
     # Update conversation last message with friendly snippet
-    snippet = payload.content
+    snippet = clean_content
     if snippet.startswith('[IMAGE]'):
         snippet = "Photo attachment"
     elif snippet.startswith('[VOICE'):
@@ -2851,7 +3215,7 @@ def send_message(payload: MessageSendPayload):
         snippet = snippet[:77] + "..."
 
     # Increment unread counter for recipient
-    if payload.sender_role in ('business', 'recruiter'):
+    if is_recruiter:
         cursor.execute("""
             UPDATE conversations 
             SET last_message = ?, last_message_time = ?, unread_for_user = COALESCE(unread_for_user, 0) + 1
@@ -2867,22 +3231,30 @@ def send_message(payload: MessageSendPayload):
     conn.commit()
     conn.close()
 
-    notify_realtime(
-        "chat_message",
-        {
-            "conversation_id": payload.conversation_id,
-            "message_id": msg_id,
-            "sender_id": payload.sender_id,
-            "sender_name": payload.sender_name,
-            "sender_role": payload.sender_role,
-            "content": payload.content,
-            "timestamp": now
-        },
-        target_user=target_user,
-        target_business=target_biz
-    )
+    # 5. Emit real-time message to conversation room and targeted recipient
+    msg_event = {
+        "conversation_id": payload.conversation_id,
+        "message_id": msg_id,
+        "temp_id": payload.temp_id,
+        "sender_id": payload.sender_id,
+        "sender_name": payload.sender_name,
+        "sender_role": payload.sender_role,
+        "content": clean_content,
+        "timestamp": now,
+        "status": initial_status,
+        "delivered_at": delivered_at
+    }
+    notify_conversation_room(payload.conversation_id, "chat_message", msg_event)
+    notify_realtime("chat_message", msg_event, target_user=target_user, target_business=target_biz)
 
-    return {"success": True, "message_id": msg_id, "timestamp": now}
+    # 6. Return delivery acknowledgement
+    return {
+        "success": True,
+        "message_id": msg_id,
+        "temp_id": payload.temp_id,
+        "status": initial_status,
+        "timestamp": now
+    }
 
 @app.post("/api/conversations/{conv_id}/messages")
 def send_conversation_message(conv_id: str, payload: Dict[str, Any]):
