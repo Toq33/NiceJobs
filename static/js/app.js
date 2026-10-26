@@ -2620,7 +2620,7 @@ function renderJobCardHTML(job) {
       <!-- Footer & Action Buttons -->
       <div class="job-card-footer">
         <span class="card-deadline" style="display: inline-flex; align-items: center; gap: 6px;">
-          ${svgIcon('calendar', '', 13)} Deadline: <strong>${formatDisplayDate(job.deadline)}</strong> • <strong>${job.applicant_count || 12}</strong> applied
+          ${svgIcon('calendar', '', 13)} Deadline: <strong>${formatDisplayDate(job.deadline)}</strong>
         </span>
         <div class="card-actions">
           <button class="btn-icon ${isSaved ? 'saved' : ''}" title="${isGuest ? 'Log in to save favourite' : (isSaved ? 'Bookmarked' : 'Save Job Post')}" onclick="toggleSaveJob('${job.id}')">
