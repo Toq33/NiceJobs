@@ -71,6 +71,16 @@ class RealtimeConnectionManager:
         self.active_websockets.append(websocket)
         self.metadata[websocket] = {"user_id": user_id, "business_id": business_id, "role": role}
         self._increment_presence(user_id, business_id)
+        try:
+            await websocket.send_json({
+                "type": "connection_established",
+                "user_id": user_id,
+                "business_id": business_id,
+                "role": role,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception:
+            pass
 
     def disconnect_ws(self, websocket: WebSocket):
         if websocket in self.active_websockets:
@@ -551,6 +561,7 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
 
 @app.get("/api/realtime/stream")
 @app.get("/api/realtime/events")
+@app.get("/events")
 async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None, business_id: Optional[str] = None):
     global main_event_loop
     try:
@@ -562,7 +573,7 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
 
     async def event_generator():
         try:
-            yield f"data: {json.dumps({'type': 'connected', 'status': 'ok'})}\n\n"
+            yield f"data: {json.dumps({'type': 'connection_established', 'status': 'ok', 'user_id': user_id, 'business_id': business_id})}\n\n"
             while True:
                 if await request.is_disconnected():
                     break
@@ -1426,7 +1437,11 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
         conn.close()
 
 class CandidateRegisterPayload(BaseModel):
-    name: str
+    name: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    name_bangla: Optional[str] = None
     email: str
     phone: str
     phone_secondary: Optional[str] = None
@@ -1491,12 +1506,21 @@ def register_candidate(payload: CandidateRegisterPayload):
     dob_val = payload.dob or ""
     nid_val = payload.nid_passport or ""
 
-    cursor.execute("""
-        INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    """, (user_id, payload.name, payload.email, payload.phone, payload.password, "jobseeker", avatar, now, dob_val, nid_val, "active"))
+    fn = (payload.first_name or "").strip()
+    mn = (payload.middle_name or "").strip()
+    ln = (payload.last_name or "").strip()
+    nb = (payload.name_bangla or "").strip()
 
-    cv_filename = payload.cv_name or f"{payload.name.replace(' ', '_')}_Hospitality_Resume.pdf"
+    name_parts = [p for p in [fn, mn, ln] if p]
+    computed_name = " ".join(name_parts).strip()
+    full_name = computed_name if computed_name else (payload.name or "Candidate").strip()
+
+    cursor.execute("""
+        INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, payload.password, "jobseeker", avatar, now, dob_val, nid_val, "active"))
+
+    cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
     initial_cvs = json.dumps([
         {
             "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
@@ -1538,7 +1562,11 @@ def register_candidate(payload: CandidateRegisterPayload):
         "locations": [payload.location] if payload.location else ["Dhaka"],
         "expected_salary": payload.expected_salary or "Negotiable",
         "work_type": payload.work_type or "Full-time",
-        "notice_period": payload.notice_period or "1 Month"
+        "notice_period": payload.notice_period or "1 Month",
+        "first_name": fn,
+        "middle_name": mn,
+        "last_name": ln,
+        "name_bangla": nb
     }
     if isinstance(payload.job_preferences, dict):
         prefs_data.update(payload.job_preferences)
@@ -1550,8 +1578,8 @@ def register_candidate(payload: CandidateRegisterPayload):
             user_id, headline, location, summary, current_position, experience_years,
             open_to_work, visibility, skills, languages, certifications, experience,
             education, preferences, cv_name, cv_updated_at, profile_completion, cv_list,
-            dob, nid_passport, cv_url
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            dob, nid_passport, cv_url, first_name, middle_name, last_name, name_bangla
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         user_id,
         headline_text,
@@ -1573,7 +1601,11 @@ def register_candidate(payload: CandidateRegisterPayload):
         initial_cvs,
         dob_val,
         nid_val,
-        payload.cv_url or ""
+        payload.cv_url or "",
+        fn,
+        mn,
+        ln,
+        nb
     ))
 
     conn.commit()
@@ -1581,7 +1613,11 @@ def register_candidate(payload: CandidateRegisterPayload):
     return {
         "success": True,
         "user_id": user_id,
-        "name": payload.name,
+        "name": full_name,
+        "first_name": fn,
+        "middle_name": mn,
+        "last_name": ln,
+        "name_bangla": nb,
         "email": payload.email,
         "phone": payload.phone,
         "role": "jobseeker",
@@ -2163,7 +2199,12 @@ def get_profile(user_id: str = "user_rahim"):
         raise HTTPException(status_code=404, detail="Demo profile is hidden because demo data has been removed.")
 
     cursor.execute("""
-        SELECT u.name, u.email, u.phone, u.avatar_url, u.designation, p.*
+        SELECT p.*,
+               u.name, u.email, u.phone, u.avatar_url, u.designation,
+               COALESCE(NULLIF(p.first_name, ''), u.first_name, '') as first_name,
+               COALESCE(NULLIF(p.middle_name, ''), u.middle_name, '') as middle_name,
+               COALESCE(NULLIF(p.last_name, ''), u.last_name, '') as last_name,
+               COALESCE(NULLIF(p.name_bangla, ''), u.name_bangla, '') as name_bangla
         FROM users u
         LEFT JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -2184,6 +2225,10 @@ def get_profile(user_id: str = "user_rahim"):
 class ProfileUpdatePayload(BaseModel):
     user_id: str = "user_rahim"
     name: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    name_bangla: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -2255,8 +2300,20 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.avatar_url is not None:
         cursor.execute("UPDATE users SET avatar_url = ? WHERE id = ?", (payload.avatar_url, effective_user_id))
 
-    if payload.name:
+    if payload.first_name is not None or payload.middle_name is not None or payload.last_name is not None:
+        fn = payload.first_name if payload.first_name is not None else ""
+        mn = payload.middle_name if payload.middle_name is not None else ""
+        ln = payload.last_name if payload.last_name is not None else ""
+        parts = [p for p in [fn, mn, ln] if p.strip()]
+        comp_name = " ".join(parts).strip() if parts else (payload.name or user_row["name"])
+        cursor.execute("UPDATE users SET name = ?, first_name = ?, middle_name = ?, last_name = ? WHERE id = ?", (comp_name, fn, mn, ln, effective_user_id))
+        cursor.execute("UPDATE employee_profiles SET first_name = ?, middle_name = ?, last_name = ? WHERE user_id = ?", (fn, mn, ln, effective_user_id))
+    elif payload.name:
         cursor.execute("UPDATE users SET name = ? WHERE id = ?", (payload.name, effective_user_id))
+
+    if payload.name_bangla is not None:
+        cursor.execute("UPDATE users SET name_bangla = ? WHERE id = ?", (payload.name_bangla, effective_user_id))
+        cursor.execute("UPDATE employee_profiles SET name_bangla = ? WHERE user_id = ?", (payload.name_bangla, effective_user_id))
 
     if payload.designation is not None:
         cursor.execute("UPDATE users SET designation = ? WHERE id = ?", (payload.designation, effective_user_id))
@@ -3368,18 +3425,22 @@ def get_notifications(user_id: str = "user_rahim"):
     conn.close()
     return results
 
+class ReadAllPayload(BaseModel):
+    user_id: Optional[str] = None
+
 @app.post("/api/notifications/read-all")
-def mark_all_notifications_read(user_id: str = "user_rahim"):
+def mark_all_notifications_read(user_id: Optional[str] = None, payload: Optional[ReadAllPayload] = None):
+    effective_user_id = user_id or (payload.user_id if payload else None) or "user_rahim"
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
+    cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (effective_user_id,))
     conn.commit()
     conn.close()
 
     notify_realtime(
         "notifications_read",
-        {"user_id": user_id},
-        target_user=user_id
+        {"user_id": effective_user_id},
+        target_user=effective_user_id
     )
 
     return {"success": True}

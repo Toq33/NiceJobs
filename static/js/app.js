@@ -3418,6 +3418,7 @@ async function renderProfileScreen(viewport) {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
+              ${profile.name_bangla ? `<span style="font-size: 1.15rem; color: #94a3b8; font-weight: 500;" title="Full Name in Bangla">(${escapeHtml(profile.name_bangla)})</span>` : ''}
               <span class="verified-badge" title="Verified">✓ Verified</span>
             </div>
             <p style="font-size: 1.05rem; color: #cbd5e1; margin-top: 4px; font-weight: 600;">${escapeHtml(profile.headline || 'Hospitality Specialist')}</p>
@@ -6470,19 +6471,41 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part1" onsubmit="event.preventDefault(); nextSignupStage(2);">
-              <!-- Row 1: Full Name & Personal Email -->
-              <div class="auth-field-grid">
+              <!-- Row 1: First Name, Middle Name, Last Name -->
+              <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
                 <div class="auth-field">
-                  <label class="auth-label">Full Name</label>
-                  <input type="text" id="cand-name" class="auth-input" required 
-                    placeholder="Enter your full name" 
-                    value="${signupState.name || ''}" autofocus>
+                  <label class="auth-label">First Name *</label>
+                  <input type="text" id="cand-first-name" class="auth-input" required 
+                    placeholder="e.g. Tanvir" 
+                    value="${escapeHtml(signupState.first_name || '')}" autofocus>
                 </div>
                 <div class="auth-field">
-                  <label class="auth-label">Personal Email Address</label>
+                  <label class="auth-label">Middle Name <span style="font-weight: 400; color: var(--text-dim); font-size: 0.78rem;">(Optional)</span></label>
+                  <input type="text" id="cand-middle-name" class="auth-input" 
+                    placeholder="e.g. Ahmed" 
+                    value="${escapeHtml(signupState.middle_name || '')}">
+                </div>
+                <div class="auth-field">
+                  <label class="auth-label">Last Name *</label>
+                  <input type="text" id="cand-last-name" class="auth-input" required 
+                    placeholder="e.g. Hasan" 
+                    value="${escapeHtml(signupState.last_name || '')}">
+                </div>
+              </div>
+
+              <!-- Row 2: Full Name in Bangla & Personal Email Address -->
+              <div class="auth-field-grid">
+                <div class="auth-field">
+                  <label class="auth-label">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
+                  <input type="text" id="cand-name-bangla" class="auth-input" required 
+                    placeholder="e.g. তানভীর আহমেদ হাসান" 
+                    value="${escapeHtml(signupState.name_bangla || '')}">
+                </div>
+                <div class="auth-field">
+                  <label class="auth-label">Personal Email Address *</label>
                   <input type="email" id="cand-email" class="auth-input" required 
                     placeholder="Enter personal email address" 
-                    value="${signupState.email || ''}">
+                    value="${escapeHtml(signupState.email || '')}">
                 </div>
               </div>
 
@@ -8786,12 +8809,28 @@ async function nextSignupStage(targetStage) {
   const current = signupState.stage || 1;
 
   if (current === 1) {
-    const name = (document.getElementById('cand-name')?.value || '').trim();
+    const firstName = (document.getElementById('cand-first-name')?.value || '').trim();
+    const middleName = (document.getElementById('cand-middle-name')?.value || '').trim();
+    const lastName = (document.getElementById('cand-last-name')?.value || '').trim();
+    const nameBangla = (document.getElementById('cand-name-bangla')?.value || '').trim();
     const dob = document.getElementById('cand-dob')?.value || '';
     const nid = (document.getElementById('cand-nid')?.value || '').trim();
     const phoneRaw = document.getElementById('cand-phone')?.value || '';
     const phoneSecRaw = document.getElementById('cand-phone-secondary')?.value || '';
     const email = (document.getElementById('cand-email')?.value || '').trim();
+
+    if (!firstName) {
+      showToast('Please enter your First Name', 'danger');
+      return;
+    }
+    if (!lastName) {
+      showToast('Please enter your Last Name', 'danger');
+      return;
+    }
+    if (!nameBangla) {
+      showToast('Please enter your Full Name in Bangla (বাংলায় পূর্ণ নাম)', 'danger');
+      return;
+    }
 
     const cleanPhone = phoneRaw.replace(/[^0-9]/g, '');
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('01')) {
@@ -8803,16 +8842,17 @@ async function nextSignupStage(targetStage) {
       showToast('Secondary phone number must be exactly 11 digits starting with 01 if provided', 'danger');
       return;
     }
-    if (!name) {
-      showToast('Please enter your full name', 'danger');
-      return;
-    }
     if (!email || !email.includes('@')) {
       showToast('Please enter a valid email address', 'danger');
       return;
     }
 
-    signupState.name = name;
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+    signupState.first_name = firstName;
+    signupState.middle_name = middleName;
+    signupState.last_name = lastName;
+    signupState.name_bangla = nameBangla;
+    signupState.name = fullName;
     signupState.dob = dob;
     signupState.nid_passport = nid;
     signupState.phone = cleanPhone;
@@ -8982,6 +9022,10 @@ async function finalizeCandidateRegistration() {
   try {
     const payload = {
       name: signupState.name,
+      first_name: signupState.first_name || '',
+      middle_name: signupState.middle_name || '',
+      last_name: signupState.last_name || '',
+      name_bangla: signupState.name_bangla || '',
       email: signupState.email,
       phone: signupState.phone,
       phone_secondary: signupState.phone_secondary || null,
@@ -9011,7 +9055,11 @@ async function finalizeCandidateRegistration() {
 
     state.currentUser = {
       id: data.user_id,
-      name: payload.name,
+      name: data.name || payload.name,
+      first_name: data.first_name || signupState.first_name || '',
+      middle_name: data.middle_name || signupState.middle_name || '',
+      last_name: data.last_name || signupState.last_name || '',
+      name_bangla: data.name_bangla || signupState.name_bangla || '',
       email: payload.email,
       phone: payload.phone,
       role: 'jobseeker',
@@ -9607,9 +9655,23 @@ function switchAuthTab(tab) {
               <span class="auth-step-pill">01</span>
               <span>Account Credentials & Contact Security</span>
             </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">First Name *</label>
+                <input type="text" name="first_name" required placeholder="e.g. Tanvir" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Middle Name <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
+                <input type="text" name="middle_name" placeholder="e.g. Ahmed" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Last Name *</label>
+                <input type="text" name="last_name" required placeholder="e.g. Hasan" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+            </div>
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Full Name *</label>
-              <input type="text" name="name" required placeholder="e.g. Tanvir Hasan" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
+              <input type="text" name="name_bangla" required placeholder="e.g. তানভীর আহমেদ হাসান" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
@@ -10510,8 +10572,18 @@ async function handleCandidateSignup(event) {
     return { name: parts[0].trim(), level: parts[1] ? parts[1].replace(')', '').trim() : 'Fluent' };
   }).filter(l => l.name) || [{ name: 'Bengali', level: 'Native' }, { name: 'English', level: 'Professional' }];
 
+  const firstName = (form.first_name?.value || '').trim();
+  const middleName = (form.middle_name?.value || '').trim();
+  const lastName = (form.last_name?.value || '').trim();
+  const nameBangla = (form.name_bangla?.value || '').trim();
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
+
   const payload = {
-    name: form.name.value,
+    name: fullName,
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+    name_bangla: nameBangla,
     email: form.email.value,
     phone: form.phone.value,
     password: form.password.value,
@@ -12664,10 +12736,25 @@ async function openComprehensiveEditProfileModal() {
             </div>
 
             <!-- Basic Details -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">First Name *</label>
+                <input type="text" name="first_name" value="${profile.first_name || ''}" required placeholder="First name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Middle Name <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
+                <input type="text" name="middle_name" value="${profile.middle_name || ''}" placeholder="Middle name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Last Name *</label>
+                <input type="text" name="last_name" value="${profile.last_name || ''}" required placeholder="Last name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+            </div>
+
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Full Name</label>
-                <input type="text" name="name" value="${profile.name || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
+                <input type="text" name="name_bangla" value="${profile.name_bangla || ''}" placeholder="বাংলায় নাম" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Experience (Years)</label>
@@ -12854,9 +12941,19 @@ async function handleSaveComprehensiveProfile(event) {
 
   const skillsArr = window.compEditSkillsState ? window.compEditSkillsState.selected : (form.skills_csv?.value.split(',').map(s => s.trim()).filter(Boolean) || []);
 
+  const firstName = (form.first_name?.value || '').trim();
+  const middleName = (form.middle_name?.value || '').trim();
+  const lastName = (form.last_name?.value || '').trim();
+  const nameBangla = (form.name_bangla?.value || '').trim();
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
+
   const payload = {
     user_id: userId,
-    name: form.name.value,
+    name: fullName,
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+    name_bangla: nameBangla,
     email: newEmail,
     phone: newPhone,
     otp_code: otpCode,

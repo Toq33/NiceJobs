@@ -310,6 +310,10 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        first_name TEXT DEFAULT '',
+        middle_name TEXT DEFAULT '',
+        last_name TEXT DEFAULT '',
+        name_bangla TEXT DEFAULT '',
         email TEXT UNIQUE NOT NULL,
         phone TEXT NOT NULL,
         role TEXT NOT NULL, -- 'jobseeker', 'recruiter', 'admin'
@@ -335,7 +339,11 @@ def init_db():
         cv_name TEXT,
         cv_updated_at TEXT,
         profile_completion INTEGER DEFAULT 85,
-        cv_list TEXT, -- JSON array of multiple CVs
+        cv_list TEXT, -- JSON array of multiple CVs,
+        first_name TEXT DEFAULT '',
+        middle_name TEXT DEFAULT '',
+        last_name TEXT DEFAULT '',
+        name_bangla TEXT DEFAULT '',
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -543,6 +551,7 @@ def init_db():
     conn.commit()
 
     # Safe migrations for extended Phase 2 doc fields
+    if_not_exists = "IF NOT EXISTS " if is_postgres() else ""
     for col, typ in [
         ("password", "TEXT DEFAULT 'Password123!'"),
         ("dob", "TEXT DEFAULT ''"),
@@ -550,12 +559,20 @@ def init_db():
         ("designation", "TEXT DEFAULT ''"),
         ("status", "TEXT DEFAULT 'active'"),
         ("is_business_admin", "INTEGER DEFAULT 0"),
-        ("is_demo", "INTEGER DEFAULT 0")
+        ("is_demo", "INTEGER DEFAULT 0"),
+        ("first_name", "TEXT DEFAULT ''"),
+        ("middle_name", "TEXT DEFAULT ''"),
+        ("last_name", "TEXT DEFAULT ''"),
+        ("name_bangla", "TEXT DEFAULT ''")
     ]:
         try:
-            cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     for col, typ in [
         ("parent_group", "TEXT DEFAULT ''"),
@@ -571,16 +588,24 @@ def init_db():
         ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:
-            cursor.execute(f"ALTER TABLE businesses ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE businesses ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     try:
         cursor.execute("UPDATE businesses SET telephone = '+880 2 9834555', official_telephone = '+880 2 9834555' WHERE id = 'biz_radisson' AND (telephone IS NULL OR telephone = '')")
         cursor.execute("UPDATE businesses SET telephone = '+880 2 9891988', official_telephone = '+880 2 9891988' WHERE id = 'biz_westin' AND (telephone IS NULL OR telephone = '')")
         cursor.execute("UPDATE businesses SET telephone = '+880 341 51301', official_telephone = '+880 341 51301' WHERE id = 'biz_sayeman' AND (telephone IS NULL OR telephone = '')")
+        conn.commit()
     except Exception:
-        pass
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     for col, typ in [
         ("membership_role", "TEXT DEFAULT 'admin'"),
@@ -589,24 +614,41 @@ def init_db():
         ("approved_at", "TEXT DEFAULT ''")
     ]:
         try:
-            cursor.execute(f"ALTER TABLE business_memberships ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE business_memberships ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     for col, typ in [
         ("dob", "TEXT DEFAULT ''"),
         ("nid_passport", "TEXT DEFAULT ''"),
-        ("cv_url", "TEXT DEFAULT ''")
+        ("cv_url", "TEXT DEFAULT ''"),
+        ("first_name", "TEXT DEFAULT ''"),
+        ("middle_name", "TEXT DEFAULT ''"),
+        ("last_name", "TEXT DEFAULT ''"),
+        ("name_bangla", "TEXT DEFAULT ''")
     ]:
         try:
-            cursor.execute(f"ALTER TABLE employee_profiles ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE employee_profiles ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     for col, typ in [("issuing_authority", "TEXT DEFAULT ''")]:
         try:
-            cursor.execute(f"ALTER TABLE business_verifications ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE business_verifications ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             pass
 
     for col, typ in [
