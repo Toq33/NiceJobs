@@ -12,7 +12,145 @@ function purgeDemoBarPermanently() {
 }
 purgeDemoBarPermanently();
 document.addEventListener('DOMContentLoaded', purgeDemoBarPermanently);
-window.addEventListener('load', purgeDemoBarPermanently);
+// ==========================================================================
+// Strict Autofill Policy Enforcer
+// Policy: Do NOT suggest autofill in any text box except emails, cell, and login email/pass
+// ==========================================================================
+
+function isAutofillAllowedInput(el) {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  if (tag !== 'input' && tag !== 'textarea') return false;
+
+  const type = (el.getAttribute('type') || (tag === 'textarea' ? 'textarea' : 'text')).toLowerCase();
+
+  // Non-textual types that do not have text suggestions
+  if (['hidden', 'file', 'checkbox', 'radio', 'submit', 'button', 'reset', 'range', 'color', 'image'].includes(type)) {
+    return false;
+  }
+
+  // 1. Password / Login pass (ALLOWED)
+  if (type === 'password') return true;
+
+  // 2. Emails (ALLOWED)
+  if (type === 'email') return true;
+
+  const id = (el.id || '').toLowerCase();
+  const name = (el.name || '').toLowerCase();
+  const cls = (el.className || '').toLowerCase();
+  const placeholder = (el.placeholder || '').toLowerCase();
+  const auto = (el.getAttribute('autocomplete') || '').toLowerCase();
+
+  // Explicit email fields (e.g. cand-email, login-email, biz-email)
+  if (id.includes('email') || name.includes('email') || cls.includes('email') || auto.includes('email') || placeholder.includes('email')) {
+    return true;
+  }
+
+  // 3. Cell / Phone numbers (ALLOWED)
+  if (type === 'tel') return true;
+  if (id.includes('phone') || id.includes('cell') || id.includes('mobile') ||
+      name.includes('phone') || name.includes('cell') || name.includes('mobile') ||
+      cls.includes('phone') || cls.includes('cell') || cls.includes('mobile') ||
+      placeholder.includes('phone') || placeholder.includes('cell') || placeholder.includes('mobile') ||
+      auto.includes('tel')) {
+    return true;
+  }
+
+  // 4. Login email / password / username credentials (ALLOWED)
+  if (id.includes('login-identifier') || id.includes('login-user') ||
+      (id.includes('login') && (id.includes('user') || id.includes('pass') || id.includes('pwd') || id.includes('ident'))) ||
+      auto === 'username' || auto === 'current-password' || auto === 'new-password') {
+    return true;
+  }
+
+  return false;
+}
+
+function enforceAutofillPolicy(root = document) {
+  if (typeof document === 'undefined') return;
+  try {
+    const scope = (root && root.querySelectorAll) ? root : document;
+    const elements = scope.querySelectorAll('input, textarea');
+    elements.forEach(el => {
+      const type = (el.getAttribute('type') || (el.tagName.toLowerCase() === 'textarea' ? 'textarea' : 'text')).toLowerCase();
+      if (['hidden', 'file', 'checkbox', 'radio', 'submit', 'button', 'reset'].includes(type)) return;
+
+      if (!isAutofillAllowedInput(el)) {
+        // Strictly disable autofill suggestions on all non-whitelisted text boxes
+        el.setAttribute('autocomplete', 'off');
+        el.setAttribute('autocorrect', 'off');
+        el.setAttribute('autocapitalize', 'off');
+        el.setAttribute('spellcheck', 'false');
+        el.setAttribute('aria-autocomplete', 'none');
+        el.setAttribute('data-lpignore', 'true');
+        el.setAttribute('data-1p-ignore', 'true');
+        el.setAttribute('data-form-type', 'other');
+      } else {
+        // Whitelisted (emails, cell, login email/pass)
+        if (type === 'email' && (!el.getAttribute('autocomplete') || el.getAttribute('autocomplete') === 'off')) {
+          el.setAttribute('autocomplete', 'email');
+        } else if (type === 'tel' && (!el.getAttribute('autocomplete') || el.getAttribute('autocomplete') === 'off')) {
+          el.setAttribute('autocomplete', 'tel');
+        }
+      }
+    });
+
+    // Also ensure forms containing non-whitelisted text fields have autocomplete="off" by default
+    const forms = scope.querySelectorAll('form');
+    forms.forEach(form => {
+      const isPureLoginForm = form.id && (form.id.includes('login') || form.id.includes('auth-step'));
+      if (!isPureLoginForm && !form.getAttribute('autocomplete')) {
+        form.setAttribute('autocomplete', 'off');
+      }
+    });
+  } catch (err) {}
+}
+
+// 1. Immediate execution
+if (typeof document !== 'undefined') {
+  enforceAutofillPolicy(document);
+
+  // 2. Lifecycle triggers
+  document.addEventListener('DOMContentLoaded', () => enforceAutofillPolicy(document));
+  window.addEventListener('load', () => enforceAutofillPolicy(document));
+
+  // 3. Capturing focusin listener (intercepts clicks/tabs before browser suggestion menu opens)
+  document.addEventListener('focusin', (e) => {
+    const target = e.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      if (!isAutofillAllowedInput(target)) {
+        target.setAttribute('autocomplete', 'off');
+        target.setAttribute('autocorrect', 'off');
+        target.setAttribute('autocapitalize', 'off');
+        target.setAttribute('spellcheck', 'false');
+        target.setAttribute('aria-autocomplete', 'none');
+        target.setAttribute('data-lpignore', 'true');
+        target.setAttribute('data-1p-ignore', 'true');
+        target.setAttribute('data-form-type', 'other');
+      }
+    }
+  }, true);
+
+  // 4. MutationObserver for dynamic modals, screens, tabs, and step transitions
+  if (typeof MutationObserver !== 'undefined') {
+    const autofillObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.addedNodes && m.addedNodes.length > 0) {
+          m.addedNodes.forEach(node => {
+            if (node.nodeType === 1) { // Node.ELEMENT_NODE
+              enforceAutofillPolicy(node);
+            }
+          });
+        }
+      }
+    });
+    if (document.documentElement) {
+      autofillObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+}
+window.enforceAutofillPolicy = enforceAutofillPolicy;
+window.isAutofillAllowedInput = isAutofillAllowedInput;
 
 // ==========================================================================
 // Modern Clean Vector SVG Icon System (No Childish Emojis)
@@ -2261,7 +2399,7 @@ async function renderHomeScreen(viewport) {
         <div class="search-main-row">
           <div class="search-field" style="position: relative;">
             <span class="field-icon">${svgIcon('search', '', 16)}</span>
-            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" oninput="handleCandidateSearchInput(this.value)" onfocus="handleCandidateSearchFocus(this.value)" onclick="showCandidateExtraFields()" onkeydown="if(event.key==='Enter') executeSearch()">
+            <input type="text" id="input-search-q" placeholder="Job title, keywords, or hotel name..." value="${state.search.query}" oninput="handleCandidateSearchInput(this.value)" onfocus="handleCandidateSearchFocus(this.value)" onclick="showCandidateExtraFields()" onkeydown="if(event.key==='Enter') executeSearch()" autocomplete="off">
             <div id="candidate-search-dropdown" class="candidate-search-dropdown" style="display: none;"></div>
           </div>
           <div class="mobile-search-extra-fields ${(state.search.location || state.search.department || state.search.designation) ? 'is-expanded' : ''}" id="candidate-mobile-extra-fields">
@@ -2546,72 +2684,21 @@ function applyGuestSuggestion(val, type = 'query') {
 }
 
 function handleGuestSearchInput(rawVal) {
-  const dropdown = document.getElementById('guest-search-dropdown');
-  if (!dropdown) return;
-  const q = (rawVal || '').toLowerCase().trim();
-  const filtered = GUEST_AUTOCOMPLETE_ITEMS.filter(item => {
-    if (!q) return true;
-    return item.label.toLowerCase().includes(q) || (item.query && item.query.toLowerCase().includes(q)) || (item.location && item.location.toLowerCase().includes(q)) || item.category.toLowerCase().includes(q);
-  }).slice(0, 5);
-
-  if (filtered.length === 0) {
-    dropdown.style.display = 'none';
-    return;
-  }
-
-  dropdown.innerHTML = filtered.map(item => `
-    <div class="guest-sugg-item" onclick="applyGuestSuggestion('${(item.query || item.location).replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
-      <span class="field-icon-bullet">${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}</span>
-      <span class="sugg-item-title">${item.label}</span>
-    </div>
-  `).join('');
-  dropdown.style.display = 'flex';
+  closeGuestSearchDropdown();
 }
 
 function closeGuestSearchDropdown() {
   const dropdown = document.getElementById('guest-search-dropdown');
-  if (dropdown) dropdown.style.display = 'none';
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+  }
 }
 
-const CANDIDATE_AUTOCOMPLETE_ITEMS = [
-  { label: 'Front Office Supervisor', query: 'Front Office Supervisor', category: 'Role' },
-  { label: 'Executive Chef', query: 'Executive Chef', category: 'Culinary' },
-  { label: 'F&B Captain / Server', query: 'F&B Captain', category: 'F&B Service' },
-  { label: 'Housekeeping Attendant / Lead', query: 'Housekeeping Attendant', category: 'Rooms' },
-  { label: 'Duty Engineer / Maintenance', query: 'Duty Engineer', category: 'Engineering' },
-  { label: 'Opera PMS 5.5 / Cloud Expert', query: 'Opera PMS', category: 'PMS Skill' },
-  { label: 'Radisson Blu Dhaka Water Garden', query: 'Radisson Blu', category: '5-Star Hotel' },
-  { label: 'InterContinental Dhaka', query: 'InterContinental', category: '5-Star Hotel' },
-  { label: 'The Westin Dhaka', query: 'The Westin', category: '5-Star Hotel' },
-  { label: 'Sayeman Beach Resort Cox\'s Bazar', query: 'Sayeman', category: 'Resort' },
-  { label: 'Grand Sultan Tea Resort Sylhet', query: 'Grand Sultan', category: 'Resort' },
-  { label: 'Dhaka Luxury Properties', location: 'Dhaka', category: 'Location' },
-  { label: 'Cox\'s Bazar Beach Resorts', location: "Cox's Bazar", category: 'Location' },
-  { label: 'Sylhet & Sreemangal Resorts', location: 'Sylhet', category: 'Location' },
-  { label: 'Chittagong Business Hotels', location: 'Chittagong', category: 'Location' }
-];
+const CANDIDATE_AUTOCOMPLETE_ITEMS = [];
 
 function handleCandidateSearchInput(rawVal) {
-  const dropdown = document.getElementById('candidate-search-dropdown');
-  if (!dropdown) return;
-  const q = (rawVal || '').toLowerCase().trim();
-  const filtered = CANDIDATE_AUTOCOMPLETE_ITEMS.filter(item => {
-    if (!q) return true;
-    return item.label.toLowerCase().includes(q) || (item.query && item.query.toLowerCase().includes(q)) || (item.location && item.location.toLowerCase().includes(q)) || (item.department && item.department.toLowerCase().includes(q));
-  }).slice(0, 6);
-
-  if (filtered.length === 0) {
-    dropdown.style.display = 'none';
-    return;
-  }
-
-  dropdown.innerHTML = filtered.map(item => `
-    <div class="guest-sugg-item" onclick="applyCandidateSuggestion('${(item.query || item.location || '').replace(/'/g, "\\'")}', '${item.location ? 'location' : 'query'}')">
-      <span class="field-icon-bullet">${svgIcon(item.location ? 'mapPin' : 'search', '', 14)}</span>
-      <span class="sugg-item-title">${item.label}</span>
-    </div>
-  `).join('');
-  dropdown.style.display = 'flex';
+  closeCandidateSearchDropdown();
 }
 
 function applyCandidateSuggestion(val, type = 'query') {
@@ -2631,7 +2718,10 @@ function applyCandidateSuggestion(val, type = 'query') {
 
 function closeCandidateSearchDropdown() {
   const dropdown = document.getElementById('candidate-search-dropdown');
-  if (dropdown) dropdown.style.display = 'none';
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+  }
 }
 
 function showHeroExtraFields() {
@@ -3988,7 +4078,7 @@ async function renderInboxScreen(viewport) {
         <!-- Left Panel: Conversation Threads -->
         <div class="inbox-sidebar-panel">
           <div class="inbox-search-header">
-            <input type="text" id="inbox-search-input" class="inbox-search-input" placeholder="Search conversations..." oninput="filterInboxThreads(this.value)">
+            <input type="text" id="inbox-search-input" class="inbox-search-input" placeholder="Search conversations..." oninput="filterInboxThreads(this.value)" autocomplete="off">
           </div>
 
           <div class="thread-list-scroll" id="thread-list-scroll">
@@ -4104,7 +4194,7 @@ async function renderInboxScreen(viewport) {
               <button type="button" class="btn-chat-media-btn" onclick="document.getElementById('chat-file-input').click()" title="Send Photo or Document">
                 ${svgIcon('paperclip', '', 18)}
               </button>
-              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message... (Press Enter to send)" oninput="handleChatTypingInput()" onblur="sendChatTypingStop()" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendChatMessage(); }">
+              <input type="text" id="chat-input-field" class="chat-composer-input" placeholder="Type a message... (Press Enter to send)" oninput="handleChatTypingInput()" onblur="sendChatTypingStop()" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendChatMessage(); }" autocomplete="off">
               <button type="button" class="btn-chat-media-btn btn-chat-mic-btn" id="btn-chat-mic" onclick="startVoiceMessageRecording()" title="Record Voice Note">
                 ${svgIcon('mic', '', 18)}
               </button>
@@ -6021,7 +6111,7 @@ function renderLoginPage(viewport) {
                   placeholder="Enter official business email" 
                   required 
                   value="${escapeHtml(loginState.businessEmail || '')}" 
-                  autocomplete="organization" autofocus>
+                  autocomplete="email" autofocus>
               </div>
 
               ${loginState.errorType === 'unlisted_business' ? `
