@@ -22,8 +22,72 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import database
+import bcrypt
 
 app = FastAPI(title="NiceJobs API", version="1.0.0")
+
+# =======================
+# SECURITY HEADERS & DEFENSIVE MIDDLEWARE
+# =======================
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if database.is_production():
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# =======================
+# CRYPTOGRAPHY & RATE LIMITING
+# =======================
+def hash_password(password: str) -> str:
+    """Hashes a password securely using bcrypt with work factor 12."""
+    if not password:
+        password = "Password123!"
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+def verify_password(plain_password: str, stored_hash: str) -> bool:
+    """
+    Constant-time password verification supporting bcrypt hashes
+    and transparent backwards-compatibility for legacy plaintexts.
+    """
+    if not plain_password or not stored_hash:
+        return False
+    # If stored as bcrypt hash
+    if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
+        try:
+            return bcrypt.checkpw(plain_password.encode("utf-8"), stored_hash.encode("utf-8"))
+        except Exception:
+            return False
+    # Legacy plaintext check with constant-time comparison
+    return secrets.compare_digest(plain_password, stored_hash)
+
+# In-memory sliding window rate limiter
+PUBLIC_AUTH_ATTEMPTS: Dict[str, List[float]] = {}
+
+def check_public_rate_limit(key: str, max_attempts: int = 15, window_seconds: int = 300) -> None:
+    now_ts = time.time()
+    recent = [t for t in PUBLIC_AUTH_ATTEMPTS.get(key, []) if now_ts - t < window_seconds]
+    PUBLIC_AUTH_ATTEMPTS[key] = recent
+    if len(recent) >= max_attempts:
+        retry_after = int(window_seconds - (now_ts - recent[0]))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Security Alert: Too many failed requests. Rate limit exceeded. Try again in {retry_after} seconds."
+        )
+
+def record_public_rate_failure(key: str) -> None:
+    now_ts = time.time()
+    PUBLIC_AUTH_ATTEMPTS.setdefault(key, []).append(now_ts)
+
+def reset_public_rate_limit(key: str) -> None:
+    PUBLIC_AUTH_ATTEMPTS.pop(key, None)
+
 
 # Ensure DB initialized in local non-production SQLite mode.
 # When running with PostgreSQL or in Vercel/production, schema migrations must be run explicitly.
@@ -599,6 +663,11 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
 @app.post("/api/realtime/test-emit")
 async def realtime_test_emit_endpoint(request: Request):
     """Utility endpoint for verifying real-time delivery in test suites."""
+    if database.is_production():
+        auth_hdr = request.headers.get("X-Admin-Token") or request.headers.get("Authorization")
+        if not auth_hdr:
+            raise HTTPException(status_code=403, detail="Security Notice: Realtime test emitter is disabled in production environments.")
+
     body = await request.json()
     event_type = body.get("type", "test_event")
     data = body.get("data", {})
@@ -1282,6 +1351,9 @@ class SendOtpPayload(BaseModel):
 
 @app.post("/api/auth/send-otp")
 def send_otp(payload: SendOtpPayload):
+    rate_key = (payload.identifier or payload.email or payload.phone or "unknown").strip().lower()
+    check_public_rate_limit(f"otp_{rate_key}", max_attempts=5, window_seconds=120)
+
     import random
     code = f"{random.randint(100000, 999999)}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1314,11 +1386,13 @@ def send_otp(payload: SendOtpPayload):
     conn.close()
 
     display_target = payload.phone or payload.email or payload.identifier
-    return {
+    res_data = {
         "success": True,
-        "message": f"6-digit security verification code dispatched to {display_target}",
-        "demo_otp": code
+        "message": f"6-digit security verification code dispatched to {display_target}"
     }
+    if not database.is_production():
+        res_data["demo_otp"] = code
+    return res_data
 
 class VerifyOtpPayload(BaseModel):
     identifier: str
@@ -1516,7 +1590,10 @@ def register_candidate(payload: CandidateRegisterPayload):
         ORDER BY created_at DESC LIMIT 1
     """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
     otp_row = cursor.fetchone()
-    if not otp_row and payload.otp_code.strip() not in ["258330", "123456"]:
+    is_valid_otp = bool(otp_row)
+    if not is_valid_otp and not database.is_production() and payload.otp_code.strip() in ["258330", "123456"]:
+        is_valid_otp = True
+    if not is_valid_otp:
         conn.close()
         raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
@@ -1554,11 +1631,12 @@ def register_candidate(payload: CandidateRegisterPayload):
     name_parts = [p for p in [fn, mn, ln] if p]
     computed_name = " ".join(name_parts).strip()
     full_name = computed_name if computed_name else (payload.name or "Candidate").strip()
+    secure_password_hash = hash_password(payload.password)
 
     cursor.execute("""
         INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, payload.password, "jobseeker", avatar, now, dob_val, nid_val, "active"))
+    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active"))
 
     cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
     initial_cvs = json.dumps([
@@ -1766,7 +1844,10 @@ def register_business(payload: BusinessRegisterPayload):
             ORDER BY created_at DESC LIMIT 1
         """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
         otp_row = cursor.fetchone()
-        if not otp_row and payload.otp_code.strip() not in ["258330", "123456"]:
+        is_valid_otp = bool(otp_row)
+        if not is_valid_otp and not database.is_production() and payload.otp_code.strip() in ["258330", "123456"]:
+            is_valid_otp = True
+        if not is_valid_otp:
             raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
         if otp_row:
@@ -1787,12 +1868,13 @@ def register_business(payload: BusinessRegisterPayload):
 
         designation_val = payload.designation or "Authorized Representative"
         avatar = payload.avatar_url or DEFAULT_AVATAR_SVG
+        secure_pwd_hash = hash_password(payload.password or "Password123!")
 
         # Insert representative user as Business Administrator
         cursor.execute("""
             INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin, is_demo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-        """, (user_id, payload.representative_name, rep_email, payload.phone, payload.password or "Password123!", "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
+        """, (user_id, payload.representative_name, rep_email, payload.phone, secure_pwd_hash, "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
 
         # Insert business
         cursor.execute("""
@@ -1925,7 +2007,10 @@ def register_business_user(payload: RegisterBusinessUserPayload):
         ORDER BY created_at DESC LIMIT 1
     """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
     otp_row = cursor.fetchone()
-    if not otp_row and payload.otp_code.strip() not in ["258330", "123456"]:
+    is_valid_otp = bool(otp_row)
+    if not is_valid_otp and not database.is_production() and payload.otp_code.strip() in ["258330", "123456"]:
+        is_valid_otp = True
+    if not is_valid_otp:
         conn.close()
         raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
@@ -1946,12 +2031,13 @@ def register_business_user(payload: RegisterBusinessUserPayload):
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    secure_pwd_hash = hash_password(payload.password)
 
     # Insert user (Pending admin approval)
     cursor.execute("""
         INSERT INTO users (id, name, email, phone, password, role, avatar_url, created_at, dob, designation, status, is_business_admin, is_demo)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    """, (user_id, payload.name, payload.email.strip().lower(), payload.phone, payload.password, "recruiter", payload.avatar_url or DEFAULT_AVATAR_SVG, now, payload.dob or "", payload.designation or "Team Member", "pending_approval", 0))
+    """, (user_id, payload.name, payload.email.strip().lower(), payload.phone, secure_pwd_hash, "recruiter", payload.avatar_url or DEFAULT_AVATAR_SVG, now, payload.dob or "", payload.designation or "Team Member", "pending_approval", 0))
 
     # Insert membership with 'pending_admin_approval'
     cursor.execute("""
@@ -2062,22 +2148,40 @@ def login(payload: LoginPayload):
                 detail="This user is not listed in this business account. Please join as a new user for this business."
             )
 
+        rate_key = f"biz_login_{user['id']}"
+        check_public_rate_limit(rate_key, max_attempts=8, window_seconds=300)
+
         # Check password / OTP
         if payload.otp_code:
             cursor.execute("""
                 SELECT id FROM otp_verifications
-                WHERE (identifier = ? OR identifier = ?) AND otp_code = ?
+                WHERE (identifier = ? OR identifier = ?) AND otp_code = ? AND verified = 0
                 ORDER BY created_at DESC LIMIT 1
             """, (user["email"], user["phone"], payload.otp_code.strip()))
             otp_row = cursor.fetchone()
-            if not otp_row and payload.otp_code.strip() not in ["258330", "123456"]:
+            is_valid_otp = bool(otp_row)
+            if not is_valid_otp and not database.is_production() and payload.otp_code.strip() in ["258330", "123456"]:
+                is_valid_otp = True
+            if not is_valid_otp:
+                record_public_rate_failure(rate_key)
                 conn.close()
                 raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
+            if otp_row:
+                cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
         elif payload.password:
-            stored_pwd = user["password"] or "Password123!"
-            if payload.password != stored_pwd and payload.password != "Password123!":
+            stored_pwd = user["password"] or ""
+            if not verify_password(payload.password, stored_pwd):
+                record_public_rate_failure(rate_key)
                 conn.close()
                 raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+            # Transparently upgrade legacy plaintext to bcrypt
+            if not stored_pwd.startswith("$2b$") and not stored_pwd.startswith("$2a$"):
+                try:
+                    cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hash_password(payload.password), user["id"]))
+                except Exception:
+                    pass
+
+        reset_public_rate_limit(rate_key)
 
         # Check approval status
         mem_status = membership["approval_status"] or "approved"
@@ -2218,22 +2322,40 @@ def login(payload: LoginPayload):
         conn.close()
         raise HTTPException(status_code=403, detail="Your account has been suspended by NiceJobs Trust & Safety. Contact support@nicejobs.bd.")
 
+    rate_key = f"user_login_{user['id']}"
+    check_public_rate_limit(rate_key, max_attempts=8, window_seconds=300)
+
     # OTP or Password
     if payload.otp_code:
         cursor.execute("""
             SELECT id FROM otp_verifications
-            WHERE (identifier = ? OR identifier = ?) AND otp_code = ?
+            WHERE (identifier = ? OR identifier = ?) AND otp_code = ? AND verified = 0
             ORDER BY created_at DESC LIMIT 1
         """, (user["email"], user["phone"], payload.otp_code.strip()))
         otp_row = cursor.fetchone()
-        if not otp_row and payload.otp_code.strip() not in ["258330", "123456"]:
+        is_valid_otp = bool(otp_row)
+        if not is_valid_otp and not database.is_production() and payload.otp_code.strip() in ["258330", "123456"]:
+            is_valid_otp = True
+        if not is_valid_otp:
+            record_public_rate_failure(rate_key)
             conn.close()
             raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
+        if otp_row:
+            cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
     elif payload.password:
-        stored_pwd = user["password"] or "Password123!"
-        if payload.password != stored_pwd and payload.password != "Password123!":
+        stored_pwd = user["password"] or ""
+        if not verify_password(payload.password, stored_pwd):
+            record_public_rate_failure(rate_key)
             conn.close()
             raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+        # Transparently upgrade legacy plaintext to bcrypt
+        if not stored_pwd.startswith("$2b$") and not stored_pwd.startswith("$2a$"):
+            try:
+                cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hash_password(payload.password), user["id"]))
+            except Exception:
+                pass
+
+    reset_public_rate_limit(rate_key)
 
     business_info = None
     if user["role"] == "recruiter":
@@ -3281,6 +3403,16 @@ def get_media_storage_path():
         os.makedirs(tmp_media, exist_ok=True)
         return tmp_media, "/api/uploads/messages"
 
+ALLOWED_MEDIA_EXTENSIONS = {
+    # Images
+    ".jpg", ".jpeg", ".png", ".webp", ".gif",
+    # Audio
+    ".webm", ".mp3", ".wav", ".ogg", ".m4a", ".aac",
+    # Documents
+    ".pdf", ".doc", ".docx", ".txt", ".xlsx", ".csv"
+}
+MAX_CHAT_UPLOAD_BYTES = 15 * 1024 * 1024 # 15 MB limit
+
 @app.get("/api/uploads/messages/{filename}")
 def serve_uploaded_media(filename: str):
     safe_name = os.path.basename(filename)
@@ -3289,18 +3421,21 @@ def serve_uploaded_media(filename: str):
         os.path.join("/tmp/uploads/messages", safe_name)
     ]:
         if os.path.exists(p):
-            return FileResponse(p)
+            return FileResponse(p, headers={"X-Content-Type-Options": "nosniff"})
     raise HTTPException(status_code=404, detail="Media attachment not found")
 
 @app.post("/api/messages/upload")
 async def upload_chat_media(file: UploadFile = File(...)):
     media_dir, url_prefix = get_media_storage_path()
 
-    # Determine file type
-    orig_name = file.filename or "attachment"
+    orig_name = os.path.basename(file.filename or "attachment")
     ext = os.path.splitext(orig_name)[1].lower()
-    if not ext:
-        ext = ".bin"
+
+    if ext not in ALLOWED_MEDIA_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Security Alert: File type '{ext}' is not permitted. Only images, audio, and standard documents (PDF, Word, Excel, Text) are allowed."
+        )
 
     f_type = "document"
     if ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
@@ -3310,10 +3445,16 @@ async def upload_chat_media(file: UploadFile = File(...)):
     elif ext in [".pdf", ".doc", ".docx", ".txt", ".xlsx", ".csv"]:
         f_type = "document"
 
-    safe_name = f"{f_type}_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}{ext}"
+    safe_name = f"{f_type}_{int(datetime.now().timestamp())}_{secrets.token_hex(6)}{ext}"
     dest_path = os.path.join(media_dir, safe_name)
 
     content_bytes = await file.read()
+    if len(content_bytes) > MAX_CHAT_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Payload Too Large: Uploaded file exceeds the 15 MB size limit."
+        )
+
     with open(dest_path, "wb") as f:
         f.write(content_bytes)
 
@@ -3841,10 +3982,9 @@ def admin_login(payload: AdminLoginPayload, request: Request):
         conn.close()
         raise HTTPException(status_code=403, detail="Security Alert: Administrative identity is suspended.")
 
-    # Validate password
-    stored_password = user["password"] or "Password123!"
-    valid_passwords = [stored_password, "Admin2026!NiceJobs", "Password123!"]
-    if admin_password not in valid_passwords:
+    # Validate password using cryptographic verification
+    stored_password = user["password"] or ""
+    if not verify_password(admin_password, stored_password):
         ADMIN_LOGIN_ATTEMPTS.setdefault(rate_key, []).append(now_ts)
         conn.close()
         remaining = ADMIN_LOCKOUT_MAX - len(ADMIN_LOGIN_ATTEMPTS[rate_key])
@@ -3853,11 +3993,22 @@ def admin_login(payload: AdminLoginPayload, request: Request):
             status_code=401,
             detail=f"Access Denied: Incorrect administrative password.{warning}"
         )
+    # Transparently upgrade admin plaintext password to bcrypt
+    if not stored_password.startswith("$2b$") and not stored_password.startswith("$2a$"):
+        try:
+            cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hash_password(admin_password), user["id"]))
+            conn.commit()
+        except Exception:
+            pass
 
     # Optional 2FA PIN check
     if payload.security_pin and payload.security_pin.strip():
         pin = payload.security_pin.strip()
-        if pin not in ["258330", "994821", "123456", "admin2fa"]:
+        expected_pin = os.environ.get("ADMIN_2FA_PIN", "994821")
+        pin_valid = secrets.compare_digest(pin, expected_pin)
+        if not pin_valid and not database.is_production():
+            pin_valid = pin in ["258330", "123456"]
+        if not pin_valid:
             ADMIN_LOGIN_ATTEMPTS.setdefault(rate_key, []).append(now_ts)
             conn.close()
             raise HTTPException(status_code=401, detail="Access Denied: Invalid 2FA Master Security Token.")
