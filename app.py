@@ -1405,12 +1405,12 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
                     "field": "official_email",
                     "message": "This official business email is already registered to an existing account. Please log in or use a different official email."
                 }
-            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (em,))
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (em,))
             if cursor.fetchone():
                 return {
                     "available": False,
                     "field": "official_email",
-                    "message": "This official business email is already registered to an existing account. Please log in or use a different official email."
+                    "message": "This official business email is already registered to an existing business account. Please log in or use a different official email."
                 }
 
         # 2. Check official telephone
@@ -1429,8 +1429,8 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
                                     "field": "official_telephone",
                                     "message": "This official business telephone is already registered to an existing account. Please use a different telephone number."
                                 }
-                # Check users
-                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != ''")
+                # Check business users
+                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != '' AND role = 'recruiter'")
                 for u_row in cursor.fetchall():
                     u_phone = u_row["phone"]
                     if u_phone and u_phone.strip():
@@ -1444,12 +1444,12 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
         # 3. Check representative email
         if payload.representative_email and payload.representative_email.strip():
             rep_em = payload.representative_email.strip().lower()
-            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (rep_em,))
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (rep_em,))
             if cursor.fetchone():
                 return {
                     "available": False,
                     "field": "representative_email",
-                    "message": "An account with this email address is already open. Please log in or use a different work email."
+                    "message": "A business user account with this email address is already open. Please log in or use a different work email."
                 }
             cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (rep_em,))
             if cursor.fetchone():
@@ -1523,11 +1523,21 @@ def register_candidate(payload: CandidateRegisterPayload):
     if otp_row:
         cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
 
-    # Check uniqueness
-    cursor.execute("SELECT id FROM users WHERE email = ? OR phone = ?", (payload.email, payload.phone))
+    # Check uniqueness among candidate accounts (business user emails can open a candidate account)
+    cand_email = payload.email.strip().lower()
+    cand_phone = payload.phone.strip()
+    norm_cand_phone = normalize_phone(cand_phone)
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'jobseeker'", (cand_email,))
     if cursor.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="An account with this email or phone number already exists.")
+        raise HTTPException(status_code=400, detail="A candidate account with this email address already exists. Please log in.")
+
+    cursor.execute("SELECT id, phone FROM users WHERE role = 'jobseeker'")
+    for u_row in cursor.fetchall():
+        u_p = (u_row["phone"] or "").strip()
+        if u_p and (u_p == cand_phone or (norm_cand_phone and normalize_phone(u_p) == norm_cand_phone)):
+            conn.close()
+            raise HTTPException(status_code=400, detail="A candidate account with this phone number already exists. Please log in.")
 
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1699,11 +1709,11 @@ def register_business(payload: BusinessRegisterPayload):
                 status_code=400,
                 detail="This official business email is already registered to an existing account. Please log in or use a different official email."
             )
-        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (official_email_clean,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (official_email_clean,))
         if cursor.fetchone():
             raise HTTPException(
                 status_code=400,
-                detail="This official business email is already registered to an existing account. Please log in or use a different official email."
+                detail="This official business email is already registered to an existing business account. Please log in or use a different official email."
             )
 
         # 2. Check official telephone uniqueness
@@ -1721,8 +1731,8 @@ def register_business(payload: BusinessRegisterPayload):
                                     status_code=400,
                                     detail="This official business telephone is already registered to an existing account. Please use a different telephone number."
                                 )
-                # Check in users
-                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != ''")
+                # Check in business users
+                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != '' AND role = 'recruiter'")
                 for u_row in cursor.fetchall():
                     u_phone = u_row["phone"]
                     if u_phone and u_phone.strip():
@@ -1734,11 +1744,11 @@ def register_business(payload: BusinessRegisterPayload):
 
         # 3. Check representative email (person on behalf of business) uniqueness
         rep_email = (payload.representative_email or payload.email).strip().lower()
-        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (rep_email,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (rep_email,))
         if cursor.fetchone():
             raise HTTPException(
                 status_code=400,
-                detail="An account with this email address is already open. Please log in or use a different work email."
+                detail="A business user account with this email address is already open. Please log in or use a different work email."
             )
         cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (rep_email,))
         if cursor.fetchone():
@@ -1924,10 +1934,10 @@ def register_business_user(payload: RegisterBusinessUserPayload):
 
     # 3. Check uniqueness of user email on behalf
     user_email_clean = payload.email.strip().lower()
-    cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (user_email_clean,))
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (user_email_clean,))
     if cursor.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="An account with this email address is already open. Please log in or use a different work email.")
+        raise HTTPException(status_code=400, detail="A business user account with this email address is already open. Please log in or use a different work email.")
     cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (user_email_clean,))
     if cursor.fetchone():
         conn.close()
@@ -2021,10 +2031,18 @@ def login(payload: LoginPayload):
             conn.close()
             raise HTTPException(status_code=400, detail="Please enter your personal work email on behalf of this business.")
 
-        cursor.execute("SELECT * FROM users WHERE LOWER(email) = ?", (person_email,))
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (person_email,))
         user = cursor.fetchone()
         if not user:
+            # Check if this user only has a candidate account
+            cursor.execute("SELECT * FROM users WHERE LOWER(email) = ? AND role = 'jobseeker'", (person_email,))
+            cand_user = cursor.fetchone()
             conn.close()
+            if cand_user:
+                raise HTTPException(
+                    status_code=403,
+                    detail="This email is registered as a candidate account, not a business user. To access this business workspace, please register as a business representative or join this establishment."
+                )
             raise HTTPException(
                 status_code=404,
                 detail="This user is not listed in this business account. Please join as a new user for this business."
@@ -2119,25 +2137,82 @@ def login(payload: LoginPayload):
     phone_input = (payload.phone or "").strip()
     norm_phone = normalize_phone(phone_input or email_input)
 
+    target_role = (payload.role or "").strip().lower()
+
     cursor.execute("SELECT * FROM users")
     all_users = cursor.fetchall()
-    user = None
+
+    candidate_user = None
+    recruiter_user = None
+    admin_user = None
+
     for u in all_users:
         u_email = (u["email"] or "").lower()
         u_norm_p = normalize_phone(u["phone"])
+        matches = False
         if email_input and u_email == email_input:
-            user = u
-            break
-        if norm_phone and u_norm_p == norm_phone:
-            user = u
-            break
+            matches = True
+        elif norm_phone and u_norm_p == norm_phone:
+            matches = True
 
-    if not user:
-        conn.close()
-        raise HTTPException(
-            status_code=401,
-            detail=f"No account found matching '{email_input or phone_input}'. Please check your credentials or create a new account."
-        )
+        if matches:
+            if u["role"] == "jobseeker":
+                candidate_user = u
+            elif u["role"] == "recruiter":
+                recruiter_user = u
+            elif u["role"] == "admin":
+                admin_user = u
+
+    # Role resolution & strict enforcement:
+    # A business user cannot log in as a candidate with their business user credentials.
+    # They will need a new candidate account to log in as a candidate.
+    user = None
+    if target_role == "jobseeker" or not target_role:
+        if candidate_user:
+            user = candidate_user
+        elif recruiter_user:
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail="This email is registered as a business account, not a candidate account. A business user cannot log in as a candidate with their business user credentials. Please create a new candidate account to log in as a candidate."
+            )
+        elif admin_user and target_role != "jobseeker":
+            user = admin_user
+        else:
+            conn.close()
+            raise HTTPException(
+                status_code=401,
+                detail=f"No candidate account found matching '{email_input or phone_input}'. Please check your credentials or create a new candidate account."
+            )
+    elif target_role == "recruiter":
+        if recruiter_user:
+            user = recruiter_user
+        elif candidate_user:
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail="This email is registered as a candidate account, not a business account. Please use candidate login or register a business account."
+            )
+        else:
+            conn.close()
+            raise HTTPException(
+                status_code=401,
+                detail=f"No business account found matching '{email_input or phone_input}'."
+            )
+    elif target_role == "admin":
+        if admin_user:
+            user = admin_user
+        else:
+            conn.close()
+            raise HTTPException(status_code=401, detail="No administrator account found.")
+    else:
+        user = candidate_user or recruiter_user or admin_user
+        if not user:
+            conn.close()
+            raise HTTPException(
+                status_code=401,
+                detail=f"No account found matching '{email_input or phone_input}'."
+            )
 
     if user["status"] == "suspended":
         conn.close()

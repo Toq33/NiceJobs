@@ -314,11 +314,12 @@ def init_db():
         middle_name TEXT DEFAULT '',
         last_name TEXT DEFAULT '',
         name_bangla TEXT DEFAULT '',
-        email TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL,
         phone TEXT NOT NULL,
         role TEXT NOT NULL, -- 'jobseeker', 'recruiter', 'admin'
         avatar_url TEXT,
-        created_at TEXT
+        created_at TEXT,
+        UNIQUE (email, role)
     );
 
     CREATE TABLE IF NOT EXISTS employee_profiles (
@@ -574,6 +575,22 @@ def init_db():
                 conn.rollback()
             except Exception:
                 pass
+
+    # Ensure users uniqueness is scoped to (email, role) so candidates & business users can share the same email
+    try:
+        if bool(os.environ.get("DATABASE_URL")):
+            cursor.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key")
+            cursor.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_role_key")
+            cursor.execute("ALTER TABLE users ADD CONSTRAINT users_email_role_key UNIQUE (email, role)")
+            conn.commit()
+        else:
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_role ON users (email, role)")
+            conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     for col, typ in [
         ("parent_group", "TEXT DEFAULT ''"),
