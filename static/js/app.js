@@ -12,6 +12,30 @@ function purgeDemoBarPermanently() {
 }
 purgeDemoBarPermanently();
 document.addEventListener('DOMContentLoaded', purgeDemoBarPermanently);
+
+// ==========================================================================
+// High-concurrency In-flight Request Deduplication
+// Transparently deduplicates identical in-flight GET requests to eliminate redundant HTTP round-trips
+// ==========================================================================
+const _inflightGetRequests = new Map();
+if (typeof window !== 'undefined' && window.fetch) {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = function(url, options) {
+    const method = (options && options.method ? options.method.toUpperCase() : 'GET');
+    if (method === 'GET' && typeof url === 'string') {
+      if (_inflightGetRequests.has(url)) {
+        return _inflightGetRequests.get(url).then(res => res.clone());
+      }
+      const promise = originalFetch(url, options)
+        .finally(() => {
+          _inflightGetRequests.delete(url);
+        });
+      _inflightGetRequests.set(url, promise);
+      return promise.then(res => res.clone());
+    }
+    return originalFetch(url, options);
+  };
+}
 // ==========================================================================
 // Strict Autofill Policy Enforcer
 // Policy: Do NOT suggest autofill in any text box except emails, cell, and login email/pass

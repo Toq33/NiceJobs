@@ -201,10 +201,12 @@ def get_pg_pool():
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():
             conn_kwargs["sslmode"] = "require"
+        minconn = int(os.environ.get("DB_POOL_MIN", "5"))
+        maxconn = int(os.environ.get("DB_POOL_MAX", "50"))
         try:
             _pg_pool = ThreadedConnectionPool(
-                minconn=2,
-                maxconn=20,
+                minconn=minconn,
+                maxconn=maxconn,
                 dsn=database_url,
                 **conn_kwargs
             )
@@ -227,7 +229,7 @@ def get_db():
         pool = get_pg_pool()
         if pool:
             raw_conn = None
-            for _ in range(3):
+            for _ in range(5):
                 try:
                     raw_conn = pool.getconn()
                     if raw_conn.closed:
@@ -245,6 +247,8 @@ def get_db():
                         except Exception:
                             pass
                     raw_conn = None
+                    import time
+                    time.sleep(0.05)
 
         # Fallback to direct connection if pool exhausted or unavailable
         import psycopg2
@@ -254,9 +258,18 @@ def get_db():
         raw_conn = psycopg2.connect(database_url, **conn_kwargs)
         return PostgresConnectionWrapper(raw_conn)
 
-    # Local development SQLite connection
-    conn = sqlite3.connect(get_db_path(), timeout=30.0)
+    # Local development SQLite connection optimized for high-concurrency (WAL mode + cache)
+    conn = sqlite3.connect(get_db_path(), timeout=45.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute("PRAGMA journal_mode = WAL")
+        cur.execute("PRAGMA synchronous = NORMAL")
+        cur.execute("PRAGMA cache_size = -64000")
+        cur.execute("PRAGMA busy_timeout = 30000")
+        cur.execute("PRAGMA temp_store = MEMORY")
+    except Exception:
+        pass
     return conn
 
 def ensure_db_ready():
@@ -704,7 +717,27 @@ def init_db():
     for idx_sql in [
         "CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON messages (conversation_id, timestamp ASC)",
         "CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations (user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_conversations_biz ON conversations (business_id)"
+        "CREATE INDEX IF NOT EXISTS idx_conversations_biz ON conversations (business_id)",
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)",
+        "CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone)",
+        "CREATE INDEX IF NOT EXISTS idx_users_role_status ON users (role, status)",
+        "CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses (email)",
+        "CREATE INDEX IF NOT EXISTS idx_businesses_verif ON businesses (verification_status)",
+        "CREATE INDEX IF NOT EXISTS idx_businesses_city ON businesses (city)",
+        "CREATE INDEX IF NOT EXISTS idx_biz_members_biz_user ON business_memberships (business_id, user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_biz_members_user ON business_memberships (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_status_featured ON jobs (status, is_featured, is_urgent, posted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_business ON jobs (business_id)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_dept ON jobs (department)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_emp_type ON jobs (employment_type)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_exp_level ON jobs (experience_level)",
+        "CREATE INDEX IF NOT EXISTS idx_applications_job ON applications (job_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_applications_user ON applications (user_id, applied_at)",
+        "CREATE INDEX IF NOT EXISTS idx_applications_job_user ON applications (job_id, user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications (user_id, is_read, timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_otp_identifier_code ON otp_verifications (identifier, otp_code, verified)",
+        "CREATE INDEX IF NOT EXISTS idx_saved_jobs_job ON saved_jobs (job_id)",
+        "CREATE INDEX IF NOT EXISTS idx_followed_biz_biz ON followed_businesses (business_id)"
     ]:
         try:
             cursor.execute(idx_sql)

@@ -14,6 +14,8 @@ import asyncio
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -26,12 +28,29 @@ import bcrypt
 
 app = FastAPI(title="NiceJobs API", version="1.0.0")
 
+# High-concurrency network compression: compresses JSON and static responses over 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Controlled Cross-Origin Resource Sharing
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins if allowed_origins != ["*"] else ["*"],
+    allow_credentials=True if allowed_origins != ["*"] else False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # =======================
 # SECURITY HEADERS & DEFENSIVE MIDDLEWARE
 # =======================
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
+    # Correlation ID for request tracing
+    req_id = request.headers.get("X-Request-ID") or f"req_{secrets.token_hex(8)}"
     response = await call_next(request)
+    response.headers["X-Request-ID"] = req_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -40,6 +59,26 @@ async def security_headers_middleware(request: Request, call_next):
     if database.is_production():
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+# Liveness & Readiness Probes for Production Scalability
+@app.get("/api/health")
+@app.get("/healthz")
+def health_check():
+    """Liveness probe: verifies process is alive and responsive."""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/ready")
+@app.get("/readiness")
+def readiness_check():
+    """Readiness probe: validates database connectivity and pool availability."""
+    try:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        conn.close()
+        return {"status": "ready", "database": "connected", "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database service unavailable: {str(e)}")
 
 # =======================
 # CRYPTOGRAPHY & RATE LIMITING
@@ -228,22 +267,29 @@ class RealtimeConnectionManager:
 
     async def broadcast_to_room(self, conv_id: str, event_type: str, data: Dict[str, Any], exclude_ws: Optional[WebSocket] = None):
         ws_set = self.conversation_rooms.get(conv_id, set())
-        dead_ws = []
+        if not ws_set:
+            return
         msg = {
             "type": event_type,
             "data": data,
             "timestamp": datetime.now().isoformat(),
-            "event_id": f"evt_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+            "event_id": f"evt_{int(time.time()*1000)}_{secrets.token_hex(4)}"
         }
-        for ws in list(ws_set):
-            if ws is exclude_ws:
-                continue
+        targets = [ws for ws in list(ws_set) if ws is not exclude_ws]
+        if not targets:
+            return
+
+        async def _safe_send(ws):
             try:
-                await ws.send_json(msg)
+                await asyncio.wait_for(ws.send_json(msg), timeout=2.0)
+                return None
             except Exception:
-                dead_ws.append(ws)
-        for d in dead_ws:
-            self.disconnect_ws(d)
+                return ws
+
+        dead_results = await asyncio.gather(*[_safe_send(ws) for ws in targets], return_exceptions=True)
+        for res in dead_results:
+            if isinstance(res, WebSocket):
+                self.disconnect_ws(res)
 
     async def broadcast_event(self, event_type: str, data: Optional[Dict[str, Any]] = None, target_user: Optional[str] = None, target_business: Optional[str] = None):
         msg = {
@@ -252,16 +298,15 @@ class RealtimeConnectionManager:
             "target_user": target_user,
             "target_business": target_business,
             "timestamp": datetime.now().isoformat(),
-            "event_id": f"evt_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+            "event_id": f"evt_{int(time.time()*1000)}_{secrets.token_hex(4)}"
         }
         
-        dead_ws = []
+        targets = []
         for ws in list(self.active_websockets):
-            meta = self.metadata.get(ws, {})
-            u_id = meta.get("user_id")
-            b_id = meta.get("business_id")
-
             if target_user or target_business:
+                meta = self.metadata.get(ws, {})
+                u_id = meta.get("user_id")
+                b_id = meta.get("business_id")
                 matched = False
                 if target_user and u_id == target_user:
                     matched = True
@@ -269,13 +314,20 @@ class RealtimeConnectionManager:
                     matched = True
                 if not matched:
                     continue
+            targets.append(ws)
 
-            try:
-                await ws.send_json(msg)
-            except Exception:
-                dead_ws.append(ws)
-        for d in dead_ws:
-            self.disconnect_ws(d)
+        if targets:
+            async def _safe_send_ws(ws):
+                try:
+                    await asyncio.wait_for(ws.send_json(msg), timeout=2.0)
+                    return None
+                except Exception:
+                    return ws
+
+            dead_results = await asyncio.gather(*[_safe_send_ws(ws) for ws in targets], return_exceptions=True)
+            for res in dead_results:
+                if isinstance(res, WebSocket):
+                    self.disconnect_ws(res)
 
         # 2. Send to SSE subscribers with matching targets
         raw_sse = f"data: {json.dumps(msg)}\n\n"
@@ -766,7 +818,10 @@ def invalidate_api_cache(prefix: Optional[str] = None):
     if not prefix:
         _API_CACHE.clear()
     else:
-        keys_to_del = [k for k in _API_CACHE if k.startswith(prefix)]
+        prefixes = [prefix]
+        if prefix in ("jobs", "job"):
+            prefixes = ["jobs", "job_base"]
+        keys_to_del = [k for k in _API_CACHE if any(k.startswith(p) for p in prefixes)]
         for k in keys_to_del:
             _API_CACHE.pop(k, None)
 
@@ -904,36 +959,44 @@ def get_jobs(
 
 @app.get("/api/jobs/{job_id}")
 def get_job_detail(job_id: str, user_id: Optional[str] = "user_rahim"):
+    base_cache_key = f"job_base:{job_id}"
+    base_job = get_cached_api(base_cache_key)
+
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT j.*, b.brand_name, b.legal_name, b.property_type, b.city, b.address, b.website, b.email as business_email,
-               b.logo_url, b.cover_image, b.verification_status, b.star_rating, b.description as business_desc,
-               b.amenities, b.benefits as business_benefits
-        FROM jobs j
-        JOIN businesses b ON j.business_id = b.id
-        WHERE j.id = ?
-    """, (job_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Job not found")
+    if base_job is None:
+        cursor.execute("""
+            SELECT j.*, b.brand_name, b.legal_name, b.property_type, b.city, b.address, b.website, b.email as business_email,
+                   b.logo_url, b.cover_image, b.verification_status, b.star_rating, b.description as business_desc,
+                   b.amenities, b.benefits as business_benefits
+            FROM jobs j
+            JOIN businesses b ON j.business_id = b.id
+            WHERE j.id = ?
+        """, (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Job not found")
 
-    job = dict(row)
-    job["requirements"] = json.loads(job["requirements"]) if job.get("requirements") else []
-    job["education_requirements"] = json.loads(job["education_requirements"]) if job.get("education_requirements") else []
-    job["skill_requirements"] = json.loads(job["skill_requirements"]) if job.get("skill_requirements") else []
-    job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
-    job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
-    job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
-    raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
-    if not raw_jb:
-        if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
-        if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
-        if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
-        raw_jb.append("Comprehensive Health & Medical Insurance")
-    job["benefits"] = raw_jb
+        job = dict(row)
+        job["requirements"] = json.loads(job["requirements"]) if job.get("requirements") else []
+        job["education_requirements"] = json.loads(job["education_requirements"]) if job.get("education_requirements") else []
+        job["skill_requirements"] = json.loads(job["skill_requirements"]) if job.get("skill_requirements") else []
+        job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
+        job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
+        job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
+        raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
+        if not raw_jb:
+            if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
+            if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
+            if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
+            raw_jb.append("Comprehensive Health & Medical Insurance")
+        job["benefits"] = raw_jb
+        set_cached_api(base_cache_key, job)
+        base_job = job
+
+    job = dict(base_job)
 
     # Check application state for user
     applied = False
@@ -4055,48 +4118,41 @@ def admin_login(payload: AdminLoginPayload, request: Request):
 
 @app.get("/api/admin/overview")
 def get_admin_overview():
+    cached = get_cached_api("admin_overview")
+    if cached is not None:
+        return cached
+
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT count(*) FROM users WHERE role = 'jobseeker'")
-    total_candidates = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM users WHERE role = 'recruiter'")
-    total_business_users = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM businesses")
-    total_businesses = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM businesses WHERE verification_status = 'verified'")
-    verified_businesses = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM businesses WHERE verification_status = 'pending'")
-    pending_verifications = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM business_memberships WHERE approval_status = 'pending_admin_approval'")
-    pending_moderators = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM jobs")
-    total_jobs = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM jobs WHERE status = 'active'")
-    active_jobs = cursor.fetchone()[0]
-
-    cursor.execute("SELECT count(*) FROM users WHERE status = 'suspended'")
-    suspended_users = cursor.fetchone()[0]
-
+    cursor.execute("""
+        SELECT 
+            (SELECT count(*) FROM users WHERE role = 'jobseeker') as total_candidates,
+            (SELECT count(*) FROM users WHERE role = 'recruiter') as total_business_users,
+            (SELECT count(*) FROM businesses) as total_businesses,
+            (SELECT count(*) FROM businesses WHERE verification_status = 'verified') as verified_businesses,
+            (SELECT count(*) FROM businesses WHERE verification_status = 'pending') as pending_verifications,
+            (SELECT count(*) FROM business_memberships WHERE approval_status = 'pending_admin_approval') as pending_moderators,
+            (SELECT count(*) FROM jobs) as total_jobs,
+            (SELECT count(*) FROM jobs WHERE status = 'active') as active_jobs,
+            (SELECT count(*) FROM users WHERE status = 'suspended') as suspended_users
+    """)
+    row = cursor.fetchone()
     conn.close()
-    return {
-        "total_candidates": total_candidates,
-        "total_business_users": total_business_users,
-        "total_businesses": total_businesses,
-        "verified_businesses": verified_businesses,
-        "pending_verifications": pending_verifications,
-        "pending_moderators": pending_moderators,
-        "total_jobs": total_jobs,
-        "active_jobs": active_jobs,
-        "suspended_users": suspended_users
+
+    res = {
+        "total_candidates": row["total_candidates"] if row else 0,
+        "total_business_users": row["total_business_users"] if row else 0,
+        "total_businesses": row["total_businesses"] if row else 0,
+        "verified_businesses": row["verified_businesses"] if row else 0,
+        "pending_verifications": row["pending_verifications"] if row else 0,
+        "pending_moderators": row["pending_moderators"] if row else 0,
+        "total_jobs": row["total_jobs"] if row else 0,
+        "active_jobs": row["active_jobs"] if row else 0,
+        "suspended_users": row["suspended_users"] if row else 0
     }
+    set_cached_api("admin_overview", res)
+    return res
 
 @app.get("/api/admin/users")
 def get_admin_users(role: Optional[str] = "all", status: Optional[str] = "all", q: Optional[str] = None):
