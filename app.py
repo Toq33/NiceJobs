@@ -417,68 +417,62 @@ def notify_conversation_room(conv_id: str, event_type: str, data: Dict[str, Any]
 def check_conversation_authorization(conv_id: str, user_id: Optional[str] = None, business_id: Optional[str] = None, role: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Verifies that the provided user_id or business_id is an authorized participant
-    in the conversation. Returns conversation row as dict if valid, else None.
+    in the conversation using a single query with LEFT JOINs.
+    Returns conversation row as dict if valid, else None.
     """
     if not conv_id:
         return None
     try:
         conn = database.get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
-        conv = cursor.fetchone()
-        if not conv:
-            conn.close()
-            return None
-
-        conv_dict = dict(conv)
-        if role == "admin":
-            conn.close()
-            return conv_dict
 
         u_id = (user_id or "").strip()
         b_id = (business_id or "").strip()
 
-        # Direct match with candidate
-        if u_id and u_id == conv_dict.get("user_id"):
-            conn.close()
-            return conv_dict
-
-        # Direct match with business ID
-        if b_id and b_id == conv_dict.get("business_id"):
-            conn.close()
-            return conv_dict
-
-        # If user_id itself is the business ID
-        if u_id and u_id == conv_dict.get("business_id"):
-            conn.close()
-            return conv_dict
-
-        # Check if user belongs to or manages the business
-        target_biz_id = conv_dict.get("business_id")
-        if u_id and target_biz_id:
-            # 1. Check if u_id is the primary business administrator
-            cursor.execute("SELECT id FROM businesses WHERE id = ? AND admin_user_id = ?", (target_biz_id, u_id))
-            if cursor.fetchone():
-                conn.close()
-                return conv_dict
-
-            # 2. Check if u_id has an active business membership
-            try:
-                cursor.execute("SELECT id FROM business_memberships WHERE business_id = ? AND user_id = ?", (target_biz_id, u_id))
-                if cursor.fetchone():
-                    conn.close()
-                    return conv_dict
-            except Exception:
-                pass
-
-            # 3. Check if user has global admin role
-            cursor.execute("SELECT role FROM users WHERE id = ?", (u_id,))
-            u_row = cursor.fetchone()
-            if u_row and u_row.get("role") == "admin":
-                conn.close()
-                return conv_dict
-
+        cursor.execute("""
+            SELECT c.*,
+                   b.admin_user_id as biz_admin_id,
+                   bm.id as bm_membership_id,
+                   u.role as u_role
+            FROM conversations c
+            LEFT JOIN businesses b ON (c.business_id = b.id AND b.admin_user_id = ?)
+            LEFT JOIN business_memberships bm ON (c.business_id = bm.business_id AND bm.user_id = ?)
+            LEFT JOIN users u ON u.id = ?
+            WHERE c.id = ?
+        """, (u_id, u_id, u_id, conv_id))
+        row = cursor.fetchone()
         conn.close()
+
+        if not row:
+            return None
+
+        conv_dict = {
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "business_id": row["business_id"],
+            "job_id": row.get("job_id"),
+            "last_message": row.get("last_message"),
+            "last_message_time": row.get("last_message_time"),
+            "unread_for_user": row.get("unread_for_user"),
+            "unread_for_business": row.get("unread_for_business")
+        }
+
+        # 1. Global admin override
+        if role == "admin" or row.get("u_role") == "admin":
+            return conv_dict
+
+        # 2. Direct participant matches
+        if u_id and u_id == conv_dict.get("user_id"):
+            return conv_dict
+        if b_id and b_id == conv_dict.get("business_id"):
+            return conv_dict
+        if u_id and u_id == conv_dict.get("business_id"):
+            return conv_dict
+
+        # 3. Business administration or active membership match
+        if row.get("biz_admin_id") or row.get("bm_membership_id"):
+            return conv_dict
+
         return None
     except Exception as e:
         print(f"[AUTH ERROR] check_conversation_authorization: {e}")
@@ -959,68 +953,75 @@ def get_jobs(
 
 @app.get("/api/jobs/{job_id}")
 def get_job_detail(job_id: str, user_id: Optional[str] = "user_rahim"):
-    base_cache_key = f"job_base:{job_id}"
-    base_job = get_cached_api(base_cache_key)
-
     conn = database.get_db()
     cursor = conn.cursor()
 
-    if base_job is None:
-        cursor.execute("""
-            SELECT j.*, b.brand_name, b.legal_name, b.property_type, b.city, b.address, b.website, b.email as business_email,
-                   b.logo_url, b.cover_image, b.verification_status, b.star_rating, b.description as business_desc,
-                   b.amenities, b.benefits as business_benefits
-            FROM jobs j
-            JOIN businesses b ON j.business_id = b.id
-            WHERE j.id = ?
-        """, (job_id,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            raise HTTPException(status_code=404, detail="Job not found")
+    effective_uid = user_id if user_id else ""
+    cursor.execute("""
+        SELECT j.*, b.brand_name, b.legal_name, b.property_type, b.city, b.address, b.website, b.email as business_email,
+               b.logo_url, b.cover_image, b.verification_status, b.star_rating, b.description as business_desc,
+               b.amenities, b.benefits as business_benefits,
+               a.id as application_id, a.status as app_status, a.applied_at as app_applied_at, a.updated_at as app_updated_at,
+               a.cover_letter as app_cover_letter, a.selected_cv as app_selected_cv, a.screening_answers as app_screening_answers,
+               sj.saved_at as saved_timestamp
+        FROM jobs j
+        JOIN businesses b ON j.business_id = b.id
+        LEFT JOIN applications a ON (j.id = a.job_id AND a.user_id = ?)
+        LEFT JOIN saved_jobs sj ON (j.id = sj.job_id AND sj.user_id = ?)
+        WHERE j.id = ?
+    """, (effective_uid, effective_uid, job_id))
+    row = cursor.fetchone()
+    conn.close()
 
-        job = dict(row)
-        job["requirements"] = json.loads(job["requirements"]) if job.get("requirements") else []
-        job["education_requirements"] = json.loads(job["education_requirements"]) if job.get("education_requirements") else []
-        job["skill_requirements"] = json.loads(job["skill_requirements"]) if job.get("skill_requirements") else []
-        job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
-        job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
-        job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
-        raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
-        if not raw_jb:
-            if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
-            if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
-            if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
-            raw_jb.append("Comprehensive Health & Medical Insurance")
-        job["benefits"] = raw_jb
-        set_cached_api(base_cache_key, job)
-        base_job = job
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
 
-    job = dict(base_job)
+    job = dict(row)
+    job["requirements"] = json.loads(job["requirements"]) if job.get("requirements") else []
+    job["education_requirements"] = json.loads(job["education_requirements"]) if job.get("education_requirements") else []
+    job["skill_requirements"] = json.loads(job["skill_requirements"]) if job.get("skill_requirements") else []
+    job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
+    job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
+    job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
+    raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
+    if not raw_jb:
+        if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
+        if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
+        if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
+        raw_jb.append("Comprehensive Health & Medical Insurance")
+    job["benefits"] = raw_jb
 
-    # Check application state for user
-    applied = False
+    # Extract application and saved state from joined fields
+    applied = bool(job.get("application_id"))
     application_data = None
-    if user_id:
-        cursor.execute("SELECT * FROM applications WHERE job_id = ? AND user_id = ?", (job_id, user_id))
-        app_row = cursor.fetchone()
-        if app_row:
-            applied = True
-            application_data = dict(app_row)
-            if application_data.get("screening_answers"):
-                application_data["screening_answers"] = json.loads(application_data["screening_answers"])
-
-    # Check saved state
-    saved = False
-    if user_id:
-        cursor.execute("SELECT 1 FROM saved_jobs WHERE job_id = ? AND user_id = ?", (job_id, user_id))
-        saved = cursor.fetchone() is not None
+    if applied:
+        scr = job.get("app_screening_answers")
+        if scr and isinstance(scr, str):
+            try:
+                scr = json.loads(scr)
+            except Exception:
+                scr = {}
+        application_data = {
+            "id": job["application_id"],
+            "job_id": job_id,
+            "user_id": effective_uid,
+            "status": job.get("app_status"),
+            "applied_at": job.get("app_applied_at"),
+            "updated_at": job.get("app_updated_at"),
+            "cover_letter": job.get("app_cover_letter"),
+            "selected_cv": job.get("app_selected_cv"),
+            "screening_answers": scr
+        }
 
     job["is_applied"] = applied
     job["application"] = application_data
-    job["is_saved"] = saved
+    job["is_saved"] = bool(job.get("saved_timestamp"))
 
-    conn.close()
+    # Clean up joined temporary columns
+    for temp_col in ["application_id", "app_status", "app_applied_at", "app_updated_at",
+                     "app_cover_letter", "app_selected_cv", "app_screening_answers", "saved_timestamp"]:
+        job.pop(temp_col, None)
+
     return job
 
 class JobCreatePayload(BaseModel):
@@ -1213,7 +1214,14 @@ def get_business_detail(business_id: str, user_id: Optional[str] = "user_rahim")
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM businesses WHERE id = ?", (business_id,))
+    effective_uid = user_id if user_id else ""
+    cursor.execute("""
+        SELECT b.*,
+               (fb.business_id IS NOT NULL) as is_followed
+        FROM businesses b
+        LEFT JOIN followed_businesses fb ON (b.id = fb.business_id AND fb.user_id = ?)
+        WHERE b.id = ?
+    """, (effective_uid, business_id))
     row = cursor.fetchone()
     if not row or (is_demo_hidden() and row["is_demo"] == 1):
         conn.close()
@@ -1223,6 +1231,7 @@ def get_business_detail(business_id: str, user_id: Optional[str] = "user_rahim")
     biz["departments"] = json.loads(biz["departments"]) if biz["departments"] else []
     biz["amenities"] = json.loads(biz["amenities"]) if biz["amenities"] else []
     biz["benefits"] = json.loads(biz["benefits"]) if biz["benefits"] else []
+    biz["is_followed"] = bool(biz.get("is_followed"))
 
     # Open jobs
     cursor.execute("SELECT * FROM jobs WHERE business_id = ? AND status = 'active' ORDER BY posted_at DESC", (business_id,))
@@ -1243,13 +1252,6 @@ def get_business_detail(business_id: str, user_id: Optional[str] = "user_rahim")
     """, (business_id,))
     members = [dict(m) for m in cursor.fetchall()]
     biz["team_members"] = members
-
-    # Followed state
-    is_followed = False
-    if user_id:
-        cursor.execute("SELECT 1 FROM followed_businesses WHERE user_id = ? AND business_id = ?", (user_id, business_id))
-        is_followed = cursor.fetchone() is not None
-    biz["is_followed"] = is_followed
 
     conn.close()
     return biz
@@ -2760,19 +2762,22 @@ def set_default_cv(cv_id: str, user_id: Optional[str] = None):
 def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer_id: Optional[str] = None, business_id: Optional[str] = None):
     conn = database.get_db()
     cursor = conn.cursor()
+    effective_vid = viewer_id if viewer_id else ""
     cursor.execute("""
         SELECT a.id, a.user_id, a.selected_cv, a.applied_at, a.status,
                j.title as job_title, j.business_id,
                b.brand_name, b.verification_status,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone,
-               ep.headline, ep.summary, ep.skills, ep.experience, ep.education, ep.certifications, ep.languages
+               ep.headline, ep.summary, ep.skills, ep.experience, ep.education, ep.certifications, ep.languages,
+               (bm.id IS NOT NULL) as is_bm_member
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
         JOIN businesses b ON j.business_id = b.id
         JOIN users u ON a.user_id = u.id
         LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+        LEFT JOIN business_memberships bm ON (j.business_id = bm.business_id AND bm.user_id = ?)
         WHERE a.id = ?
-    """, (app_id,))
+    """, (effective_vid, app_id))
     row = cursor.fetchone()
     if not row:
         conn.close()
@@ -2783,13 +2788,7 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
     # Permission check: Candidate cv will ONLY be visible to the jobs/businesses that he has applied for
     is_admin = viewer_role == "admin"
     is_applicant = viewer_id and viewer_id == data["user_id"]
-    is_business_member = False
-    if viewer_id:
-        cursor.execute("SELECT 1 FROM business_memberships WHERE business_id = ? AND user_id = ?", (data["business_id"], viewer_id))
-        if cursor.fetchone():
-            is_business_member = True
-    if business_id and business_id == data["business_id"]:
-        is_business_member = True
+    is_business_member = bool(data.get("is_bm_member")) or (business_id and business_id == data["business_id"])
 
     if not (is_admin or is_applicant or is_business_member):
         conn.close()
@@ -2858,12 +2857,14 @@ def get_applications(
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
                ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills,
                ep.education as candidate_education, ep.experience as candidate_experience, ep.location as candidate_location,
-               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary
+               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary,
+               ae.id as event_id, ae.status as event_status, ae.actor_name as event_actor_name, ae.note as event_note, ae.timestamp as event_timestamp
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
         JOIN businesses b ON j.business_id = b.id
         JOIN users u ON a.user_id = u.id
         LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+        LEFT JOIN application_events ae ON a.id = ae.application_id
         WHERE 1=1
     """
     params = []
@@ -2891,24 +2892,38 @@ def get_applications(
         query += " AND a.status = ?"
         params.append(status)
 
-    query += " ORDER BY a.updated_at DESC"
+    query += " ORDER BY a.updated_at DESC, ae.id ASC"
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
 
     results = []
+    app_map = {}
     for r in rows:
-        d = dict(r)
-        d["screening_answers"] = json.loads(d["screening_answers"]) if d["screening_answers"] else {}
-        d["candidate_skills"] = json.loads(d["candidate_skills"]) if d.get("candidate_skills") else []
-        d["candidate_education"] = json.loads(d["candidate_education"]) if d.get("candidate_education") else []
-        d["candidate_experience"] = json.loads(d["candidate_experience"]) if d.get("candidate_experience") else []
+        app_id = r["id"]
+        if app_id not in app_map:
+            d = dict(r)
+            # Remove joined event fields from the top-level application dict
+            for ev_k in ["event_id", "event_status", "event_actor_name", "event_note", "event_timestamp"]:
+                d.pop(ev_k, None)
 
-        # Fetch status event timeline
-        cursor.execute("SELECT * FROM application_events WHERE application_id = ? ORDER BY id ASC", (d["id"],))
-        d["timeline"] = [dict(ev) for ev in cursor.fetchall()]
+            d["screening_answers"] = json.loads(d["screening_answers"]) if d["screening_answers"] else {}
+            d["candidate_skills"] = json.loads(d["candidate_skills"]) if d.get("candidate_skills") else []
+            d["candidate_education"] = json.loads(d["candidate_education"]) if d.get("candidate_education") else []
+            d["candidate_experience"] = json.loads(d["candidate_experience"]) if d.get("candidate_experience") else []
+            d["timeline"] = []
+            app_map[app_id] = d
+            results.append(d)
 
-        results.append(d)
+        if r.get("event_id"):
+            app_map[app_id]["timeline"].append({
+                "id": r["event_id"],
+                "application_id": app_id,
+                "status": r["event_status"],
+                "actor_name": r["event_actor_name"],
+                "note": r["event_note"],
+                "timestamp": r["event_timestamp"]
+            })
 
     conn.close()
     return results
