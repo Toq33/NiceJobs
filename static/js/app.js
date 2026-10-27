@@ -8954,6 +8954,33 @@ async function nextSignupStage(targetStage) {
       return;
     }
 
+    // Real-time check if candidate email or mobile number is already in use
+    try {
+      const chkRes = await fetch('/api/auth/check-candidate-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          phone: cleanPhone,
+          phone_secondary: cleanPhoneSec || null
+        })
+      });
+      const chkData = await chkRes.json();
+      if (!chkData.available) {
+        showToast(chkData.message, 'danger');
+        if (chkData.field === 'email') {
+          document.getElementById('cand-email')?.focus();
+        } else if (chkData.field === 'phone') {
+          document.getElementById('cand-phone')?.focus();
+        } else if (chkData.field === 'phone_secondary') {
+          document.getElementById('cand-phone-secondary')?.focus();
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('Candidate availability check error:', e);
+    }
+
     const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
     signupState.first_name = firstName;
     signupState.middle_name = middleName;

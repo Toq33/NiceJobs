@@ -1,6 +1,7 @@
 """
 NiceJobs - FastAPI Server & REST API
 """
+from dotenv.main import logger
 import os
 import json
 import sqlite3
@@ -1427,9 +1428,22 @@ def send_otp(payload: SendOtpPayload):
 
     targets = set()
     if payload.identifier:
-        targets.add(payload.identifier.strip())
+        raw_id = payload.identifier.strip()
+        targets.add(raw_id)
+        if "@" in raw_id:
+            targets.add(raw_id.lower())
+        norm_id = normalize_phone(raw_id)
+        if norm_id:
+            targets.add(norm_id)
+            targets.add(f"+88{norm_id}")
+            targets.add(f"+88 {norm_id}")
+            clean_digits = "".join(filter(str.isdigit, raw_id))
+            if clean_digits:
+                targets.add(clean_digits)
+
     if payload.email:
-        targets.add(payload.email.strip())
+        targets.add(payload.email.strip().lower())
+
     if payload.phone:
         p_raw = payload.phone.strip()
         targets.add(p_raw)
@@ -1438,6 +1452,35 @@ def send_otp(payload: SendOtpPayload):
             targets.add(norm_p)
             targets.add(f"+88{norm_p}")
             targets.add(f"+88 {norm_p}")
+            clean_p = "".join(filter(str.isdigit, p_raw))
+            if clean_p:
+                targets.add(clean_p)
+
+    # Check if there is an existing user account for any of these targets
+    # and link the user's alternate identifiers (e.g. phone <-> email)
+    search_terms = list(targets)
+    if search_terms:
+        try:
+            placeholders = ", ".join(["?"] * len(search_terms))
+            cursor.execute(f"""
+                SELECT email, phone FROM users
+                WHERE LOWER(email) IN ({placeholders}) OR phone IN ({placeholders})
+                LIMIT 5
+            """, search_terms + search_terms)
+            for u_row in cursor.fetchall():
+                u_em = (u_row["email"] or "").strip().lower()
+                u_ph = (u_row["phone"] or "").strip()
+                if u_em:
+                    targets.add(u_em)
+                if u_ph:
+                    targets.add(u_ph)
+                    u_norm = normalize_phone(u_ph)
+                    if u_norm:
+                        targets.add(u_norm)
+                        targets.add(f"+88{u_norm}")
+                        targets.add(f"+88 {u_norm}")
+        except Exception as e:
+            logger.debug(f"User account link check error in send_otp: {e}")
 
     if not targets:
         conn.close()
@@ -1545,6 +1588,91 @@ def check_business(payload: CheckBusinessPayload):
         }
     }
 
+class CheckCandidateAvailabilityPayload(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    phone_secondary: Optional[str] = None
+
+@app.post("/api/auth/check-candidate-availability")
+def check_candidate_availability(payload: CheckCandidateAvailabilityPayload):
+    rate_key = (payload.email or payload.phone or "anon").strip().lower()
+    check_public_rate_limit(f"chk_cand_{rate_key}", max_attempts=30, window_seconds=60)
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    try:
+        # 1. Check email uniqueness across all users and businesses
+        if payload.email and payload.email.strip():
+            em = payload.email.strip().lower()
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1", (em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "email",
+                    "message": "This email address is already registered to an existing account. Please log in or use a different email."
+                }
+            cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ? LIMIT 1", (em,))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "email",
+                    "message": "This email address is already registered to an existing business account. Please log in or use a different email."
+                }
+
+        # 2. Check primary phone uniqueness across all users and businesses
+        if payload.phone and payload.phone.strip():
+            raw_p = payload.phone.strip()
+            norm_p = normalize_phone(raw_p)
+            with_prefix = f"+88{norm_p}" if norm_p else ""
+            clean_digits = "".join(filter(str.isdigit, raw_p))
+
+            cursor.execute("""
+                SELECT id FROM users 
+                WHERE phone = ? OR phone = ? OR phone = ? OR phone = ?
+                LIMIT 1
+            """, (raw_p, norm_p, with_prefix, clean_digits))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "phone",
+                    "message": "This mobile phone number is already registered to an existing account. Please log in or use a different number."
+                }
+
+            cursor.execute("""
+                SELECT id FROM businesses 
+                WHERE telephone = ? OR telephone = ? OR official_telephone = ? OR official_telephone = ?
+                LIMIT 1
+            """, (raw_p, norm_p, raw_p, norm_p))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "phone",
+                    "message": "This phone number is already registered to an existing business account. Please use a different number."
+                }
+
+        # 3. Check secondary phone if provided
+        if payload.phone_secondary and payload.phone_secondary.strip():
+            sec_p = payload.phone_secondary.strip()
+            sec_norm = normalize_phone(sec_p)
+            sec_prefix = f"+88{sec_norm}" if sec_norm else ""
+            sec_digits = "".join(filter(str.isdigit, sec_p))
+
+            cursor.execute("""
+                SELECT id FROM users 
+                WHERE phone = ? OR phone = ? OR phone = ? OR phone = ?
+                LIMIT 1
+            """, (sec_p, sec_norm, sec_prefix, sec_digits))
+            if cursor.fetchone():
+                return {
+                    "available": False,
+                    "field": "phone_secondary",
+                    "message": "This secondary mobile number is already registered to an existing account. Please use a different number."
+                }
+
+        return {"available": True, "message": "Available"}
+    finally:
+        conn.close()
+
 class CheckBusinessAvailabilityPayload(BaseModel):
     official_email: Optional[str] = None
     official_telephone: Optional[str] = None
@@ -1552,6 +1680,9 @@ class CheckBusinessAvailabilityPayload(BaseModel):
 
 @app.post("/api/auth/check-business-availability")
 def check_business_availability(payload: CheckBusinessAvailabilityPayload):
+    rate_key = (payload.official_email or payload.official_telephone or "anon").strip().lower()
+    check_public_rate_limit(f"chk_biz_{rate_key}", max_attempts=30, window_seconds=60)
+
     conn = database.get_db()
     cursor = conn.cursor()
     try:
@@ -1563,14 +1694,14 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
                 return {
                     "available": False,
                     "field": "official_email",
-                    "message": "This official business email is already registered to an existing account. Please log in or use a different official email."
+                    "message": "This official business email is already registered to an existing business account. Please log in or use a different official email."
                 }
-            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (em,))
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (em,))
             if cursor.fetchone():
                 return {
                     "available": False,
                     "field": "official_email",
-                    "message": "This official business email is already registered to an existing business account. Please log in or use a different official email."
+                    "message": "This email is already registered to an existing account. Please log in or use a different official email."
                 }
 
         # 2. Check official telephone
@@ -1589,8 +1720,8 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
                                     "field": "official_telephone",
                                     "message": "This official business telephone is already registered to an existing account. Please use a different telephone number."
                                 }
-                # Check business users
-                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != '' AND role = 'recruiter'")
+                # Check users (all roles)
+                cursor.execute("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != ''")
                 for u_row in cursor.fetchall():
                     u_phone = u_row["phone"]
                     if u_phone and u_phone.strip():
@@ -1604,12 +1735,12 @@ def check_business_availability(payload: CheckBusinessAvailabilityPayload):
         # 3. Check representative email
         if payload.representative_email and payload.representative_email.strip():
             rep_em = payload.representative_email.strip().lower()
-            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND role = 'recruiter'", (rep_em,))
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (rep_em,))
             if cursor.fetchone():
                 return {
                     "available": False,
                     "field": "representative_email",
-                    "message": "A business user account with this email address is already open. Please log in or use a different work email."
+                    "message": "An account with this email address is already open. Please log in or use a different work email."
                 }
             cursor.execute("SELECT id FROM businesses WHERE LOWER(email) = ?", (rep_em,))
             if cursor.fetchone():
@@ -1672,7 +1803,8 @@ def register_candidate(payload: CandidateRegisterPayload):
     with_prefix = f"+88{norm_p}" if norm_p else ""
     cursor.execute("""
         SELECT id FROM otp_verifications
-        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) AND otp_code = ?
+        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
+          AND otp_code = ? AND (verified = 0 OR verified = 1)
         ORDER BY created_at DESC LIMIT 1
     """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
     otp_row = cursor.fetchone()
@@ -1684,7 +1816,7 @@ def register_candidate(payload: CandidateRegisterPayload):
         raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
     if otp_row:
-        cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
+        cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
 
     # Check uniqueness among candidate accounts (business user emails can open a candidate account)
     cand_email = payload.email.strip().lower()
@@ -1926,7 +2058,8 @@ def register_business(payload: BusinessRegisterPayload):
         with_prefix = f"+88{norm_p}" if norm_p else ""
         cursor.execute("""
             SELECT id FROM otp_verifications
-            WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) AND otp_code = ?
+            WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
+              AND otp_code = ? AND (verified = 0 OR verified = 1)
             ORDER BY created_at DESC LIMIT 1
         """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
         otp_row = cursor.fetchone()
@@ -1937,7 +2070,7 @@ def register_business(payload: BusinessRegisterPayload):
             raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
         if otp_row:
-            cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
+            cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
 
         biz_id = f"biz_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
@@ -2089,7 +2222,8 @@ def register_business_user(payload: RegisterBusinessUserPayload):
     with_prefix = f"+88{norm_p}" if norm_p else ""
     cursor.execute("""
         SELECT id FROM otp_verifications
-        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) AND otp_code = ?
+        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
+          AND otp_code = ? AND (verified = 0 OR verified = 1)
         ORDER BY created_at DESC LIMIT 1
     """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
     otp_row = cursor.fetchone()
@@ -2101,7 +2235,7 @@ def register_business_user(payload: RegisterBusinessUserPayload):
         raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
 
     if otp_row:
-        cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
+        cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
 
     # 3. Check uniqueness of user email on behalf
     user_email_clean = payload.email.strip().lower()
@@ -2239,11 +2373,25 @@ def login(payload: LoginPayload):
 
         # Check password / OTP
         if payload.otp_code:
-            cursor.execute("""
+            u_email = (user["email"] or "").strip().lower()
+            u_phone = (user["phone"] or "").strip()
+            u_phone_norm = normalize_phone(u_phone) if u_phone else ""
+            u_phone_prefix = f"+88{u_phone_norm}" if u_phone_norm else ""
+            raw_ident = (payload.identifier or "").strip()
+            raw_ident_norm = normalize_phone(raw_ident) if raw_ident else ""
+            raw_ident_prefix = f"+88{raw_ident_norm}" if raw_ident_norm else ""
+
+            id_set = {u_email, u_phone, u_phone_norm, u_phone_prefix, raw_ident, raw_ident_norm, raw_ident_prefix}
+            id_set.discard("")
+            id_set.discard(None)
+
+            placeholders = ", ".join(["?"] * len(id_set))
+            params = list(id_set) + [payload.otp_code.strip()]
+            cursor.execute(f"""
                 SELECT id FROM otp_verifications
-                WHERE (identifier = ? OR identifier = ?) AND otp_code = ? AND verified = 0
+                WHERE identifier IN ({placeholders}) AND otp_code = ? AND (verified = 0 OR verified = 1)
                 ORDER BY created_at DESC LIMIT 1
-            """, (user["email"], user["phone"], payload.otp_code.strip()))
+            """, params)
             otp_row = cursor.fetchone()
             is_valid_otp = bool(otp_row)
             if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
@@ -2253,7 +2401,7 @@ def login(payload: LoginPayload):
                 conn.close()
                 raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
             if otp_row:
-                cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
+                cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
         elif payload.password:
             stored_pwd = user["password"] or ""
             if not verify_password(payload.password, stored_pwd):
@@ -2413,11 +2561,25 @@ def login(payload: LoginPayload):
 
     # OTP or Password
     if payload.otp_code:
-        cursor.execute("""
+        u_email = (user["email"] or "").strip().lower()
+        u_phone = (user["phone"] or "").strip()
+        u_phone_norm = normalize_phone(u_phone) if u_phone else ""
+        u_phone_prefix = f"+88{u_phone_norm}" if u_phone_norm else ""
+        raw_ident = (payload.identifier or "").strip()
+        raw_ident_norm = normalize_phone(raw_ident) if raw_ident else ""
+        raw_ident_prefix = f"+88{raw_ident_norm}" if raw_ident_norm else ""
+
+        id_set = {u_email, u_phone, u_phone_norm, u_phone_prefix, raw_ident, raw_ident_norm, raw_ident_prefix}
+        id_set.discard("")
+        id_set.discard(None)
+
+        placeholders = ", ".join(["?"] * len(id_set))
+        params = list(id_set) + [payload.otp_code.strip()]
+        cursor.execute(f"""
             SELECT id FROM otp_verifications
-            WHERE (identifier = ? OR identifier = ?) AND otp_code = ? AND verified = 0
+            WHERE identifier IN ({placeholders}) AND otp_code = ? AND (verified = 0 OR verified = 1)
             ORDER BY created_at DESC LIMIT 1
-        """, (user["email"], user["phone"], payload.otp_code.strip()))
+        """, params)
         otp_row = cursor.fetchone()
         is_valid_otp = bool(otp_row)
         if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
@@ -2427,7 +2589,7 @@ def login(payload: LoginPayload):
             conn.close()
             raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
         if otp_row:
-            cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_row["id"],))
+            cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
     elif payload.password:
         stored_pwd = user["password"] or ""
         if not verify_password(payload.password, stored_pwd):
@@ -3726,19 +3888,20 @@ def get_saved_jobs(user_id: str = "user_rahim"):
     return results
 
 @app.post("/api/saved-jobs/{job_id}")
-def toggle_save_job(job_id: str, user_id: str = "user_rahim"):
+def toggle_save_job(job_id: str, request: Request, user_id: Optional[str] = None):
+    effective_user_id = user_id or (request.headers.get("X-User-Id") if request else None) or "user_rahim"
     conn = database.get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT 1 FROM saved_jobs WHERE user_id = ? AND job_id = ?", (user_id, job_id))
+    cursor.execute("SELECT 1 FROM saved_jobs WHERE user_id = ? AND job_id = ?", (effective_user_id, job_id))
     exists = cursor.fetchone()
 
     if exists:
-        cursor.execute("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?", (user_id, job_id))
+        cursor.execute("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?", (effective_user_id, job_id))
         is_saved = False
     else:
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        cursor.execute("INSERT INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?)", (user_id, job_id, now))
+        cursor.execute("INSERT INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?)", (effective_user_id, job_id, now))
         is_saved = True
 
     conn.commit()
@@ -3746,8 +3909,8 @@ def toggle_save_job(job_id: str, user_id: str = "user_rahim"):
 
     notify_realtime(
         "saved_jobs_updated",
-        {"job_id": job_id, "is_saved": is_saved, "user_id": user_id},
-        target_user=user_id
+        {"job_id": job_id, "is_saved": is_saved, "user_id": effective_user_id},
+        target_user=effective_user_id
     )
 
     return {"is_saved": is_saved}
@@ -3774,8 +3937,9 @@ class ReadAllPayload(BaseModel):
     user_id: Optional[str] = None
 
 @app.post("/api/notifications/read-all")
-def mark_all_notifications_read(user_id: Optional[str] = None, payload: Optional[ReadAllPayload] = None):
-    effective_user_id = user_id or (payload.user_id if payload else None) or "user_rahim"
+def mark_all_notifications_read(request: Request, user_id: Optional[str] = None, payload: Optional[ReadAllPayload] = None):
+    header_uid = request.headers.get("X-User-Id") if request else None
+    effective_user_id = user_id or (payload.user_id if payload else None) or header_uid or "user_rahim"
     conn = database.get_db()
     cursor = conn.cursor()
     cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (effective_user_id,))
