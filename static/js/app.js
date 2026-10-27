@@ -7459,7 +7459,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Designation / Role in Business</label>
                   <input type="text" id="biz-rep-desig" class="auth-input" required 
-                    placeholder="Enter official job designation (e.g. HR Director)" 
+                    placeholder="Enter official job designation (Your Designation)" 
                     value="${signupState.rep_designation || ''}">
                 </div>
 
@@ -9765,34 +9765,34 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">First Name *</label>
-                <input type="text" name="first_name" required placeholder="e.g. Tanvir" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="first_name" required placeholder="First Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Middle Name <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
-                <input type="text" name="middle_name" placeholder="e.g. Ahmed" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="middle_name" placeholder="Middle Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Last Name *</label>
-                <input type="text" name="last_name" required placeholder="e.g. Hasan" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="last_name" required placeholder="Last Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
-              <input type="text" name="name_bangla" required placeholder="e.g. তানভীর আহমেদ হাসান" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="name_bangla" required placeholder="বাংলায় আপনার নাম" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Mobile Cell (SMS OTP) *</label>
-                <input type="tel" id="cand-phone" name="phone" required placeholder="+880 17..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="tel" id="cand-phone" name="phone" required placeholder="Your 11 Digit Number" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary Email (Email OTP) *</label>
-                <input type="email" id="cand-email" name="email" required placeholder="e.g. name@example.com" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="email" id="cand-email" name="email" required placeholder="Your Email" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Account Password *</label>
-              <input type="password" name="password" required placeholder="••••••••" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="password" name="password" required placeholder="Your Password" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
           </div>
 
@@ -9850,7 +9850,7 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Recent Hospitality Employer</label>
-                <input type="text" name="recent_employer" placeholder="e.g. Radisson Blu Dhaka / Sayeman Resort" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="recent_employer" placeholder="" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Preferred Work Type</label>
@@ -9907,7 +9907,7 @@ function switchAuthTab(tab) {
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Expected Salary (BDT/Month)</label>
-                <input type="text" name="expected_salary" placeholder="e.g. 35,000 - 50,000" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="expected_salary" placeholder="" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -9922,7 +9922,7 @@ function switchAuthTab(tab) {
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary CV Document Name</label>
-                <input type="text" name="cv_name" placeholder="e.g. My_Hospitality_Resume.pdf" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="cv_name" placeholder="" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: var(--radius-md);">
@@ -9999,17 +9999,17 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Public Hotel / Brand Name *</label>
-                <input type="text" name="brand_name" required placeholder="e.g. Sayeman Beach Resort" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="brand_name" required placeholder="Your Brand Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Legal Registered Entity Name *</label>
-                <input type="text" name="legal_name" required placeholder="e.g. Sayeman Hotels Ltd." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="legal_name" required placeholder="Your Legal Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Parent Hotel Company / Group</label>
-                <input type="text" name="parent_group" placeholder="e.g. Unique Hotel & Resorts PLC / Independent" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="parent_group" placeholder="Parant Group Name / Independent" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Hospitality Property Type *</label>
@@ -10053,7 +10053,7 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Physical Street Address *</label>
-                <input type="text" name="address" required placeholder="e.g. Marine Drive, Kolatoli" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="address" required placeholder="Organization Address" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">City / Region *</label>
@@ -10069,11 +10069,11 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Contact Cell (SMS OTP) *</label>
-                <input type="tel" id="biz-phone" name="phone" required placeholder="+880 18..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="tel" id="biz-phone" name="phone" required placeholder="Telephone or Cell" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Business Email (Email OTP) *</label>
-                <input type="email" id="biz-email" name="email" required placeholder="e.g. hr@hotel.com" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="email" id="biz-email" name="email" required placeholder="Official Email" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
           </div>
@@ -10087,7 +10087,7 @@ function switchAuthTab(tab) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Representative Full Name *</label>
-                <input type="text" name="representative_name" required placeholder="e.g. Tanvir Hossain" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="representative_name" required placeholder="Your Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Organizational Role *</label>
@@ -10141,7 +10141,7 @@ function switchAuthTab(tab) {
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Property Key Count & Capacity</label>
-              <input type="text" name="property_size" placeholder="e.g. 245 Luxury Rooms & Suites, 3 Grand Ballrooms" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="property_size" placeholder="Property Size" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Operating Hospitality Departments (comma-separated)</label>
@@ -12127,16 +12127,16 @@ function renderExperienceModalDOM() {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
                   <div>
                     <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Role / Position</label>
-                    <input type="text" value="${exp.role || ''}" onchange="updateExpEntry(${idx}, 'role', this.value)" placeholder="e.g. Front Desk Associate" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                    <input type="text" value="${exp.role || ''}" onchange="updateExpEntry(${idx}, 'role', this.value)" placeholder="Your Designation" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                   </div>
                   <div>
                     <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Hotel / Property</label>
-                    <input type="text" value="${exp.hotel || ''}" onchange="updateExpEntry(${idx}, 'hotel', this.value)" placeholder="e.g. Radisson Blu Dhaka" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                    <input type="text" value="${exp.hotel || ''}" onchange="updateExpEntry(${idx}, 'hotel', this.value)" placeholder="Your Previous Employer" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                   </div>
                 </div>
                 <div style="margin-bottom: 8px;">
                   <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Period</label>
-                  <input type="text" value="${exp.period || ''}" onchange="updateExpEntry(${idx}, 'period', this.value)" placeholder="e.g. 2023 - Present (2 Years)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  <input type="text" value="${exp.period || ''}" onchange="updateExpEntry(${idx}, 'period', this.value)" placeholder="Years in Service" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Key Responsibilities &amp; Tools</label>
@@ -12201,16 +12201,16 @@ function renderCredentialsModalDOM() {
                 <button type="button" onclick="removeCredEntry(${idx})" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #f87171; cursor: pointer;" title="Remove">${svgIcon('x', '', 14)}</button>
                 <div style="margin-bottom: 8px;">
                   <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Certification Title</label>
-                  <input type="text" value="${c.title || ''}" onchange="updateCredEntry(${idx}, 'title', this.value)" placeholder="e.g. Certified Hospitality Supervisor (CHS)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  <input type="text" value="${c.title || ''}" onchange="updateCredEntry(${idx}, 'title', this.value)" placeholder="Certificate" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                 </div>
                 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
                   <div>
                     <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Issuing Organization</label>
-                    <input type="text" value="${c.issuer || ''}" onchange="updateCredEntry(${idx}, 'issuer', this.value)" placeholder="e.g. AHLEI" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                    <input type="text" value="${c.issuer || ''}" onchange="updateCredEntry(${idx}, 'issuer', this.value)" placeholder="Issued By" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                   </div>
                   <div>
                     <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Year</label>
-                    <input type="text" value="${c.year || ''}" onchange="updateCredEntry(${idx}, 'year', this.value)" placeholder="e.g. 2023" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                    <input type="text" value="${c.year || ''}" onchange="updateCredEntry(${idx}, 'year', this.value)" placeholder="Year Obtained" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                   </div>
                 </div>
               </div>
@@ -12356,7 +12356,7 @@ function renderEditSkillsModalDOM() {
         <div class="modal-body">
           <div class="schema-box-wrapper" style="margin-bottom: 0;">
             <input type="text" class="schema-search-input" id="modal-skills-search" 
-              placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+              placeholder="Type skill and press Enter to add..." 
               value="${window.editSkillsModalState.query || ''}" 
               oninput="filterEditSkillsModal(this.value)"
               onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomEditSkillModal(this.value);}">
@@ -12468,7 +12468,7 @@ function renderEditLanguagesModalDOM() {
           <div id="languages-entries-list" style="display: flex; flex-direction: column; gap: 10px;">
             ${editLanguagesList.map((lang, idx) => `
               <div style="display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px;">
-                <input type="text" value="${lang.name || ''}" onchange="updateLangEntry(${idx}, 'name', this.value)" placeholder="Language (e.g. English)" style="flex: 2; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                <input type="text" value="${lang.name || ''}" onchange="updateLangEntry(${idx}, 'name', this.value)" placeholder="Language" style="flex: 2; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                 <select onchange="updateLangEntry(${idx}, 'level', this.value)" style="flex: 2; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
                   <option value="Native" ${lang.level === 'Native' ? 'selected' : ''}>Native</option>
                   <option value="Fluent" ${lang.level === 'Fluent' ? 'selected' : ''}>Fluent</option>
@@ -12618,7 +12618,7 @@ function openEditJobPreferencesModal() {
           <div class="modal-body">
             <div style="margin-bottom: 14px;">
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Expected Monthly Salary</label>
-              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="e.g. ৳50,000 or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="Amount or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
 
             <!-- Target Locations Schema Select -->
@@ -12626,7 +12626,7 @@ function openEditJobPreferencesModal() {
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Target Locations</label>
               <div class="schema-box-wrapper" style="margin-bottom: 0;">
                 <input type="text" class="schema-search-input" id="edit-pref-loc-search" 
-                  placeholder="Type city/district (e.g. Cox's Bazar, Sylhet) and press Enter to add..." 
+                  placeholder="Type city/district and press Enter to add..." 
                   value="${window.editPrefLocState.query || ''}" 
                   oninput="filterPrefLocationsModal(this.value)"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomPrefLocationModal(this.value);}">
@@ -12928,7 +12928,7 @@ async function openComprehensiveEditProfileModal() {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Location</label>
-                <input type="text" name="location" value="${profile.location || ''}" placeholder="e.g. Dhaka, Bangladesh" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                <input type="text" name="location" value="${profile.location || ''}" placeholder="Location" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Visibility</label>
@@ -12956,7 +12956,7 @@ async function openComprehensiveEditProfileModal() {
               </label>
               <div class="schema-box-wrapper" style="margin-bottom: 0;">
                 <input type="text" class="schema-search-input" id="comp-skills-search" 
-                  placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+                  placeholder="Type skill and press Enter to add..." 
                   value="${window.compEditSkillsState.query || ''}" 
                   oninput="filterCompEditSkills(this.value)"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomCompEditSkill(this.value);}">
@@ -13199,7 +13199,7 @@ async function openBusinessUserEditProfileModal() {
             <!-- Role / Designation -->
             <div style="margin-bottom: 14px;">
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Role in Organization / Designation</label>
-              <input type="text" name="designation" value="${escapeHtml(currentTitle)}" required placeholder="e.g. Talent Acquisition Director, General Manager" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <input type="text" name="designation" value="${escapeHtml(currentTitle)}" required placeholder="Your Role" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
 
             <!-- Contact Credentials -->
@@ -13454,11 +13454,11 @@ async function openEditBusinessProfileModal(bizId) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Property Type</label>
-                <input type="text" name="property_type" value="${escapeHtml(biz.property_type || '')}" placeholder="e.g. Luxury Hotel" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="property_type" value="${escapeHtml(biz.property_type || '')}" placeholder="Property Type" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">City</label>
-                <input type="text" name="city" value="${escapeHtml(biz.city || '')}" placeholder="e.g. Dhaka" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="city" value="${escapeHtml(biz.city || '')}" placeholder="City" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
@@ -13775,7 +13775,7 @@ function renderScreeningQuestions() {
 
       <div style="display: grid; grid-template-columns: 1fr 160px; gap: 10px; margin-bottom: 8px;">
         <div>
-          <input type="text" placeholder="Type question (e.g. Do you have experience with Opera PMS or Micros POS?)" value="${escapeHtml(qObj.q || '')}" oninput="updateScreeningQuestionText(${i}, this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 10px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.84rem;"/>
+          <input type="text" placeholder="Type question" value="${escapeHtml(qObj.q || '')}" oninput="updateScreeningQuestionText(${i}, this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 10px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.84rem;"/>
         </div>
         <div>
           <select onchange="updateScreeningQuestionType(${i}, this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 8px; border-radius: var(--radius-sm); color: var(--white); font-size: 0.84rem;">
@@ -14048,11 +14048,11 @@ async function openCreateJobModal() {
               <div id="salary-range-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
                 <div>
                   <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Minimum Salary (BDT / month)</label>
-                  <input type="number" name="salary_min" value="" placeholder="e.g. 35000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <input type="number" name="salary_min" value="" placeholder="Minimum" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Maximum Salary (BDT / month)</label>
-                  <input type="number" name="salary_max" value="" placeholder="e.g. 50000" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <input type="number" name="salary_max" value="" placeholder="Maximum" min="0" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                 </div>
               </div>
 
