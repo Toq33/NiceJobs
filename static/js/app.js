@@ -9108,10 +9108,49 @@ async function handleCandidateFinalSignup(event) {
     showToast('Please enter the 6-digit OTP code.', 'danger');
     return;
   }
+
+  // Verify OTP with the server before advancing to Terms
+  const btn = event.target.querySelector('button[type="submit"]') || document.getElementById('btn-cand-otp-submit');
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...`;
+  }
+
+  try {
+    const res = await fetch('/api/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: signupState.phone,
+        email: signupState.email,
+        identifier: signupState.phone,
+        otp_code: code,
+        purpose: 'candidate_signup'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Invalid or expired OTP code. Please enter the valid code.', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origBtnText;
+      }
+      return;
+    }
+  } catch (err) {
+    showToast('Verification failed: ' + err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+    return;
+  }
+
   signupState.otp_code = code;
   signupState.stage = 'terms';
   saveSignupProgress();
-  showToast('OTP verified! Please review and accept Terms & Conditions.', 'info');
+  showToast('OTP verified successfully! Please review and accept Terms & Conditions.', 'info');
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
@@ -9385,7 +9424,7 @@ function autoFillBizNewOtp() {
 }
 
 // Route A OTP Verification -> Move to Hotel Terms & Conditions
-function handleNewBusinessOtpSubmit(event) {
+async function handleNewBusinessOtpSubmit(event) {
   event.preventDefault();
   const input = document.getElementById('biz-new-otp');
   const code = (input ? input.value : signupState.biz_lastSentOtp || '').trim();
@@ -9394,11 +9433,50 @@ function handleNewBusinessOtpSubmit(event) {
     showToast('Please enter the 6-digit OTP code.', 'danger');
     return;
   }
+
+  // Verify OTP with the server before advancing to Terms
+  const btn = event.target.querySelector('button[type="submit"]') || document.getElementById('btn-biz-otp-submit');
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...`;
+  }
+
+  try {
+    const res = await fetch('/api/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: signupState.rep_cell,
+        email: signupState.rep_email,
+        identifier: signupState.rep_cell,
+        otp_code: code,
+        purpose: 'business_signup'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Invalid or expired OTP code. Please enter the valid code.', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origBtnText;
+      }
+      return;
+    }
+  } catch (err) {
+    showToast('Verification failed: ' + err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+    return;
+  }
+
   signupState.biz_otp_code = code;
   signupState.biz_step = 'terms';
   saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
-  showToast('OTP verified! Please review and accept Hotel Partner Terms & Conditions.', 'info');
+  showToast('OTP verified successfully! Please review and accept Hotel Partner Terms & Conditions.', 'info');
 }
 
 const handleNewBusinessFinalSignup = handleNewBusinessOtpSubmit;
@@ -9629,7 +9707,7 @@ function autoFillJoinOtp() {
 }
 
 // Route B OTP Verification -> Move to Terms
-function handleJoinBusinessOtpSubmit(event) {
+async function handleJoinBusinessOtpSubmit(event) {
   event.preventDefault();
   const input = document.getElementById('join-otp-code');
   const code = (input ? input.value : signupState.join_lastSentOtp || '').trim();
@@ -9638,11 +9716,50 @@ function handleJoinBusinessOtpSubmit(event) {
     showToast('Please enter the 6-digit OTP code.', 'danger');
     return;
   }
+
+  // Verify OTP with the server before advancing to Terms
+  const btn = event.target.querySelector('button[type="submit"]') || document.getElementById('btn-join-otp-submit');
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...`;
+  }
+
+  try {
+    const res = await fetch('/api/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: signupState.join_phone,
+        email: signupState.join_email,
+        identifier: signupState.join_phone,
+        otp_code: code,
+        purpose: 'business_join_signup'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Invalid or expired OTP code. Please enter the valid code.', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origBtnText;
+      }
+      return;
+    }
+  } catch (err) {
+    showToast('Verification failed: ' + err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+    return;
+  }
+
   signupState.join_otp_code = code;
   signupState.biz_step = 'terms_join';
   saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
-  showToast('OTP verified! Please review and accept Terms & Conditions.', 'info');
+  showToast('OTP verified successfully! Please review and accept Terms & Conditions.', 'info');
 }
 
 const handleJoinBusinessFinalSignup = handleJoinBusinessOtpSubmit;
