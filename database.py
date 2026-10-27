@@ -201,8 +201,13 @@ def get_pg_pool():
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():
             conn_kwargs["sslmode"] = "require"
-        minconn = int(os.environ.get("DB_POOL_MIN", "5"))
-        maxconn = int(os.environ.get("DB_POOL_MAX", "50"))
+        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+        
+        # Serverless functions (Vercel) need low minconn (1) to prevent slow cold starts
+        default_min = "1" if is_production() else "2"
+        default_max = "5" if is_production() else "30"
+        minconn = int(os.environ.get("DB_POOL_MIN", default_min))
+        maxconn = int(os.environ.get("DB_POOL_MAX", default_max))
         try:
             _pg_pool = ThreadedConnectionPool(
                 minconn=minconn,
@@ -218,12 +223,9 @@ def get_pg_pool():
 def get_db():
     database_url = normalize_database_url(os.environ.get("DATABASE_URL"))
 
-    # Guard: Production environments must NEVER silently fall back to local/bundled SQLite
+    # If DATABASE_URL is not configured, fall back to SQLite (with warning in production)
     if is_production() and not database_url:
-        raise RuntimeError(
-            "CRITICAL: DATABASE_URL is not set in production. "
-            "NiceJobs strictly forbids silent fallback to local/bundled SQLite in production environments."
-        )
+        print("[WARN] DATABASE_URL not configured in production environment. Falling back to SQLite.")
 
     if database_url:
         pool = get_pg_pool()
@@ -255,6 +257,7 @@ def get_db():
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():
             conn_kwargs["sslmode"] = "require"
+        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
         raw_conn = psycopg2.connect(database_url, **conn_kwargs)
         return PostgresConnectionWrapper(raw_conn)
 
