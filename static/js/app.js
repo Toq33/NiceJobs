@@ -14513,6 +14513,11 @@ function formatShortToast(message) {
   msg = msg.replace(/^Profile picture attached:.*$/i, 'Photo attached');
   msg = msg.replace(/^Business verified:.*$/i, 'Business verified!');
 
+  // Clean handling of raw JSON parse errors when receiving HTML or plain text error responses
+  if (/Unexpected token/i.test(msg) || /is not valid JSON/i.test(msg)) {
+    return 'Server communication error';
+  }
+
   if (msg.length > 36) {
     const firstPart = msg.split(/[.!?:]/)[0];
     if (firstPart && firstPart.length <= 36 && firstPart.length >= 6) {
