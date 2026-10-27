@@ -6583,19 +6583,19 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">First Name *</label>
                   <input type="text" id="cand-first-name" class="auth-input" required 
-                    placeholder="e.g. Tanvir" 
+                    placeholder="First name" 
                     value="${escapeHtml(signupState.first_name || '')}" autofocus>
                 </div>
                 <div class="auth-field">
                   <label class="auth-label">Middle Name <span style="font-weight: 400; color: var(--text-dim); font-size: 0.78rem;">(Optional)</span></label>
                   <input type="text" id="cand-middle-name" class="auth-input" 
-                    placeholder="e.g. Ahmed" 
+                    placeholder="Middle name" 
                     value="${escapeHtml(signupState.middle_name || '')}">
                 </div>
                 <div class="auth-field">
                   <label class="auth-label">Last Name *</label>
                   <input type="text" id="cand-last-name" class="auth-input" required 
-                    placeholder="e.g. Hasan" 
+                    placeholder="Last name" 
                     value="${escapeHtml(signupState.last_name || '')}">
                 </div>
               </div>
@@ -6605,7 +6605,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
                   <input type="text" id="cand-name-bangla" class="auth-input" required 
-                    placeholder="e.g. তানভীর আহমেদ হাসান" 
+                    placeholder="বাংলায় পূর্ণ নাম লিখুন" 
                     value="${escapeHtml(signupState.name_bangla || '')}">
                 </div>
                 <div class="auth-field">
@@ -6841,7 +6841,7 @@ function renderSignupPage(viewport) {
                 <label class="auth-label">Hospitality Skills</label>
                 <div class="schema-box-wrapper">
                   <input type="text" class="schema-search-input" id="skills-search" 
-                    placeholder="Type skill (e.g. Opera PMS, HACCP, VIP Concierge) and press Enter to add..." 
+                    placeholder="Search or enter a skill, then press Enter..." 
                     value="${signupState.skillsSearchQuery || ''}" 
                     oninput="filterSkillsSchema(this.value)"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomSkill(this.value);}">
@@ -6895,7 +6895,7 @@ function renderSignupPage(viewport) {
                 <label class="auth-label">Languages &amp; Fluency</label>
                 <div class="schema-box-wrapper">
                   <input type="text" class="schema-search-input" id="languages-search" 
-                    placeholder="Type language (e.g. English, Arabic, French) and press Enter to add..." 
+                    placeholder="Search or enter a language, then press Enter..." 
                     value="${signupState.languagesSearchQuery || ''}" 
                     oninput="filterLanguagesSchema(this.value)"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLanguage(this.value);}">
@@ -6989,12 +6989,12 @@ function renderSignupPage(viewport) {
                       <div class="auth-field-grid">
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Years of Service / Period</label>
-                          <input type="text" class="auth-input exp-period" placeholder="Enter duration or service period (e.g. 2022 - 2024)" 
+                          <input type="text" class="auth-input exp-period" placeholder="Service period (2022 - 2024)" 
                             value="${exp.period || ''}">
                         </div>
                         <div class="auth-field">
                           <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
-                          <input type="text" class="auth-input exp-skills" placeholder="Enter responsibilities or systems used (e.g. Opera PMS)" 
+                          <input type="text" class="auth-input exp-skills" placeholder="Key responsibilities or systems used" 
                             value="${exp.skills_acquired || ''}">
                         </div>
                       </div>
@@ -7031,7 +7031,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-pwd" class="auth-input" required 
-                      placeholder="Enter account password (min 6 characters)" value="${signupState.password || ''}" autofocus>
+                      placeholder="Min. 6 characters" value="${signupState.password || ''}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
                       onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -7042,7 +7042,7 @@ function renderSignupPage(viewport) {
                   <label class="auth-label">Confirm Password</label>
                   <div class="auth-password-wrapper">
                     <input type="password" id="cand-confirm-pwd" class="auth-input" required 
-                      placeholder="Re-type password to confirm" value="${signupState.confirm_password || ''}">
+                      placeholder="Confirm password" value="${signupState.confirm_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
                       onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
                       title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
@@ -7487,7 +7487,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Set Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-pwd-part4" class="auth-input" required 
-                        placeholder="Enter password (min 6 characters)" value="${signupState.biz_password || ''}" autofocus>
+                        placeholder="Min. 6 characters" value="${signupState.biz_password || ''}" autofocus>
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
                         onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
                     </div>
@@ -7497,7 +7497,7 @@ function renderSignupPage(viewport) {
                     <label class="auth-label">Confirm Password</label>
                     <div class="auth-password-wrapper">
                       <input type="password" id="biz-confirm-pwd-part4" class="auth-input" required 
-                        placeholder="Re-type password to confirm" value="${signupState.biz_confirm_password || ''}">
+                        placeholder="Confirm password" value="${signupState.biz_confirm_password || ''}">
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t2" 
                         onclick="togglePasswordVisibility('biz-confirm-pwd-part4', 'biz-p4-t2')">${svgIcon('eye', '', 16)}</button>
                     </div>

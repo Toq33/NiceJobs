@@ -4,8 +4,8 @@ import time
 import requests
 import websockets
 
-BASE_URL = "http://127.0.0.1:8000"
-WS_URL = "ws://127.0.0.1:8000/ws"
+BASE_URL = "http://127.0.0.1:8001"
+WS_URL = "ws://127.0.0.1:8001/ws"
 
 RECRUITER_USER_ID = "user_1792756972_f8fa67"
 RECRUITER_BIZ_ID = "biz_1792756972_a86aa5"

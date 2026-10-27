@@ -6,7 +6,7 @@ import time
 import requests
 import websockets
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://127.0.0.1:8001"
 CANDIDATE_USER_ID = "user_1792756801_3ff6a7"
 CONVERSATION_ID = "conv_1792835049_c03a2d"
 
@@ -41,14 +41,22 @@ async def main():
         "--no-sandbox",
         "--disable-gpu",
         "--remote-debugging-port=9222",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8001"
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    await asyncio.sleep(2.5)
+    pages = None
+    for _ in range(15):
+        await asyncio.sleep(1.0)
+        try:
+            pages = requests.get("http://127.0.0.1:9222/json", timeout=2).json()
+            if pages:
+                break
+        except Exception:
+            pass
 
     try:
-        pages = requests.get("http://127.0.0.1:9222/json").json()
-        target = next((p for p in pages if p.get("type") == "page" and "8000" in p.get("url", "")), None)
+        assert pages, "No pages returned from CDP"
+        target = next((p for p in pages if p.get("type") == "page" and "8001" in p.get("url", "")), None)
         assert target, f"No NiceJobs page found in {pages}"
         ws_url = target["webSocketDebuggerUrl"]
 
