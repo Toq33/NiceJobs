@@ -409,6 +409,7 @@ def init_db():
         requirements TEXT NOT NULL, -- JSON array
         education_requirements TEXT DEFAULT '[]', -- JSON array of degrees & fields
         skill_requirements TEXT DEFAULT '[]', -- JSON array of skills
+        benefits TEXT DEFAULT '[]', -- JSON array of benefits & perks
         is_negotiable INTEGER DEFAULT 0,
         screening_questions TEXT, -- JSON array
         status TEXT DEFAULT 'active', -- 'draft', 'active', 'paused', 'closed'
@@ -655,12 +656,17 @@ def init_db():
         ("is_negotiable", "INTEGER DEFAULT 0"),
         ("education_requirements", "TEXT DEFAULT '[]'"),
         ("skill_requirements", "TEXT DEFAULT '[]'"),
+        ("benefits", "TEXT DEFAULT '[]'"),
         ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:
-            cursor.execute(f"ALTER TABLE jobs ADD COLUMN {col} {typ}")
+            cursor.execute(f"ALTER TABLE jobs ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     for tbl in ["applications", "notifications", "conversations", "messages"]:
         try:

@@ -420,6 +420,7 @@ def dispatch_realtime_notification(user_id: str, title: str, message: str, notif
 
 @app.websocket("/ws")
 @app.websocket("/api/realtime/ws")
+@app.websocket("/ws/realtime")
 async def websocket_realtime_endpoint(websocket: WebSocket):
     global main_event_loop
     try:
@@ -594,6 +595,17 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
             "X-Accel-Buffering": "no"
         }
     )
+
+@app.post("/api/realtime/test-emit")
+async def realtime_test_emit_endpoint(request: Request):
+    """Utility endpoint for verifying real-time delivery in test suites."""
+    body = await request.json()
+    event_type = body.get("type", "test_event")
+    data = body.get("data", {})
+    target_user = body.get("target_user")
+    target_business = body.get("target_business")
+    notify_realtime(event_type, data, target_user=target_user, target_business=target_business)
+    return {"status": "dispatched", "type": event_type, "target_user": target_user, "target_business": target_business}
 
 # =======================
 # EMAIL NOTIFICATION SYSTEM
@@ -808,6 +820,13 @@ def get_jobs(
         d["education_requirements"] = json.loads(d["education_requirements"]) if d.get("education_requirements") else []
         d["skill_requirements"] = json.loads(d["skill_requirements"]) if d.get("skill_requirements") else []
         d["screening_questions"] = json.loads(d["screening_questions"]) if d.get("screening_questions") else []
+        raw_b = json.loads(d["benefits"]) if d.get("benefits") else []
+        if not raw_b:
+            if d.get("service_charge_included"): raw_b.append("Service Charge Distribution (100% Shared)")
+            if d.get("accommodation_provided"): raw_b.append("Complimentary Staff Accommodation")
+            if d.get("duty_meals_provided"): raw_b.append("Free Duty Meals (3 Meals / Shift)")
+            raw_b.append("Comprehensive Health & Medical Insurance")
+        d["benefits"] = raw_b
         results.append(d)
 
     conn.close()
@@ -839,6 +858,13 @@ def get_job_detail(job_id: str, user_id: Optional[str] = "user_rahim"):
     job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
     job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
     job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
+    raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
+    if not raw_jb:
+        if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
+        if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
+        if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
+        raw_jb.append("Comprehensive Health & Medical Insurance")
+    job["benefits"] = raw_jb
 
     # Check application state for user
     applied = False
@@ -886,6 +912,7 @@ class JobCreatePayload(BaseModel):
     requirements: Optional[List[str]] = []
     education_requirements: Optional[List[Dict[str, Any]]] = []
     skill_requirements: Optional[List[str]] = []
+    benefits: Optional[List[str]] = []
     screening_questions: Optional[List[Dict[str, Any]]] = []
     is_urgent: bool = False
     deadline: str
@@ -925,15 +952,17 @@ def create_job(payload: JobCreatePayload):
     sal_max = 0 if payload.is_negotiable else (payload.salary_max or 0)
     sal_period = "negotiable" if payload.is_negotiable else (payload.salary_period or "month")
 
+    benefits_list = list(payload.benefits or [])
+
     cursor.execute("""
         INSERT INTO jobs (
             id, business_id, title, department, property_location, employment_type, shift,
             salary_min, salary_max, salary_period, currency, service_charge_included,
             accommodation_provided, duty_meals_provided, experience_level, vacancies,
-            description, requirements, education_requirements, skill_requirements, is_negotiable,
+            description, requirements, education_requirements, skill_requirements, benefits, is_negotiable,
             screening_questions, status, is_urgent, is_featured,
             deadline, posted_at, applicant_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         job_id,
         payload.business_id,
@@ -946,15 +975,16 @@ def create_job(payload: JobCreatePayload):
         sal_max,
         sal_period,
         payload.currency,
-        1 if payload.service_charge_included else 0,
-        1 if payload.accommodation_provided else 0,
-        1 if payload.duty_meals_provided else 0,
+        1 if (payload.service_charge_included or any('service charge' in b.lower() for b in benefits_list)) else 0,
+        1 if (payload.accommodation_provided or any('accommodation' in b.lower() or 'housing' in b.lower() for b in benefits_list)) else 0,
+        1 if (payload.duty_meals_provided or any('meal' in b.lower() for b in benefits_list)) else 0,
         payload.experience_level,
         payload.vacancies,
         payload.description,
         json.dumps(reqs),
         json.dumps(payload.education_requirements or []),
         json.dumps(payload.skill_requirements or []),
+        json.dumps(benefits_list),
         1 if payload.is_negotiable else 0,
         json.dumps(payload.screening_questions or []),
         "active",

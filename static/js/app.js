@@ -511,6 +511,63 @@ const HOTEL_FEATURES_SCHEMA = [
   "24-Hour In-Room Dining", "Dedicated Butler Service", "Helipad Facility", "Steam & Sauna Bath",
 ];
 
+const HOTEL_BENEFITS_SCHEMA = [
+  // Compensation & Financial Bonuses
+  "Service Charge Distribution (100% Shared)",
+  "Festival Bonus (2x Yearly)",
+  "Performance Incentive Bonus",
+  "Provident Fund (PF)",
+  "Gratuity Scheme",
+  "Daily Cash Tips / Gratuity Payout",
+  "Annual Performance Salary Increment",
+  "Overtime (OT) Allowance",
+  // Housing, Living & Transport
+  "Complimentary Staff Accommodation",
+  "Subsidized Shared Housing",
+  "House Rent Allowance (HRA)",
+  "Relocation Assistance & Flight Ticket",
+  "Staff Pick & Drop Shuttle Transport",
+  "Late Night Safe Drop Service",
+  // Meals & Dining
+  "Free Duty Meals (3 Meals / Shift)",
+  "Subsidized Executive Dining",
+  "Discounted Staff F&B across Outlets",
+  "Complimentary Coffee & Tea Station",
+  // Health, Medical & Wellness
+  "Comprehensive Health & Medical Insurance",
+  "Life & Accidental Insurance",
+  "Doctor On-Call & Medical Reimbursement",
+  "Annual Executive Health Checkup",
+  "Free Access to Hotel Fitness Gym & Pool",
+  "Spa & Wellness Discounts",
+  // Paid Leaves & Stay Privileges
+  "Paid Annual Leave (20+ Days)",
+  "Maternity & Paternity Paid Leave",
+  "Casual & Medical Sick Leave",
+  "Employee Hotel Stay Discounts (Global Brand Rate)",
+  "Friends & Family Room Discount Vouchers",
+  "Compensatory Off (C-Off) for Holidays",
+  // Training, Uniform & Work Gear
+  "International Hotel Brand Certification",
+  "Cross-Department Training Program",
+  "Hospitality Language Courses",
+  "Complimentary Dry Cleaning & Laundered Uniforms",
+  "Safety Shoes & Grooming Kit Provided"
+];
+
+function getBenefitIcon(b) {
+  const bl = (b || '').toLowerCase();
+  if (bl.includes('service charge') || bl.includes('bonus') || bl.includes('salary') || bl.includes('pf') || bl.includes('gratuity') || bl.includes('tip') || bl.includes('overtime') || bl.includes('incentive') || bl.includes('fund')) return 'dollar';
+  if (bl.includes('accommodation') || bl.includes('housing') || bl.includes('rent') || bl.includes('house')) return 'home';
+  if (bl.includes('meal') || bl.includes('dining') || bl.includes('f&b') || bl.includes('food') || bl.includes('coffee') || bl.includes('tea')) return 'utensils';
+  if (bl.includes('insurance') || bl.includes('medical') || bl.includes('doctor') || bl.includes('health') || bl.includes('safety') || bl.includes('shoe')) return 'shield';
+  if (bl.includes('transport') || bl.includes('shuttle') || bl.includes('drop') || bl.includes('flight') || bl.includes('relocation')) return 'mapPin';
+  if (bl.includes('leave') || bl.includes('holiday') || bl.includes('vacation') || bl.includes('day')) return 'calendar';
+  if (bl.includes('training') || bl.includes('course') || bl.includes('certification') || bl.includes('program')) return 'award';
+  if (bl.includes('stay') || bl.includes('room') || bl.includes('discount') || bl.includes('voucher') || bl.includes('perk')) return 'starFilled';
+  return 'checkCircle';
+}
+
 const HOTEL_LANGUAGES_PRESETS = [
   { name: "Bengali", level: "Native" },
   { name: "English", level: "Professional" },
@@ -2607,15 +2664,28 @@ function renderJobCardHTML(job) {
         </div>
       ` : ''}
 
-      <!-- Perks Row (High candidate attraction points) -->
-      ${(job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
-        <div class="job-perks-row" style="margin-bottom: 14px;">
+      <!-- Benefits & Perks Row (High candidate attraction points) -->
+      ${(Array.isArray(job.benefits) && job.benefits.length > 0) ? `
+        <div class="job-perks-row" style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
+          ${job.benefits.slice(0, 4).map(b => `
+            <span class="perk-chip ${b.toLowerCase().includes('service charge') ? 'perk-highlight' : ''}">
+              ${svgIcon(getBenefitIcon(b), '', 13)} ${b}
+            </span>
+          `).join('')}
+          ${job.benefits.length > 4 ? `
+            <span class="perk-chip" style="background: rgba(255, 255, 255, 0.05); color: var(--text-dim); border: 1px dashed var(--border-subtle);" title="${job.benefits.slice(4).join(', ')}">
+              +${job.benefits.length - 4} more perks
+            </span>
+          ` : ''}
+        </div>
+      ` : ((job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
+        <div class="job-perks-row" style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
           ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 13)} Service Charge</span>` : ''}
           ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 13)} Accommodation</span>` : ''}
           ${job.duty_meals_provided ? `<span class="perk-chip">${svgIcon('utensils', '', 13)} Duty Meals</span>` : ''}
           <span class="perk-chip">${svgIcon('shield', '', 13)} Health Insurance</span>
         </div>
-      ` : ''}
+      ` : '')}
 
       <!-- Footer & Action Buttons -->
       <div class="job-card-footer">
@@ -3014,9 +3084,22 @@ async function renderJobDetailScreen(viewport, jobId) {
           </div>
         ` : ''}
 
-        ${(job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
+        ${(Array.isArray(job.benefits) && job.benefits.length > 0) ? `
+          <div style="margin-top: 24px; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 22px; border-radius: var(--radius-md);">
+            <h4 style="font-size: 1.1rem; font-weight: 800; color: var(--white); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+              ${svgIcon('starFilled', 'color: var(--orange-primary);', 18)} Hospitality Benefits &amp; Perks
+            </h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+              ${job.benefits.map(b => `
+                <span class="perk-chip ${b.toLowerCase().includes('service charge') ? 'perk-highlight' : ''}" style="font-size: 0.88rem; padding: 6px 14px;">
+                  ${svgIcon(getBenefitIcon(b), '', 15)} ${b}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        ` : ((job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
           <div style="margin-top: 24px; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 20px; border-radius: var(--radius-md);">
-            <h4 style="font-size: 1rem; font-weight: 800; color: var(--white); margin-bottom: 12px;">Hospitality Benefits & Perks</h4>
+            <h4 style="font-size: 1rem; font-weight: 800; color: var(--white); margin-bottom: 12px;">Hospitality Benefits &amp; Perks</h4>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
               ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 14)} Service Charge Distribution</span>` : ''}
               ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 14)} Staff Housing Provided</span>` : ''}
@@ -3024,7 +3107,7 @@ async function renderJobDetailScreen(viewport, jobId) {
               <span class="perk-chip">${svgIcon('shield', '', 14)} Medical Insurance Included</span>
             </div>
           </div>
-        ` : ''}
+        ` : '')}
 
         <div style="margin-top: 24px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-subtle); padding-top: 20px;">
           <div style="font-size: 0.85rem; color: var(--text-dim);">
@@ -10840,9 +10923,22 @@ async function openJobDetailModal(jobId) {
             </div>
           ` : ''}
 
-          ${(job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
+          ${(Array.isArray(job.benefits) && job.benefits.length > 0) ? `
+            <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 18px; border-radius: var(--radius-md);">
+              <h4 style="font-size: 0.98rem; font-weight: 800; color: var(--white); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                ${svgIcon('starFilled', 'color: var(--orange-primary);', 16)} Hospitality Benefits &amp; Perks
+              </h4>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                ${job.benefits.map(b => `
+                  <span class="perk-chip ${b.toLowerCase().includes('service charge') ? 'perk-highlight' : ''}" style="font-size: 0.85rem; padding: 5px 12px;">
+                    ${svgIcon(getBenefitIcon(b), '', 14)} ${b}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ((job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
             <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 16px; border-radius: var(--radius-md);">
-              <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Benefits & Perks</h4>
+              <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Benefits &amp; Perks</h4>
               <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                 ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 13)} Service Charge</span>` : ''}
                 ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 13)} Accommodation</span>` : ''}
@@ -10850,7 +10946,7 @@ async function openJobDetailModal(jobId) {
                 <span class="perk-chip">${svgIcon('shield', '', 13)} Medical Insurance</span>
               </div>
             </div>
-          ` : ''}
+          ` : '')}
 
           ${job.is_applied ? `
             <div style="background: rgba(59, 130, 246, 0.15); border: 1px solid #3b82f6; padding: 14px 20px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between;">
