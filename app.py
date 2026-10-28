@@ -1395,6 +1395,12 @@ def toggle_follow(business_id: str, user_id: str = "user_rahim"):
 
     conn.commit()
     conn.close()
+
+    notify_realtime(
+        "business_follow_updated",
+        {"business_id": business_id, "user_id": user_id, "is_followed": is_followed}
+    )
+
     return {"is_followed": is_followed}
 
 # =======================
@@ -1777,6 +1783,7 @@ class CandidateRegisterPayload(BaseModel):
     summary: Optional[str] = None
     cv_name: Optional[str] = None
     cv_url: Optional[str] = None
+    cv_data: Optional[str] = None
     education: Optional[Any] = None # List of {institution, degree, gpa}
     skills: Optional[List[str]] = None
     languages: Optional[Any] = None # List of {name, level}
@@ -1857,6 +1864,7 @@ def register_candidate(payload: CandidateRegisterPayload):
     """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active"))
 
     cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
+    cv_data_content = payload.cv_data or payload.cv_url or ""
     initial_cvs = json.dumps([
         {
             "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
@@ -1864,7 +1872,8 @@ def register_candidate(payload: CandidateRegisterPayload):
             "title": f"Primary {payload.department or 'Hospitality'} Career CV",
             "uploaded_at": now.split(' ')[0],
             "size": "240 KB",
-            "is_default": True
+            "is_default": True,
+            "file_data": cv_data_content
         }
     ]) if payload.cv_name else json.dumps([])
 
@@ -1937,7 +1946,7 @@ def register_candidate(payload: CandidateRegisterPayload):
         initial_cvs,
         dob_val,
         nid_val,
-        payload.cv_url or "",
+        cv_data_content or payload.cv_url or "",
         fn,
         mn,
         ln,
@@ -2910,6 +2919,7 @@ def add_profile_cv(payload: CvCreatePayload, user_id: Optional[str] = None):
 
     conn.commit()
     conn.close()
+    notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
     return {"success": True, "cv": new_cv, "cv_list": cv_list}
 
 @app.delete("/api/profile/cvs/{cv_id}")
@@ -2924,6 +2934,7 @@ def delete_profile_cv(cv_id: str, user_id: Optional[str] = None):
     cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
     conn.commit()
     conn.close()
+    notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
     return {"success": True, "cv_list": cv_list}
 
 @app.patch("/api/profile/cvs/{cv_id}/default")
@@ -2939,6 +2950,7 @@ def set_default_cv(cv_id: str, user_id: Optional[str] = None):
     cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
     conn.commit()
     conn.close()
+    notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
     return {"success": True, "cv_list": cv_list}
 
 @app.get("/api/applications/{app_id}/cv")
@@ -2952,6 +2964,7 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
                b.brand_name, b.verification_status,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone,
                ep.headline, ep.summary, ep.skills, ep.experience, ep.education, ep.certifications, ep.languages,
+               ep.cv_url, ep.cv_list,
                (bm.id IS NOT NULL) as is_bm_member
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
@@ -4545,6 +4558,8 @@ def delete_business(business_id: str):
     cursor.execute("DELETE FROM business_verifications WHERE business_id = ?", (business_id,))
     conn.commit()
     conn.close()
+    invalidate_api_cache("jobs")
+    notify_realtime("business_deleted", {"business_id": business_id})
     return {"success": True, "message": "Business establishment deleted successfully."}
 
 @app.get("/api/admin/demo-status")
@@ -4580,6 +4595,7 @@ def toggle_demo_data(payload: Optional[ToggleDemoPayload] = None):
     _demo_hidden_cache["val"] = new_hidden
     _demo_hidden_cache["ts"] = time.time()
     invalidate_api_cache()
+    notify_realtime("demo_data_toggled", {"demo_data_hidden": new_hidden})
     return {
         "success": True,
         "demo_data_hidden": new_hidden,

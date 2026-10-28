@@ -1661,14 +1661,15 @@ async function handleRealtimeEvent(payload) {
         if (res.ok) state.jobs = await res.json();
       } catch(e) {}
 
-      if (state.currentScreen === 'home') {
-        const viewport = document.getElementById('app-viewport');
-        if (viewport) await renderHomeScreen(viewport);
-      } else if (state.currentScreen === 'recruiter-dashboard') {
-        const myBizId = state.currentUser?.business_id || state.activeHotelId;
-        if (data && data.business_id === myBizId) {
-          const viewport = document.getElementById('app-viewport');
-          if (viewport) await renderRecruiterDashboard(viewport);
+      const viewport = document.getElementById('app-viewport');
+      if (viewport) {
+        if (state.currentScreen === 'home') await renderHomeScreen(viewport);
+        else if (state.currentScreen === 'jobs') await renderJobsScreen(viewport);
+        else if (state.currentScreen === 'recruiter-dashboard') {
+          const myBizId = state.currentUser?.business_id || state.activeHotelId;
+          if (data && data.business_id === myBizId) {
+            await renderRecruiterDashboard(viewport);
+          }
         }
       }
       
@@ -1683,7 +1684,7 @@ async function handleRealtimeEvent(payload) {
         const res = await fetch('/api/jobs?status=active');
         if (res.ok) state.jobs = await res.json();
       } catch(e) {}
-      if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard' || state.currentScreen === 'admin-dashboard') {
+      if (['home', 'jobs', 'recruiter-dashboard', 'admin-dashboard'].includes(state.currentScreen)) {
         const viewport = document.getElementById('app-viewport');
         if (viewport) renderApp();
       }
@@ -1699,7 +1700,7 @@ async function handleRealtimeEvent(payload) {
           card.style.opacity = '0';
           card.style.transform = 'scale(0.95)';
           setTimeout(() => card.remove(), 300);
-        } else if (state.currentScreen === 'home' || state.currentScreen === 'recruiter-dashboard' || state.currentScreen === 'admin-dashboard') {
+        } else if (['home', 'jobs', 'recruiter-dashboard', 'admin-dashboard'].includes(state.currentScreen)) {
           const viewport = document.getElementById('app-viewport');
           if (viewport) renderApp();
         }
@@ -1712,6 +1713,11 @@ async function handleRealtimeEvent(payload) {
       if (data && data.business_id && data.business_id === myBizId) {
         playRealtimeChime();
         showToast(`💼 New Application! ${escapeHtml(data.candidate_name)} applied for ${escapeHtml(data.job_title)}`, 'success');
+
+        if (state.jobs) {
+          const matchedJob = state.jobs.find(j => j.id === data.job_id);
+          if (matchedJob) matchedJob.applicant_count = (matchedJob.applicant_count || 0) + 1;
+        }
 
         if (state.currentScreen === 'ats') {
           const viewport = document.getElementById('app-viewport');
@@ -2072,6 +2078,53 @@ async function handleRealtimeEvent(payload) {
       }
       break;
     }
+
+    case 'cv_updated': {
+      if (state.currentUser && state.currentUser.id === data.user_id) {
+        try {
+          const cvRes = await fetch(`/api/profile/cvs?user_id=${state.currentUser.id}`);
+          if (cvRes.ok) {
+            const resData = await cvRes.json();
+            if (state.profile) {
+              state.profile.cv_list = resData.cv_list || resData.cvs || [];
+            }
+          }
+        } catch(e) {}
+        if (state.currentScreen === 'profile') {
+          const viewport = document.getElementById('app-viewport');
+          if (viewport) await renderProfileScreen(viewport);
+        }
+      }
+      break;
+    }
+
+    case 'demo_data_toggled': {
+      state.demoDataHidden = !!data.demo_data_hidden;
+      try {
+        const jobsRes = await fetch('/api/jobs');
+        if (jobsRes.ok) {
+          const freshJobs = await jobsRes.json();
+          state.jobs = Array.isArray(freshJobs) ? freshJobs : (freshJobs.jobs || []);
+          if (['home', 'jobs', 'recruiter-dashboard'].includes(state.currentScreen)) {
+            const viewport = document.getElementById('app-viewport');
+            if (viewport) {
+              if (state.currentScreen === 'home') await renderHomeScreen(viewport);
+              else if (state.currentScreen === 'jobs') await renderJobsScreen(viewport);
+              else if (state.currentScreen === 'recruiter-dashboard') await renderRecruiterDashboard(viewport);
+            }
+          }
+        }
+      } catch(e) {}
+      break;
+    }
+
+    case 'business_deleted': {
+      if (data.business_id) {
+        state.businesses = state.businesses.filter(b => b.id !== data.business_id);
+        state.jobs = state.jobs.filter(j => j.business_id !== data.business_id);
+      }
+      break;
+    }
   }
 }
 
@@ -2107,12 +2160,12 @@ async function loadInitialData() {
       state.conversations = convRes.ok ? await convRes.json() : [];
     } else if (state.currentUser && state.currentUser.role === 'recruiter') {
       const bId = state.currentUser.business_id || state.activeHotelId;
-      if (bId) {
-        const convRes = await fetch(`/api/conversations?business_id=${bId}`);
-        state.conversations = convRes.ok ? await convRes.json() : [];
-      } else {
-        state.conversations = [];
-      }
+      const [notifsRes, convRes] = await Promise.all([
+        fetch(`/api/notifications?user_id=${state.currentUser.id}`),
+        bId ? fetch(`/api/conversations?business_id=${bId}`) : Promise.resolve(null)
+      ]);
+      state.notifications = notifsRes.ok ? await notifsRes.json() : [];
+      state.conversations = (convRes && convRes.ok) ? await convRes.json() : [];
     }
   } catch (err) {
     console.error('Error loading data:', err);
@@ -2195,6 +2248,7 @@ function updateNavigation() {
   } else if (role === 'recruiter' && state.currentUser) {
     const currentBizId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
     const unseenBizTexts = (state.conversations || []).reduce((acc, c) => acc + (c.unread_for_business || 0), 0);
+    const totalUnreadBizNotifs = (state.notifications || []).filter(n => !n.is_read).length;
     linksHtml = `
       <li class="nav-item"><a href="#recruiter-dashboard" onclick="navigateTo('recruiter-dashboard'); return false;" class="${screen === 'recruiter-dashboard' ? 'active' : ''}">Dashboard</a></li>
       <li class="nav-item"><a href="#ats" onclick="navigateTo('ats'); return false;" class="${screen === 'ats' ? 'active' : ''}">Candidates</a></li>
@@ -2209,6 +2263,10 @@ function updateNavigation() {
     const initials = (state.currentUser.name || 'HR').split(' ').map(n=>n[0]).join('').slice(0,2);
     actionsHtml = `
       <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn-icon" style="position: relative; color: var(--white); border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);" onclick="openNotificationsModal()" title="Notifications">
+          ${svgIcon('bell', '', 17)}
+          ${totalUnreadBizNotifs > 0 ? `<span class="badge-count" style="position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; font-size: 0.65rem; padding: 0 4px; display: flex; align-items: center; justify-content: center;">${totalUnreadBizNotifs}</span>` : ''}
+        </button>
         <div class="user-profile-badge" id="nav-biz-user-profile-badge" onclick="openBusinessUserEditProfileModal()" style="cursor: pointer;" title="Edit My Profile">
           ${state.currentUser.avatar ? `<img src="${state.currentUser.avatar}" alt="${escapeHtml(state.currentUser.name)}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(255, 255, 255, 0.25);">` : `<div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #ffffff;">${initials}</div>`}
           <div class="user-badge-info">
@@ -11783,7 +11841,7 @@ async function viewSubmittedApplicationCv(appId) {
 
           <div class="modal-footer">
             <button class="btn-secondary" onclick="closeModal('modal-cv-viewer')">Close</button>
-            <button class="btn-orange" onclick="showToast('Downloading CV document...')">${svgIcon('download', '', 15)} Download PDF</button>
+            ${cvData.cv_url ? `<a href="${cvData.cv_url}" download="${cvData.selected_cv || 'Candidate_CV.pdf'}" target="_blank" class="btn-orange" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">${svgIcon('download', '', 15)} Download CV File</a>` : `<button class="btn-orange" onclick="window.print()">${svgIcon('download', '', 15)} Print / Save PDF</button>`}
           </div>
         </div>
       </div>
