@@ -1002,10 +1002,6 @@ def check_and_consume_otp(cursor, identifiers: list, code: str, max_age_seconds:
     if not clean_code:
         return False, "Please enter the 6-digit OTP code."
 
-    # Universal demo / test bypass in testing environment without demoDataHidden
-    if clean_code in ["258330", "123456"] and not is_demo_hidden():
-        return True, ""
-
     search_set = set()
     for ident in identifiers:
         if not ident:
@@ -1834,23 +1830,28 @@ def send_otp(payload: SendOtpPayload):
     cursor = conn.cursor()
 
     targets = set()
-    if payload.identifier:
-        raw_id = payload.identifier.strip()
-        targets.add(raw_id)
-        if "@" in raw_id:
-            targets.add(raw_id.lower())
-        norm_id = normalize_phone(raw_id)
-        if norm_id:
-            targets.add(norm_id)
-            targets.add(f"+88{norm_id}")
-            targets.add(f"+88 {norm_id}")
-            clean_digits = "".join(filter(str.isdigit, raw_id))
-            if clean_digits:
-                targets.add(clean_digits)
+    target_email = ""
+    if payload.email and "@" in payload.email:
+        target_email = payload.email.strip().lower()
+    elif payload.identifier and "@" in payload.identifier:
+        target_email = payload.identifier.strip().lower()
 
-    if payload.email:
-        targets.add(payload.email.strip().lower())
+    # If identifier was a phone number, check if account has a registered email
+    if not target_email and (payload.phone or payload.identifier):
+        lookup_term = (payload.phone or payload.identifier).strip()
+        norm_term = normalize_phone(lookup_term)
+        cursor.execute("SELECT email FROM users WHERE phone = ? OR phone = ? LIMIT 1", (lookup_term, norm_term))
+        user_row = cursor.fetchone()
+        if user_row and user_row["email"]:
+            target_email = user_row["email"].strip().lower()
 
+    if not target_email:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Please provide a valid email address to receive your 6-digit verification code.")
+
+    targets.add(target_email)
+
+    # Also register phone aliases if provided so registration can match either identifier
     if payload.phone:
         p_raw = payload.phone.strip()
         targets.add(p_raw)
@@ -1859,80 +1860,30 @@ def send_otp(payload: SendOtpPayload):
             targets.add(norm_p)
             targets.add(f"+88{norm_p}")
             targets.add(f"+88 {norm_p}")
-            clean_p = "".join(filter(str.isdigit, p_raw))
-            if clean_p:
-                targets.add(clean_p)
-
-    # Check if there is an existing user account for any of these targets
-    # and link the user's alternate identifiers (e.g. phone <-> email)
-    search_terms = list(targets)
-    if search_terms:
-        try:
-            placeholders = ", ".join(["?"] * len(search_terms))
-            cursor.execute(f"""
-                SELECT email, phone FROM users
-                WHERE LOWER(email) IN ({placeholders}) OR phone IN ({placeholders})
-                LIMIT 5
-            """, search_terms + search_terms)
-            for u_row in cursor.fetchall():
-                u_em = (u_row["email"] or "").strip().lower()
-                u_ph = (u_row["phone"] or "").strip()
-                if u_em:
-                    targets.add(u_em)
-                if u_ph:
-                    targets.add(u_ph)
-                    u_norm = normalize_phone(u_ph)
-                    if u_norm:
-                        targets.add(u_norm)
-                        targets.add(f"+88{u_norm}")
-                        targets.add(f"+88 {u_norm}")
-        except Exception as e:
-            logger.debug(f"User account link check error in send_otp: {e}")
-
-    if not targets:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Please provide a valid phone number or email address.")
 
     for t in targets:
         otp_id = f"otp_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         cursor.execute("INSERT INTO otp_verifications (id, identifier, otp_code, purpose, created_at, verified) VALUES (?, ?, ?, ?, ?, ?)", (otp_id, t, code, payload.purpose, now, 0))
 
-    # Automated Email Transmission from no-reply.nicejobs@nicesoftware.com.bd
-    email_destinations = set()
-    for t in targets:
-        if "@" in t:
-            email_destinations.add(t.strip().lower())
-    if payload.email and "@" in payload.email:
-        email_destinations.add(payload.email.strip().lower())
-    if payload.identifier and "@" in payload.identifier:
-        email_destinations.add(payload.identifier.strip().lower())
-
+    # Send OTP strictly to candidate's/business user's email address
     plain_text, html_body = generate_otp_email_content(code, payload.purpose)
     subject = f"{code} is your NiceJobs verification code"
 
-    sent_emails = []
-    for em in email_destinations:
-        try:
-            dispatch_system_email(
-                to_email=em,
-                subject=subject,
-                body_text=plain_text,
-                event_type="otp_verification",
-                cursor=cursor,
-                html_body=html_body
-            )
-            sent_emails.append(em)
-        except Exception as e:
-            logger.error(f"[SEND_OTP EMAIL ERROR] Failed dispatching to {em}: {e}")
+    dispatch_system_email(
+        to_email=target_email,
+        subject=subject,
+        body_text=plain_text,
+        event_type="otp_verification",
+        cursor=cursor,
+        html_body=html_body
+    )
 
     conn.commit()
     conn.close()
 
-    display_target = payload.phone or payload.email or payload.identifier
     res_data = {
         "success": True,
-        "message": f"6-digit verification code sent from no-reply.nicejobs@nicesoftware.com.bd to {', '.join(sent_emails) if sent_emails else display_target}. Code is valid for 5 minutes.",
-        "demo_otp": code,
+        "message": f"6-digit verification code sent to {target_email}. Code is valid for 5 minutes.",
         "expires_in_seconds": 300,
         "sender": "no-reply.nicejobs@nicesoftware.com.bd"
     }
@@ -2768,23 +2719,11 @@ def login(payload: LoginPayload):
             id_set.discard("")
             id_set.discard(None)
 
-            placeholders = ", ".join(["?"] * len(id_set))
-            params = list(id_set) + [payload.otp_code.strip()]
-            cursor.execute(f"""
-                SELECT id FROM otp_verifications
-                WHERE identifier IN ({placeholders}) AND otp_code = ? AND (verified = 0 OR verified = 1)
-                ORDER BY created_at DESC LIMIT 1
-            """, params)
-            otp_row = cursor.fetchone()
-            is_valid_otp = bool(otp_row)
-            if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
-                is_valid_otp = True
+            is_valid_otp, otp_err = check_and_consume_otp(cursor, list(id_set), payload.otp_code, max_age_seconds=300, mark_consumed=True)
             if not is_valid_otp:
                 record_public_rate_failure(rate_key)
                 conn.close()
-                raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
-            if otp_row:
-                cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
+                raise HTTPException(status_code=401, detail=otp_err)
         elif payload.password:
             stored_pwd = user["password"] or ""
             if not verify_password(payload.password, stored_pwd):
