@@ -871,62 +871,115 @@ https://nicejobs.info
 """
 
     html_body = f"""<!DOCTYPE html>
-<html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="x-apple-disable-message-reformatting">
   <title>Your NiceJobs Verification Code</title>
+  <style>
+    body, table, td, p, a, li, blockquote {{
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }}
+    table, td {{
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }}
+    @media screen and (max-width: 480px) {{
+      .email-wrapper {{
+        padding: 8px 4px !important;
+      }}
+      .email-container {{
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 8px !important;
+      }}
+      .card-header {{
+        padding: 14px 16px !important;
+      }}
+      .card-body {{
+        padding: 16px 14px !important;
+      }}
+      .otp-box {{
+        padding: 12px 6px !important;
+        margin: 0 0 14px 0 !important;
+      }}
+      .otp-digits {{
+        font-size: 26px !important;
+        letter-spacing: 5px !important;
+      }}
+      .note-box {{
+        padding: 10px 12px !important;
+        margin-bottom: 14px !important;
+      }}
+    }}
+  </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #070d1e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #070d1e; padding: 40px 15px;">
+<body style="margin: 0; padding: 0; width: 100% !important; background-color: #070d1e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+  <!-- Outer Center Table -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-wrapper" style="background-color: #070d1e; width: 100%; margin: 0; padding: 20px 10px;">
     <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width: 520px; background: #0a1128; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.6);">
+      <td align="center" valign="top">
+        <!-- Main Card Container -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="max-width: 430px; width: 100%; margin: 0 auto; background-color: #0a1128; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
           <!-- Header -->
           <tr>
-            <td style="padding: 26px 30px; background: linear-gradient(135deg, rgba(255,107,0,0.18) 0%, rgba(10,17,40,0.85) 100%); border-bottom: 1px solid rgba(255,255,255,0.08);">
-              <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">Nice<span style="color: #ff6b00;">Jobs</span></span>
-              <div style="font-size: 11px; color: #94a3b8; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;">Luxury Hospitality Employment &amp; ATS</div>
+            <td class="card-header" style="padding: 16px 20px; background: linear-gradient(135deg, rgba(255,107,0,0.18) 0%, rgba(10,17,40,0.9) 100%); border-bottom: 1px solid rgba(255,255,255,0.08);">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td>
+                    <span style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.2;">Nice<span style="color: #ff6b00;">Jobs</span></span>
+                    <div style="font-size: 10px; color: #94a3b8; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;">Luxury Hospitality Careers &amp; ATS</div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Body -->
           <tr>
-            <td style="padding: 30px 30px 20px 30px;">
-              <h1 style="font-size: 19px; font-weight: 700; color: #ffffff; margin: 0 0 10px 0;">Verification Code</h1>
-              <p style="font-size: 14px; line-height: 1.5; color: #94a3b8; margin: 0 0 20px 0;">
-                You are performing <strong>{purpose_label}</strong> on the NiceJobs portal. Enter the 6-digit verification code below to proceed:
+            <td class="card-body" style="padding: 22px 20px 16px 20px;">
+              <h1 style="font-size: 17px; font-weight: 700; color: #ffffff; margin: 0 0 8px 0; line-height: 1.3;">Security Verification</h1>
+              <p style="font-size: 13px; line-height: 1.5; color: #94a3b8; margin: 0 0 16px 0;">
+                You are performing <strong style="color: #e2e8f0;">{purpose_label}</strong>. Enter the 6-digit verification code below:
               </p>
 
-              <!-- OTP Code Box -->
-              <div style="background: rgba(255, 107, 0, 0.08); border: 2px dashed #ff6b00; border-radius: 10px; padding: 20px; text-align: center; margin: 0 0 20px 0;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #ff7a18; font-weight: 700; margin-bottom: 6px;">Your 6-Digit OTP</div>
-                <div style="font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #ffffff; font-family: 'Courier New', Courier, monospace;">
-                  {code}
-                </div>
-                <div style="font-size: 12px; color: #f87171; font-weight: 600; margin-top: 8px;">
-                  ⏱ Valid for 5 minutes only
-                </div>
-              </div>
+              <!-- Responsive OTP Box -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="otp-box" style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 2px dashed #ff6b00; border-radius: 8px; margin: 0 0 16px 0;">
+                <tr>
+                  <td align="center" style="padding: 14px 10px;">
+                    <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #ff7a18; font-weight: 700; margin-bottom: 4px;">6-Digit OTP Code</div>
+                    <div class="otp-digits" style="font-size: 28px; font-weight: 800; letter-spacing: 6px; color: #ffffff; font-family: 'Courier New', Courier, monospace; line-height: 1.2;">
+                      {code}
+                    </div>
+                    <div style="font-size: 11px; color: #f87171; font-weight: 600; margin-top: 6px;">
+                      ⏱ Valid for 5 minutes only
+                    </div>
+                  </td>
+                </tr>
+              </table>
 
-              <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #ff6b00; border-radius: 4px; padding: 12px 14px; margin-bottom: 20px;">
-                <p style="font-size: 12px; line-height: 1.5; color: #cbd5e1; margin: 0;">
-                  <strong>Security Note:</strong> Never share this code with anyone. NiceJobs will never request this verification code by phone, chat, or external message.
+              <!-- Notice Box -->
+              <div class="note-box" style="background: rgba(255, 255, 255, 0.035); border-left: 3px solid #ff6b00; border-radius: 4px; padding: 10px 12px; margin-bottom: 16px;">
+                <p style="font-size: 11px; line-height: 1.45; color: #cbd5e1; margin: 0;">
+                  <strong>Security Note:</strong> Never share this code. NiceJobs staff will never request this verification code.
                 </p>
               </div>
 
-              <p style="font-size: 12px; line-height: 1.5; color: #64748b; margin: 0;">
-                If you did not request this verification code, no further action is required and your account remains safe.
+              <p style="font-size: 11px; line-height: 1.4; color: #64748b; margin: 0;">
+                If you did not request this code, no action is needed and your account remains secure.
               </p>
             </td>
           </tr>
           <!-- Footer -->
           <tr>
-            <td style="padding: 18px 30px; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.06); text-align: center;">
-              <p style="font-size: 11px; color: #64748b; margin: 0 0 4px 0;">
+            <td style="padding: 12px 18px; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.06); text-align: center;">
+              <p style="font-size: 10px; color: #64748b; margin: 0 0 3px 0; line-height: 1.3;">
                 Dispatched from: <a href="mailto:no-reply.nicejobs@nicesoftware.com.bd" style="color: #94a3b8; text-decoration: none;">no-reply.nicejobs@nicesoftware.com.bd</a>
               </p>
-              <p style="font-size: 11px; color: #475569; margin: 0;">
-                &copy; 2026 NiceJobs Hospitality Portal.
+              <p style="font-size: 10px; color: #475569; margin: 0; line-height: 1.3;">
+                &copy; 2026 NiceJobs Hospitality Portal
               </p>
             </td>
           </tr>
