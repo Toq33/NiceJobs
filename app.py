@@ -730,32 +730,84 @@ async def realtime_test_emit_endpoint(request: Request):
 # EMAIL NOTIFICATION SYSTEM
 # =======================
 
-def dispatch_system_email(to_email: str, subject: str, body_text: str, event_type: str = "general", cursor = None):
+DEFAULT_SYSTEM_EMAIL = "no-reply.nicejobs@nicesoftware.com.bd"
+
+def dispatch_system_email(to_email: str, subject: str, body_text: str, event_type: str = "general", cursor = None, html_body: Optional[str] = None):
     mail_id = f"mail_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # If SMTP environment variables are configured, attempt real transmission
+    # Email configuration
     smtp_host = os.environ.get("SMTP_HOST")
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
-    smtp_user = os.environ.get("SMTP_USER")
+    smtp_user = os.environ.get("SMTP_USER") or DEFAULT_SYSTEM_EMAIL
     smtp_pass = os.environ.get("SMTP_PASSWORD")
+    smtp_from = os.environ.get("SMTP_FROM") or smtp_user or DEFAULT_SYSTEM_EMAIL
+    smtp_use_ssl = os.environ.get("SMTP_USE_SSL", "").strip().lower() in ("1", "true", "yes") or smtp_port == 465
+    resend_api_key = os.environ.get("RESEND_API_KEY")
 
     status = "delivered_simulated"
-    if smtp_host and smtp_user and smtp_pass:
+
+    # Option A: Direct Resend HTTP API (if configured)
+    if resend_api_key:
+        try:
+            import urllib.request
+            req_data = {
+                "from": f"NiceJobs <{smtp_from}>",
+                "to": [to_email],
+                "subject": subject,
+                "text": body_text
+            }
+            if html_body:
+                req_data["html"] = html_body
+
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=json.dumps(req_data).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {resend_api_key.strip()}",
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    status = "delivered_resend_api"
+        except Exception as e:
+            logger.error(f"[RESEND API ERROR] Failed sending to {to_email}: {e}")
+            status = f"resend_failed: {str(e)[:50]}"
+
+    # Option B: Standard SMTP Protocol (mail.nicesoftware.com.bd / TLS 587 / SSL 465)
+    elif smtp_host and smtp_pass:
         try:
             import smtplib
+            from email.mime.multipart import MIMEMultipart
             from email.mime.text import MIMEText
-            msg = MIMEText(body_text, "plain", "utf-8")
-            msg["Subject"] = subject
-            msg["From"] = f"NiceJobs Platform <{smtp_user}>"
-            msg["To"] = to_email
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
+
+            if html_body:
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = subject
+                msg["From"] = f"NiceJobs Platform <{smtp_from}>"
+                msg["To"] = to_email
+                msg.attach(MIMEText(body_text, "plain", "utf-8"))
+                msg.attach(MIMEText(html_body, "html", "utf-8"))
+            else:
+                msg = MIMEText(body_text, "plain", "utf-8")
+                msg["Subject"] = subject
+                msg["From"] = f"NiceJobs Platform <{smtp_from}>"
+                msg["To"] = to_email
+
+            if smtp_use_ssl:
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
             status = "delivered_smtp"
         except Exception as e:
-            print(f"[MAIL SMTP ERROR] Failed sending to {to_email}: {e}")
+            logger.error(f"[MAIL SMTP ERROR] Failed sending to {to_email}: {e}")
             status = f"smtp_failed: {str(e)[:50]}"
 
     # Log to email_logs table for permanent audit and verification
@@ -776,18 +828,181 @@ def dispatch_system_email(to_email: str, subject: str, body_text: str, event_typ
             conn.commit()
             conn.close()
     except Exception as e:
-        print(f"[MAIL LOG ERROR] {e}")
+        logger.error(f"[MAIL LOG ERROR] {e}")
 
-    print(f"\n=======================================================")
-    print(f"[EMAIL NOTIFICATION DISPATCHED] Status: {status}")
-    print(f"Recipient: {to_email}")
-    print(f"Subject: {subject}")
-    print(f"Event: {event_type}")
-    print(f"Timestamp: {now}")
-    print(f"-------------------------------------------------------")
-    print(body_text[:280] + ("..." if len(body_text) > 280 else ""))
-    print(f"=======================================================\n")
-    return {"id": mail_id, "status": status, "to": to_email}
+    logger.info(f"[EMAIL NOTIFICATION DISPATCHED] Status: {status} | Sender: {smtp_from} | Recipient: {to_email} | Subject: {subject}")
+    return {"id": mail_id, "status": status, "to": to_email, "sender": smtp_from}
+
+def generate_otp_email_content(code: str, purpose: str = "general") -> tuple:
+    """
+    Generates plain-text and responsive HTML email templates for 6-digit OTP verification.
+    Sender: no-reply.nicejobs@nicesoftware.com.bd
+    Validity: Strictly 5 minutes.
+    """
+    purpose_label = "Account Security Verification"
+    if purpose == "candidate_signup":
+        purpose_label = "Hospitality Candidate Registration"
+    elif purpose in ["business_signup", "hotel_registration"]:
+        purpose_label = "Hotel Establishment Registration"
+    elif purpose in ["join_business", "recruiter_signup"]:
+        purpose_label = "Hotel Representative Verification"
+    elif purpose == "login":
+        purpose_label = "Secure Account Sign In"
+    elif purpose == "contact_change":
+        purpose_label = "Profile Contact Information Update"
+
+    body_text = f"""NiceJobs — Security Verification Code
+
+Hello,
+
+Your 6-digit security verification code is: {code}
+
+Purpose: {purpose_label}
+Sender: no-reply.nicejobs@nicesoftware.com.bd
+
+IMPORTANT: This code is valid for 5 minutes only.
+For your protection, never share this code with anyone. NiceJobs personnel will never ask for your verification code.
+
+If you did not initiate this request, please ignore this email.
+
+Best regards,
+NiceJobs Hospitality Careers & ATS Portal
+https://nicejobs.info
+"""
+
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your NiceJobs Verification Code</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #070d1e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #070d1e; padding: 40px 15px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 520px; background: #0a1128; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.6);">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 26px 30px; background: linear-gradient(135deg, rgba(255,107,0,0.18) 0%, rgba(10,17,40,0.85) 100%); border-bottom: 1px solid rgba(255,255,255,0.08);">
+              <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">Nice<span style="color: #ff6b00;">Jobs</span></span>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;">Luxury Hospitality Employment &amp; ATS</div>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 30px 30px 20px 30px;">
+              <h1 style="font-size: 19px; font-weight: 700; color: #ffffff; margin: 0 0 10px 0;">Verification Code</h1>
+              <p style="font-size: 14px; line-height: 1.5; color: #94a3b8; margin: 0 0 20px 0;">
+                You are performing <strong>{purpose_label}</strong> on the NiceJobs portal. Enter the 6-digit verification code below to proceed:
+              </p>
+
+              <!-- OTP Code Box -->
+              <div style="background: rgba(255, 107, 0, 0.08); border: 2px dashed #ff6b00; border-radius: 10px; padding: 20px; text-align: center; margin: 0 0 20px 0;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #ff7a18; font-weight: 700; margin-bottom: 6px;">Your 6-Digit OTP</div>
+                <div style="font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #ffffff; font-family: 'Courier New', Courier, monospace;">
+                  {code}
+                </div>
+                <div style="font-size: 12px; color: #f87171; font-weight: 600; margin-top: 8px;">
+                  ⏱ Valid for 5 minutes only
+                </div>
+              </div>
+
+              <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #ff6b00; border-radius: 4px; padding: 12px 14px; margin-bottom: 20px;">
+                <p style="font-size: 12px; line-height: 1.5; color: #cbd5e1; margin: 0;">
+                  <strong>Security Note:</strong> Never share this code with anyone. NiceJobs will never request this verification code by phone, chat, or external message.
+                </p>
+              </div>
+
+              <p style="font-size: 12px; line-height: 1.5; color: #64748b; margin: 0;">
+                If you did not request this verification code, no further action is required and your account remains safe.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 18px 30px; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.06); text-align: center;">
+              <p style="font-size: 11px; color: #64748b; margin: 0 0 4px 0;">
+                Dispatched from: <a href="mailto:no-reply.nicejobs@nicesoftware.com.bd" style="color: #94a3b8; text-decoration: none;">no-reply.nicejobs@nicesoftware.com.bd</a>
+              </p>
+              <p style="font-size: 11px; color: #475569; margin: 0;">
+                &copy; 2026 NiceJobs Hospitality Portal.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+    return body_text, html_body
+
+def check_and_consume_otp(cursor, identifiers: list, code: str, max_age_seconds: int = 300, mark_consumed: bool = True) -> tuple:
+    """
+    Validates a 6-digit OTP code against otp_verifications for the given identifiers.
+    Enforces strict 5-minute (300 seconds) expiration.
+    Returns (is_valid: bool, error_message: str).
+    """
+    clean_code = (code or "").strip()
+    if not clean_code:
+        return False, "Please enter the 6-digit OTP code."
+
+    # Universal demo / test bypass in testing environment without demoDataHidden
+    if clean_code in ["258330", "123456"] and not is_demo_hidden():
+        return True, ""
+
+    search_set = set()
+    for ident in identifiers:
+        if not ident:
+            continue
+        raw = str(ident).strip()
+        search_set.add(raw)
+        if "@" in raw:
+            search_set.add(raw.lower())
+        norm = normalize_phone(raw)
+        if norm:
+            search_set.add(norm)
+            search_set.add(f"+88{norm}")
+            search_set.add(f"+88 {norm}")
+            digits = "".join(filter(str.isdigit, raw))
+            if digits:
+                search_set.add(digits)
+
+    search_set.discard("")
+    search_set.discard(None)
+    if not search_set:
+        return False, "No valid contact identifier provided for verification."
+
+    placeholders = ", ".join(["?"] * len(search_set))
+    params = list(search_set) + [clean_code]
+    cursor.execute(f"""
+        SELECT id, created_at, verified FROM otp_verifications
+        WHERE identifier IN ({placeholders}) AND otp_code = ? AND (verified = 0 OR verified = 1)
+        ORDER BY created_at DESC LIMIT 1
+    """, params)
+    row = cursor.fetchone()
+
+    if not row:
+        return False, "Invalid verification code. Please check your email or phone."
+
+    # Enforce 5-minute (300 seconds) expiration check
+    created_at_str = row["created_at"]
+    if created_at_str:
+        try:
+            created_dt = datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S")
+            elapsed = (datetime.now() - created_dt).total_seconds()
+            if elapsed > max_age_seconds:
+                mins = int(elapsed // 60)
+                return False, f"This verification code has expired ({mins} min old). OTP is valid for 5 minutes only. Please request a new code."
+        except Exception as e:
+            logger.warning(f"Error checking OTP created_at '{created_at_str}': {e}")
+
+    if mark_consumed:
+        cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (row["id"],))
+
+    return True, ""
 
 # =======================
 # API ENDPOINTS & DEMO DATA MANAGEMENT
@@ -1629,14 +1844,44 @@ def send_otp(payload: SendOtpPayload):
         otp_id = f"otp_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         cursor.execute("INSERT INTO otp_verifications (id, identifier, otp_code, purpose, created_at, verified) VALUES (?, ?, ?, ?, ?, ?)", (otp_id, t, code, payload.purpose, now, 0))
 
+    # Automated Email Transmission from no-reply.nicejobs@nicesoftware.com.bd
+    email_destinations = set()
+    for t in targets:
+        if "@" in t:
+            email_destinations.add(t.strip().lower())
+    if payload.email and "@" in payload.email:
+        email_destinations.add(payload.email.strip().lower())
+    if payload.identifier and "@" in payload.identifier:
+        email_destinations.add(payload.identifier.strip().lower())
+
+    plain_text, html_body = generate_otp_email_content(code, payload.purpose)
+    subject = f"{code} is your NiceJobs verification code"
+
+    sent_emails = []
+    for em in email_destinations:
+        try:
+            dispatch_system_email(
+                to_email=em,
+                subject=subject,
+                body_text=plain_text,
+                event_type="otp_verification",
+                cursor=cursor,
+                html_body=html_body
+            )
+            sent_emails.append(em)
+        except Exception as e:
+            logger.error(f"[SEND_OTP EMAIL ERROR] Failed dispatching to {em}: {e}")
+
     conn.commit()
     conn.close()
 
     display_target = payload.phone or payload.email or payload.identifier
     res_data = {
         "success": True,
-        "message": f"6-digit security verification code dispatched to {display_target}",
-        "demo_otp": code
+        "message": f"6-digit verification code sent from no-reply.nicejobs@nicesoftware.com.bd to {', '.join(sent_emails) if sent_emails else display_target}. Code is valid for 5 minutes.",
+        "demo_otp": code,
+        "expires_in_seconds": 300,
+        "sender": "no-reply.nicejobs@nicesoftware.com.bd"
     }
     return res_data
 
@@ -1649,38 +1894,25 @@ class VerifyOtpPayload(BaseModel):
 
 @app.post("/api/auth/verify-otp")
 def verify_otp(payload: VerifyOtpPayload):
-    code = (payload.otp_code or "").strip()
-    if not code:
-        raise HTTPException(status_code=400, detail="Please enter the 6-digit OTP code.")
-
-    # Universal demo / test bypass
-    if code in ["258330", "123456"]:
-        return {"success": True, "verified": True}
-
     conn = database.get_db()
     cursor = conn.cursor()
+    ident_list = [payload.identifier, payload.email, payload.phone]
+    is_valid, err_msg = check_and_consume_otp(cursor, ident_list, payload.otp_code, max_age_seconds=300, mark_consumed=False)
+    if not is_valid:
+        conn.close()
+        raise HTTPException(status_code=400, detail=err_msg)
 
+    # Mark verified = 1 (stage passed)
     raw_p = (payload.phone or "").strip()
     norm_p = normalize_phone(raw_p) if raw_p else ""
     with_prefix = f"+88{norm_p}" if norm_p else ""
     email = (payload.email or "").strip().lower()
     ident = (payload.identifier or "").strip()
-    ident_norm = normalize_phone(ident) if ident else ""
-    ident_prefix = f"+88{ident_norm}" if ident_norm else ""
-
     cursor.execute("""
-        SELECT id FROM otp_verifications
-        WHERE (
-            identifier = ? OR identifier = ? OR identifier = ? OR identifier = ? 
-            OR identifier = ? OR identifier = ? OR identifier = ?
-        ) AND otp_code = ?
-        ORDER BY created_at DESC LIMIT 1
-    """, (ident, email, raw_p, norm_p, with_prefix, ident_norm, ident_prefix, code))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Invalid or expired 6-digit OTP code.")
-    cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (row["id"],))
+        UPDATE otp_verifications SET verified = 1 
+        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
+          AND otp_code = ? AND verified = 0
+    """, (ident, email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
     conn.commit()
     conn.close()
     return {"success": True, "verified": True}
@@ -1938,25 +2170,10 @@ def register_candidate(payload: CandidateRegisterPayload):
     conn = database.get_db()
     cursor = conn.cursor()
 
-    norm_p = normalize_phone(payload.phone)
-    raw_p = payload.phone.strip()
-    with_prefix = f"+88{norm_p}" if norm_p else ""
-    cursor.execute("""
-        SELECT id FROM otp_verifications
-        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
-          AND otp_code = ? AND (verified = 0 OR verified = 1)
-        ORDER BY created_at DESC LIMIT 1
-    """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
-    otp_row = cursor.fetchone()
-    is_valid_otp = bool(otp_row)
-    if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
-        is_valid_otp = True
+    is_valid_otp, otp_err = check_and_consume_otp(cursor, [payload.email, payload.phone], payload.otp_code, max_age_seconds=300, mark_consumed=True)
     if not is_valid_otp:
         conn.close()
-        raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
-
-    if otp_row:
-        cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
+        raise HTTPException(status_code=400, detail=otp_err)
 
     # Check uniqueness among candidate accounts (business user emails can open a candidate account)
     cand_email = payload.email.strip().lower()
@@ -2195,24 +2412,10 @@ def register_business(payload: BusinessRegisterPayload):
                 detail="This email is registered as an official business email. Please use your personal work email."
             )
 
-        norm_p = normalize_phone(payload.phone)
-        raw_p = payload.phone.strip()
-        with_prefix = f"+88{norm_p}" if norm_p else ""
-        cursor.execute("""
-            SELECT id FROM otp_verifications
-            WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
-              AND otp_code = ? AND (verified = 0 OR verified = 1)
-            ORDER BY created_at DESC LIMIT 1
-        """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
-        otp_row = cursor.fetchone()
-        is_valid_otp = bool(otp_row)
-        if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
-            is_valid_otp = True
+        is_valid_otp, otp_err = check_and_consume_otp(cursor, [payload.email, payload.phone, payload.official_email, payload.telephone], payload.otp_code, max_age_seconds=300, mark_consumed=True)
         if not is_valid_otp:
-            raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
-
-        if otp_row:
-            cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
+            conn.close()
+            raise HTTPException(status_code=400, detail=otp_err)
 
         biz_id = f"biz_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
@@ -2358,26 +2561,11 @@ def register_business_user(payload: RegisterBusinessUserPayload):
             detail="This business is not yet in our directory, please create an account."
         )
 
-    # 2. Verify OTP
-    norm_p = normalize_phone(payload.phone)
-    raw_p = payload.phone.strip()
-    with_prefix = f"+88{norm_p}" if norm_p else ""
-    cursor.execute("""
-        SELECT id FROM otp_verifications
-        WHERE (identifier = ? OR identifier = ? OR identifier = ? OR identifier = ?) 
-          AND otp_code = ? AND (verified = 0 OR verified = 1)
-        ORDER BY created_at DESC LIMIT 1
-    """, (payload.email, raw_p, norm_p, with_prefix, payload.otp_code.strip()))
-    otp_row = cursor.fetchone()
-    is_valid_otp = bool(otp_row)
-    if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
-        is_valid_otp = True
+    # 2. Verify OTP (5-minute TTL)
+    is_valid_otp, otp_err = check_and_consume_otp(cursor, [payload.email, payload.phone], payload.otp_code, max_age_seconds=300, mark_consumed=True)
     if not is_valid_otp:
         conn.close()
-        raise HTTPException(status_code=400, detail="Invalid OTP code. Please enter the verification code sent to your phone/email.")
-
-    if otp_row:
-        cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
+        raise HTTPException(status_code=400, detail=otp_err)
 
     # 3. Check uniqueness of user email on behalf
     user_email_clean = payload.email.strip().lower()
@@ -2716,23 +2904,11 @@ def login(payload: LoginPayload):
         id_set.discard("")
         id_set.discard(None)
 
-        placeholders = ", ".join(["?"] * len(id_set))
-        params = list(id_set) + [payload.otp_code.strip()]
-        cursor.execute(f"""
-            SELECT id FROM otp_verifications
-            WHERE identifier IN ({placeholders}) AND otp_code = ? AND (verified = 0 OR verified = 1)
-            ORDER BY created_at DESC LIMIT 1
-        """, params)
-        otp_row = cursor.fetchone()
-        is_valid_otp = bool(otp_row)
-        if not is_valid_otp and payload.otp_code.strip() in ["258330", "123456"]:
-            is_valid_otp = True
+        is_valid_otp, otp_err = check_and_consume_otp(cursor, list(id_set), payload.otp_code, max_age_seconds=300, mark_consumed=True)
         if not is_valid_otp:
             record_public_rate_failure(rate_key)
             conn.close()
-            raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
-        if otp_row:
-            cursor.execute("UPDATE otp_verifications SET verified = 2 WHERE id = ?", (otp_row["id"],))
+            raise HTTPException(status_code=401, detail=otp_err)
     elif payload.password:
         stored_pwd = user["password"] or ""
         if not verify_password(payload.password, stored_pwd):
@@ -2902,17 +3078,11 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
                     "detail": f"Updating phone number or email address requires security OTP verification. Please verify the code sent to {target}."
                 }
             )
-        # Verify OTP
-        cursor.execute("""
-            SELECT id FROM otp_verifications
-            WHERE identifier = ? AND otp_code = ? AND verified = 0
-            ORDER BY created_at DESC LIMIT 1
-        """, (target, payload.otp_code))
-        otp_match = cursor.fetchone()
-        if not otp_match:
+        # Verify OTP (5-minute TTL)
+        is_valid_otp, otp_err = check_and_consume_otp(cursor, [target], payload.otp_code, max_age_seconds=300, mark_consumed=True)
+        if not is_valid_otp:
             conn.close()
-            raise HTTPException(status_code=400, detail="Invalid OTP code for contact update.")
-        cursor.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (otp_match["id"],))
+            raise HTTPException(status_code=400, detail=otp_err)
 
         if email_changed:
             cursor.execute("UPDATE users SET email = ? WHERE id = ?", (payload.email.strip().lower(), effective_user_id))

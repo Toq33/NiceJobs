@@ -7670,8 +7670,9 @@ function renderSignupPage(viewport) {
               <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('smartphone', '', 24)}</div>
               <h2 class="auth-title">Verify Phone &amp; Email</h2>
               <p class="auth-subtitle">Enter verification code to activate your account</p>
-              <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex;">
+              <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
                 <span>Dispatched to +88 <strong>${signupState.phone}</strong> &amp; <strong>${signupState.email}</strong></span>
+                <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
               </div>
             </div>
 
@@ -8124,8 +8125,9 @@ function renderSignupPage(viewport) {
                 <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('smartphone', '', 24)}</div>
                 <h2 class="auth-title">Security OTP</h2>
                 <p class="auth-subtitle">Verification code dispatched to verify business identity</p>
-                <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex;">
+                <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
                   <span>Sent to +88 <strong>${signupState.rep_cell}</strong> &amp; <strong>${signupState.official_email}</strong></span>
+                  <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
                 </div>
               </div>
 
@@ -8420,8 +8422,11 @@ function renderSignupPage(viewport) {
             ${signupState.biz_step === 5 ? `
               <div class="auth-header" style="text-align: center;">
                 <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('smartphone', '', 24)}</div>
-                <h2 class="auth-title">Verify Mobile</h2>
-                <p class="auth-subtitle">Verification code sent to +88 ${signupState.join_cell}</p>
+                <h2 class="auth-title">Verify Contact</h2>
+                <p class="auth-subtitle">Verification code sent to +88 ${signupState.join_cell} &amp; ${signupState.join_user_email}</p>
+                <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
+                  <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
+                </div>
               </div>
 
               <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)">
@@ -9680,7 +9685,7 @@ async function nextSignupStage(targetStage) {
       const data = await res.json();
       signupState.lastSentOtp = data.demo_otp || '258330';
       signupState.otp_code = signupState.lastSentOtp;
-      showToast(`Verification code sent to +88 ${signupState.phone} and ${signupState.email} (Demo: ${signupState.lastSentOtp})`, 'success');
+      showToast(`Verification code sent to +88 ${signupState.phone} & ${signupState.email} (Valid for 5 mins • Demo: ${signupState.lastSentOtp})`, 'success');
     } catch (err) {
       showToast('Error sending OTP: ' + err.message, 'danger');
     }
@@ -9731,7 +9736,7 @@ async function resendCandidateOtp() {
     signupState.lastSentOtp = data.demo_otp || '258330';
     const input = document.getElementById('cand-otp-code');
     if (input) input.value = signupState.lastSentOtp;
-    showToast(`New verification code sent (Demo: ${signupState.lastSentOtp})`, 'success');
+    showToast(`New verification code dispatched from no-reply.nicejobs@nicesoftware.com.bd (Valid for 5 mins • Demo: ${signupState.lastSentOtp})`, 'success');
   } catch (err) {
     showToast('Failed to resend code: ' + err.message, 'danger');
   }
@@ -10024,7 +10029,7 @@ async function nextBizStage(targetStep) {
       const data = await res.json();
       signupState.biz_lastSentOtp = data.demo_otp || '258330';
       signupState.biz_otp_code = signupState.biz_lastSentOtp;
-      showToast(`Verification OTP sent to +88 ${signupState.rep_cell} (Demo: ${signupState.biz_lastSentOtp})`, 'success');
+      showToast(`Verification OTP sent from no-reply.nicejobs@nicesoftware.com.bd (Valid for 5 mins • Demo: ${signupState.biz_lastSentOtp})`, 'success');
     } catch (err) {
       showToast('Error dispatching OTP: ' + err.message, 'danger');
     }
@@ -10311,7 +10316,7 @@ async function nextJoinStage(targetStep) {
       const data = await res.json();
       signupState.join_lastSentOtp = data.demo_otp || '258330';
       signupState.join_otp_code = signupState.join_lastSentOtp;
-      showToast(`Verification code sent to +88 ${signupState.join_cell} (Demo: ${signupState.join_lastSentOtp})`, 'success');
+      showToast(`Verification code sent from no-reply.nicejobs@nicesoftware.com.bd (Valid for 5 mins • Demo: ${signupState.join_lastSentOtp})`, 'success');
     } catch (err) {
       showToast('Error dispatching OTP: ' + err.message, 'danger');
     }
