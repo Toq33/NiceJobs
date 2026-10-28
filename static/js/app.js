@@ -11884,7 +11884,7 @@ async function submitApplicationForm(event, jobId) {
   const selectedCv = form.selected_cv_radio?.value || (state.currentUser?.cv_name || '');
   const profCvList = state.profile?.cv_list || [];
   const matchCv = profCvList.find(c => c.name === selectedCv || c.title === selectedCv) || {};
-  const selectedCvUrl = matchCv.file_data || matchCv.cv_url || state.profile?.cv_url || '';
+  const selectedCvUrl = matchCv.file_data || matchCv.cv_url || state.profile?.cv_url || (profCvList[0]?.file_data) || '';
 
   const screeningAnswers = {};
   const job = state.jobs.find(j => j.id === jobId);
@@ -12323,10 +12323,38 @@ async function saveCandidateStatus(appId) {
   }
 }
 
+// Download original user-uploaded CV directly with original filename
+function downloadOriginalCvFile(downloadUrl, fileName) {
+  if (!downloadUrl) {
+    showToast('No CV file available to download.', 'warning');
+    return;
+  }
+  const safeName = fileName || 'Candidate_CV.pdf';
+  if (downloadUrl.startsWith('/api/')) {
+    const sep = downloadUrl.includes('?') ? '&' : '?';
+    const targetUrl = downloadUrl.includes('download=1') ? downloadUrl : `${downloadUrl}${sep}download=1`;
+    const link = document.createElement('a');
+    link.href = targetUrl;
+    link.setAttribute('download', safeName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.setAttribute('download', safeName);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 // Helper to resolve CV file data into a safe, performant Blob URL
 function getResolvedCvBlobUrl(fileData, fileName = '') {
   if (!fileData) return null;
-  if (!fileData.startsWith('data:')) return fileData;
+  if (fileData.startsWith('/api/') || fileData.startsWith('http://') || fileData.startsWith('https://') || fileData.startsWith('blob:')) {
+    return fileData;
+  }
   try {
     const parts = fileData.split(';base64,');
     if (parts.length === 2) {
@@ -12340,14 +12368,13 @@ function getResolvedCvBlobUrl(fileData, fileName = '') {
         else if (lower.endsWith('.doc')) mime = 'application/msword';
         else mime = 'application/pdf';
       }
-      const b64 = parts[1];
+      const b64 = parts[1].replace(/[\s\r\n]+/g, '');
       const byteChars = atob(b64);
-      const byteNums = new Array(byteChars.length);
+      const byteNums = new Uint8Array(byteChars.length);
       for (let i = 0; i < byteChars.length; i++) {
         byteNums[i] = byteChars.charCodeAt(i);
       }
-      const byteArray = new Uint8Array(byteNums);
-      const blob = new Blob([byteArray], { type: mime });
+      const blob = new Blob([byteNums], { type: mime });
       return URL.createObjectURL(blob);
     }
   } catch (err) {
@@ -12356,26 +12383,25 @@ function getResolvedCvBlobUrl(fileData, fileName = '') {
   return fileData;
 }
 
-// Unified renderer for uploaded CV document preview
-function renderUploadedCvViewerBody(viewUrl, fileName, fileSize = '') {
+// Unified renderer for uploaded CV document preview - strictly displays genuine candidate uploaded document
+function renderUploadedCvViewerBody(viewUrl, fileName, fileSize = '', downloadUrl = '') {
+  const effectiveDownload = downloadUrl || viewUrl;
   const lowerName = (fileName || '').toLowerCase();
-  const isPdf = lowerName.endsWith('.pdf') || (viewUrl && (viewUrl.startsWith('data:application/pdf') || viewUrl.includes('application/pdf')));
+  const isPdf = lowerName.endsWith('.pdf') || (viewUrl && (viewUrl.startsWith('data:application/pdf') || viewUrl.includes('application/pdf') || viewUrl.includes('/cv-file')));
   const isImage = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp') || (viewUrl && viewUrl.startsWith('data:image/'));
   const isDoc = lowerName.endsWith('.docx') || lowerName.endsWith('.doc');
 
   if (viewUrl && (isPdf || (!isImage && !isDoc))) {
     return `
       <div style="width: 100%; height: 74vh; min-height: 520px; border-radius: 8px; overflow: hidden; background: #1e293b; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
-        <object data="${viewUrl}" type="application/pdf" width="100%" height="100%">
-          <iframe src="${viewUrl}#toolbar=1" style="width: 100%; height: 100%; border: none;" title="${escapeHtml(fileName)}">
-            <div style="padding: 30px; text-align: center; color: var(--white); background: #070d1e;">
-              <p style="margin-bottom: 16px;">This browser does not support inline PDF embedding.</p>
-              <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                ${svgIcon('download', '', 15)} Download ${escapeHtml(fileName)}
-              </a>
-            </div>
-          </iframe>
-        </object>
+        <iframe src="${viewUrl}#toolbar=1" style="width: 100%; height: 100%; border: none; background: #fff;" title="${escapeHtml(fileName)}">
+          <div style="padding: 30px; text-align: center; color: var(--white); background: #070d1e;">
+            <p style="margin-bottom: 16px;">Preview document directly:</p>
+            <button type="button" onclick="downloadOriginalCvFile('${effectiveDownload}', '${escapeHtml(fileName)}')" class="btn-orange" style="display:inline-flex; align-items:center; gap:6px;">
+              ${svgIcon('download', '', 15)} Download Original ${escapeHtml(fileName)}
+            </button>
+          </div>
+        </iframe>
       </div>
     `;
   } else if (viewUrl && isImage) {
@@ -12393,12 +12419,12 @@ function renderUploadedCvViewerBody(viewUrl, fileName, fileSize = '') {
           <div style="font-size: 0.82rem; color: var(--text-dim);">${fileSize ? fileSize + ' • ' : ''}Microsoft Word Document (.docx)</div>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 440px; margin: 0; line-height: 1.5;">
-          This CV was uploaded as a Word document. Word files cannot be rendered directly inside the browser viewport, but the verified candidate document is preserved and ready for review.
+          This CV was uploaded as a Word document. Word files are downloaded directly in their genuine original format.
         </p>
         <div style="display: flex; gap: 10px; margin-top: 6px;">
-          <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration: none; padding: 10px 22px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
-            ${svgIcon('download', '', 16)} Download &amp; Review Document
-          </a>
+          <button type="button" onclick="downloadOriginalCvFile('${effectiveDownload}', '${escapeHtml(fileName)}')" class="btn-orange" style="padding: 10px 22px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+            ${svgIcon('download', '', 16)} Download Original Document
+          </button>
         </div>
       </div>
     `;
@@ -12406,9 +12432,9 @@ function renderUploadedCvViewerBody(viewUrl, fileName, fileSize = '') {
     return `
       <div style="padding: 40px 24px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 12px;">
         <div style="color: var(--orange-primary);">${svgIcon('alertCircle', '', 40)}</div>
-        <div style="font-weight: 700; color: var(--white); font-size: 1rem;">No Document File Attached</div>
+        <div style="font-weight: 700; color: var(--white); font-size: 1rem;">No Original Document Attached</div>
         <p style="font-size: 0.84rem; color: var(--text-muted); max-width: 400px; margin: 0; line-height: 1.5;">
-          No physical CV file (PDF or DOCX) was attached to this record yet.
+          No physical CV file (PDF or DOCX) was uploaded to this candidate record yet.
         </p>
         <button class="btn-orange" onclick="closeModal('modal-candidate-cv-preview'); openAddCvModal();" style="font-size: 0.85rem; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px;">
           ${svgIcon('upload', '', 15)} Upload CV Document
@@ -12430,9 +12456,12 @@ async function viewSubmittedApplicationCv(appId) {
       throw new Error(err.detail || 'Access denied');
     }
     const cvData = await res.json();
-    const fileName = cvData.selected_cv || 'Candidate_CV.pdf';
+    const fileName = cvData.selected_cv || cvData.cv_name || 'Candidate_CV.pdf';
     const rawData = cvData.selected_cv_url || cvData.cv_url || '';
-    const viewUrl = getResolvedCvBlobUrl(rawData, fileName);
+    
+    // Server streaming and download endpoints guarantee native PDF rendering and original file downloads
+    const viewUrl = rawData ? `/api/applications/${appId}/cv-file` : '';
+    const downloadUrl = `/api/applications/${appId}/cv-file?download=1`;
 
     const container = document.getElementById('modal-container');
     container.innerHTML = `
@@ -12460,7 +12489,7 @@ async function viewSubmittedApplicationCv(appId) {
             ` : ''}
 
             <!-- Actual Uploaded CV Document Viewer -->
-            ${renderUploadedCvViewerBody(viewUrl, fileName)}
+            ${renderUploadedCvViewerBody(viewUrl, fileName, '', downloadUrl)}
           </div>
 
           <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -12473,9 +12502,9 @@ async function viewSubmittedApplicationCv(appId) {
                 <button type="button" class="btn-secondary" onclick="window.open('${viewUrl}', '_blank')" style="display: inline-flex; align-items: center; gap: 6px;">
                   ${svgIcon('externalLink', '', 14)} Open in New Tab
                 </button>
-                <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-                  ${svgIcon('download', '', 15)} Download Submitted CV
-                </a>
+                <button type="button" class="btn-orange" onclick="downloadOriginalCvFile('${downloadUrl}', '${escapeHtml(fileName)}')" style="display: inline-flex; align-items: center; gap: 6px;">
+                  ${svgIcon('download', '', 15)} Download Original CV
+                </button>
               ` : ''}
             </div>
           </div>
@@ -12695,6 +12724,15 @@ async function handleAddNewCv(event) {
     submitBtn.innerHTML = 'Uploading...';
   }
 
+  if (!addCvModalState.fileData && addCvModalState.file) {
+    addCvModalState.fileData = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(addCvModalState.file);
+    });
+  }
+
   const payload = {
     user_id: uId,
     title: title || fileName,
@@ -12792,6 +12830,7 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
   let title = cvTitle || 'Hospitality Resume';
   let name = cvName || 'Resume.pdf';
   let size = '';
+  let cvId = null;
 
   if (typeof cvIdentifierOrData === 'string' && cvIdentifierOrData.startsWith('data:')) {
     fileData = cvIdentifierOrData;
@@ -12806,17 +12845,30 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
       title = foundCv.title || title;
       name = foundCv.name || name;
       size = foundCv.size || '';
+      cvId = foundCv.id;
     }
     if (!fileData) {
       if (signupState && signupState.cv_name === cvName) {
         fileData = signupState.cv_data || signupState.cv_url;
       } else if (state.profile?.cv_name === cvName || !cvIdentifierOrData) {
         fileData = state.profile?.cv_url || (cvList[0]?.file_data);
+        cvId = cvList[0]?.id;
       }
     }
   }
 
-  const viewUrl = getResolvedCvBlobUrl(fileData, name);
+  const uId = state.currentUser ? state.currentUser.id : null;
+  let viewUrl = '';
+  let downloadUrl = '';
+
+  if (uId && (cvId || name)) {
+    const qParams = cvId ? `cv_id=${encodeURIComponent(cvId)}` : `cv_name=${encodeURIComponent(name)}`;
+    viewUrl = `/api/profile/cv-file?user_id=${encodeURIComponent(uId)}&${qParams}`;
+    downloadUrl = `/api/profile/cv-file?user_id=${encodeURIComponent(uId)}&${qParams}&download=1`;
+  } else if (fileData) {
+    viewUrl = getResolvedCvBlobUrl(fileData, name);
+    downloadUrl = viewUrl;
+  }
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
@@ -12836,7 +12888,7 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
         </div>
 
         <div class="modal-body" style="overflow-y: auto; padding: 18px; background: #070d1e;">
-          ${renderUploadedCvViewerBody(viewUrl, name, size)}
+          ${renderUploadedCvViewerBody(viewUrl, name, size, downloadUrl)}
         </div>
 
         <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -12849,9 +12901,9 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
               <button type="button" class="btn-secondary" onclick="window.open('${viewUrl}', '_blank')" style="display: inline-flex; align-items: center; gap: 6px;">
                 ${svgIcon('externalLink', '', 14)} Open in New Tab
               </button>
-              <a href="${viewUrl}" download="${escapeHtml(name)}" class="btn-orange" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-                ${svgIcon('download', '', 14)} Download CV Document
-              </a>
+              <button type="button" class="btn-orange" onclick="downloadOriginalCvFile('${downloadUrl}', '${escapeHtml(name)}')" style="display: inline-flex; align-items: center; gap: 6px;">
+                ${svgIcon('download', '', 14)} Download Original CV
+              </button>
             ` : ''}
           </div>
         </div>

@@ -8,6 +8,7 @@ import uuid
 import time
 import secrets
 import re
+import base64
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Set
 from collections import defaultdict
@@ -16,7 +17,7 @@ import asyncio
 logger = logging.getLogger("nicejobs")
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
@@ -1996,7 +1997,7 @@ def register_candidate(payload: CandidateRegisterPayload):
     """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active"))
 
     cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
-    cv_data_content = payload.cv_data or payload.cv_url or ""
+    cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
     initial_cvs = json.dumps([
         {
             "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
@@ -2007,7 +2008,7 @@ def register_candidate(payload: CandidateRegisterPayload):
             "is_default": True,
             "file_data": cv_data_content
         }
-    ]) if payload.cv_name else json.dumps([])
+    ]) if cv_data_content else json.dumps([])
 
     skills_data = payload.skills if isinstance(payload.skills, list) else []
     
@@ -3174,6 +3175,148 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
 
     conn.close()
     return data
+
+def extract_binary_from_data_url(data_str: str, filename: str = "document.pdf") -> tuple:
+    lower_fn = (filename or "").lower()
+    default_mime = "application/pdf"
+    if lower_fn.endswith(".docx"):
+        default_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif lower_fn.endswith(".doc"):
+        default_mime = "application/msword"
+    elif lower_fn.endswith(".png"):
+        default_mime = "image/png"
+    elif lower_fn.endswith(".jpg") or lower_fn.endswith(".jpeg"):
+        default_mime = "image/jpeg"
+
+    if not data_str:
+        return b"", default_mime
+
+    if ";base64," in data_str:
+        header, b64 = data_str.split(";base64,", 1)
+        mime = header.replace("data:", "").strip() or default_mime
+        clean_b64 = re.sub(r"[\s\r\n]+", "", b64)
+        try:
+            raw_bytes = base64.b64decode(clean_b64)
+            return raw_bytes, mime
+        except Exception:
+            return b"", default_mime
+    elif data_str.startswith("data:"):
+        header, payload = data_str.split(",", 1)
+        mime = header.replace("data:", "").strip() or default_mime
+        return payload.encode("utf-8"), mime
+    else:
+        try:
+            clean_b64 = re.sub(r"[\s\r\n]+", "", data_str)
+            raw_bytes = base64.b64decode(clean_b64)
+            return raw_bytes, default_mime
+        except Exception:
+            return data_str.encode("utf-8"), default_mime
+
+@app.get("/api/profile/cv-file")
+def get_profile_cv_file(user_id: str, cv_id: Optional[str] = None, cv_name: Optional[str] = None, download: Optional[int] = 0):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT cv_url, cv_list, cv_name FROM employee_profiles WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    cv_list = json.loads(row["cv_list"]) if row["cv_list"] else []
+    filename = cv_name or row["cv_name"] or "Candidate_CV.pdf"
+    raw_data = ""
+
+    if cv_id:
+        match_cv = next((c for c in cv_list if c.get("id") == cv_id), None)
+        if match_cv:
+            raw_data = match_cv.get("file_data") or ""
+            filename = match_cv.get("name") or filename
+
+    if not raw_data and cv_name:
+        match_cv = next((c for c in cv_list if c.get("name") == cv_name or c.get("title") == cv_name), None)
+        if match_cv:
+            raw_data = match_cv.get("file_data") or ""
+            filename = match_cv.get("name") or filename
+
+    if not raw_data:
+        if row["cv_url"]:
+            raw_data = row["cv_url"]
+        elif cv_list and cv_list[0].get("file_data"):
+            raw_data = cv_list[0]["file_data"]
+            filename = cv_list[0].get("name") or filename
+
+    if not raw_data:
+        raise HTTPException(status_code=404, detail="No CV document was uploaded for this candidate.")
+
+    binary_bytes, media_type = extract_binary_from_data_url(raw_data, filename)
+    if not binary_bytes:
+        raise HTTPException(status_code=404, detail="CV document data is empty.")
+
+    disposition = "attachment" if download else "inline"
+    safe_filename = filename.replace('"', '').replace('\n', '').replace('\r', '')
+    return Response(
+        content=binary_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{safe_filename}"',
+            "Cache-Control": "public, max-age=3600"
+        }
+    )
+
+@app.get("/api/applications/{app_id}/cv-file")
+def get_application_cv_file(app_id: str, download: Optional[int] = 0, viewer_role: Optional[str] = None, viewer_id: Optional[str] = None, business_id: Optional[str] = None):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT a.id, a.user_id, a.selected_cv, a.selected_cv_url,
+               j.business_id,
+               ep.cv_url, ep.cv_list, ep.cv_name,
+               (bm.id IS NOT NULL) as is_bm_member
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        JOIN users u ON a.user_id = u.id
+        LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+        LEFT JOIN business_memberships bm ON (j.business_id = bm.business_id AND bm.user_id = ?)
+        WHERE a.id = ?
+    """, (viewer_id or "", app_id))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Application record not found")
+
+    data = dict(row)
+    filename = data.get("selected_cv") or data.get("cv_name") or "Candidate_CV.pdf"
+    raw_data = data.get("selected_cv_url") or ""
+
+    if not raw_data:
+        cv_list = json.loads(data["cv_list"]) if data.get("cv_list") else []
+        match_cv = next((c for c in cv_list if c.get("name") == filename or c.get("title") == filename), None)
+        if match_cv and match_cv.get("file_data"):
+            raw_data = match_cv["file_data"]
+            filename = match_cv.get("name") or filename
+        elif data.get("cv_url"):
+            raw_data = data["cv_url"]
+        elif cv_list and cv_list[0].get("file_data"):
+            raw_data = cv_list[0]["file_data"]
+            filename = cv_list[0].get("name") or filename
+
+    if not raw_data:
+        raise HTTPException(status_code=404, detail="No CV document was uploaded for this application.")
+
+    binary_bytes, media_type = extract_binary_from_data_url(raw_data, filename)
+    if not binary_bytes:
+        raise HTTPException(status_code=404, detail="Application CV document data is empty.")
+
+    disposition = "attachment" if download else "inline"
+    safe_filename = filename.replace('"', '').replace('\n', '').replace('\r', '')
+    return Response(
+        content=binary_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{safe_filename}"',
+            "Cache-Control": "public, max-age=3600"
+        }
+    )
 
 # =======================
 # APPLICATIONS & ATS

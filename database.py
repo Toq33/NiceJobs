@@ -13,36 +13,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 def get_demo_cv_pdf_data_url() -> str:
-    pdf_content = (
-        "%PDF-1.4\n"
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-        "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /MediaBox [0 0 612 792] /Contents 6 0 R >>\nendobj\n"
-        "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n"
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
-        "6 0 obj\n<< /Length 700 >>\nstream\n"
-        "BT\n"
-        "/F1 22 Tf\n"
-        "50 740 Td\n(RAHIM AHMED) Tj\n"
-        "0 -26 Td\n/F1 12 Tf\n(Front Office & Guest Relations Executive) Tj\n"
-        "0 -20 Td\n/F2 10 Tf\n(Phone: +88 01711000001   |   Email: rahim@example.com   |   Gulshan-2, Dhaka) Tj\n"
-        "0 -30 Td\n/F1 13 Tf\n(PROFESSIONAL PROFILE) Tj\n"
-        "0 -18 Td\n/F2 10 Tf\n(Dedicated hospitality professional with 5+ years of luxury 5-star hotel front desk) Tj\n"
-        "0 -14 Td\n(operations leadership. Certified Opera PMS specialist with proven guest retention.) Tj\n"
-        "0 -30 Td\n/F1 13 Tf\n(HOSPITALITY WORK EXPERIENCE) Tj\n"
-        "0 -20 Td\n/F1 11 Tf\n(Front Office Executive - Radisson Blu Dhaka Water Garden (2023 - Present)) Tj\n"
-        "0 -15 Td\n/F2 10 Tf\n(- Supervised 14 front-line team members and managed VIP guest arrivals.) Tj\n"
-        "0 -14 Td\n(- Mastered Opera PMS 5.5 room routing, rate code overrides, and VIP preference logs.) Tj\n"
-        "0 -22 Td\n/F1 11 Tf\n(Guest Service Agent - InterContinental Dhaka (2021 - 2023)) Tj\n"
-        "0 -15 Td\n/F2 10 Tf\n(- Maintained 98% positive guest feedback across corporate and international suites.) Tj\n"
-        "0 -30 Td\n/F1 13 Tf\n(KEY SKILLS & CERTIFICATIONS) Tj\n"
-        "0 -18 Td\n/F2 10 Tf\n(Opera PMS 5.5 & Cloud, Night Audit, VIP Concierge, Revenue Parity, Crisis Resolution) Tj\n"
-        "ET\nendstream\nendobj\n"
-        "xref\n0 7\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000320 00000 n \n0000000391 00000 n \n"
-        "trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n1200\n%%EOF\n"
-    )
-    b64 = base64.b64encode(pdf_content.encode("utf-8")).decode("ascii")
-    return f"data:application/pdf;base64,{b64}"
+    # Strictly zero synthetic CV generation: only genuine user-uploaded documents are used
+    return ""
 
 
 # Load local environment configuration
