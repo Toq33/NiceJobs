@@ -7,9 +7,43 @@ import json
 import os
 import shutil
 import re
+import base64
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
+
+def get_demo_cv_pdf_data_url() -> str:
+    pdf_content = (
+        "%PDF-1.4\n"
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /MediaBox [0 0 612 792] /Contents 6 0 R >>\nendobj\n"
+        "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n"
+        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        "6 0 obj\n<< /Length 700 >>\nstream\n"
+        "BT\n"
+        "/F1 22 Tf\n"
+        "50 740 Td\n(RAHIM AHMED) Tj\n"
+        "0 -26 Td\n/F1 12 Tf\n(Front Office & Guest Relations Executive) Tj\n"
+        "0 -20 Td\n/F2 10 Tf\n(Phone: +88 01711000001   |   Email: rahim@example.com   |   Gulshan-2, Dhaka) Tj\n"
+        "0 -30 Td\n/F1 13 Tf\n(PROFESSIONAL PROFILE) Tj\n"
+        "0 -18 Td\n/F2 10 Tf\n(Dedicated hospitality professional with 5+ years of luxury 5-star hotel front desk) Tj\n"
+        "0 -14 Td\n(operations leadership. Certified Opera PMS specialist with proven guest retention.) Tj\n"
+        "0 -30 Td\n/F1 13 Tf\n(HOSPITALITY WORK EXPERIENCE) Tj\n"
+        "0 -20 Td\n/F1 11 Tf\n(Front Office Executive - Radisson Blu Dhaka Water Garden (2023 - Present)) Tj\n"
+        "0 -15 Td\n/F2 10 Tf\n(- Supervised 14 front-line team members and managed VIP guest arrivals.) Tj\n"
+        "0 -14 Td\n(- Mastered Opera PMS 5.5 room routing, rate code overrides, and VIP preference logs.) Tj\n"
+        "0 -22 Td\n/F1 11 Tf\n(Guest Service Agent - InterContinental Dhaka (2021 - 2023)) Tj\n"
+        "0 -15 Td\n/F2 10 Tf\n(- Maintained 98% positive guest feedback across corporate and international suites.) Tj\n"
+        "0 -30 Td\n/F1 13 Tf\n(KEY SKILLS & CERTIFICATIONS) Tj\n"
+        "0 -18 Td\n/F2 10 Tf\n(Opera PMS 5.5 & Cloud, Night Audit, VIP Concierge, Revenue Parity, Crisis Resolution) Tj\n"
+        "ET\nendstream\nendobj\n"
+        "xref\n0 7\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000320 00000 n \n0000000391 00000 n \n"
+        "trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n1200\n%%EOF\n"
+    )
+    b64 = base64.b64encode(pdf_content.encode("utf-8")).decode("ascii")
+    return f"data:application/pdf;base64,{b64}"
+
 
 # Load local environment configuration
 load_dotenv()
@@ -44,9 +78,10 @@ class PostgresRow(dict):
 
 def adapt_sql_for_postgres(sql: str) -> str:
     """
-    Adapts SQLite-style parameter placeholders (?) to PostgreSQL format (%s)
-    and converts ASCII case-insensitive LIKE to ILIKE outside string literals.
+    Adapts SQLite-style parameter placeholders (?) to PostgreSQL format (%s),
+    converts AUTOINCREMENT to SERIAL, and converts ASCII case-insensitive LIKE to ILIKE outside string literals.
     """
+    sql = re.sub(r'\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b', 'SERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
     parts = re.split(r"('(?:''|[^'])*')", sql)
     for i in range(0, len(parts), 2):
         parts[i] = parts[i].replace('?', '%s')
@@ -335,6 +370,7 @@ def init_db():
         role TEXT NOT NULL, -- 'jobseeker', 'recruiter', 'admin'
         avatar_url TEXT,
         created_at TEXT,
+        can_post_blog INTEGER DEFAULT 0,
         UNIQUE (email, role)
     );
 
@@ -447,6 +483,7 @@ def init_db():
         updated_at TEXT,
         cover_letter TEXT,
         selected_cv TEXT,
+        selected_cv_url TEXT DEFAULT '',
         screening_answers TEXT, -- JSON object
         recruiter_notes TEXT, -- Private internal notes
         interview_time TEXT,
@@ -562,7 +599,8 @@ def init_db():
         cover_image TEXT,
         read_time TEXT DEFAULT '5 min read',
         published_at TEXT,
-        tags TEXT -- JSON array
+        tags TEXT, -- JSON array
+        author_id TEXT DEFAULT ''
     );
     """)
 
@@ -581,7 +619,8 @@ def init_db():
         ("first_name", "TEXT DEFAULT ''"),
         ("middle_name", "TEXT DEFAULT ''"),
         ("last_name", "TEXT DEFAULT ''"),
-        ("name_bangla", "TEXT DEFAULT ''")
+        ("name_bangla", "TEXT DEFAULT ''"),
+        ("can_post_blog", "INTEGER DEFAULT 0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {if_not_exists}{col} {typ}")
@@ -683,7 +722,27 @@ def init_db():
                 conn.rollback()
             except Exception:
                 pass
+
+    for col, typ in [("selected_cv_url", "TEXT DEFAULT ''")]:
+        try:
+            cursor.execute(f"ALTER TABLE applications ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             pass
+
+    for col, typ in [("author_id", "TEXT DEFAULT ''")]:
+        try:
+            cursor.execute(f"ALTER TABLE blogs ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     for col, typ in [
         ("is_negotiable", "INTEGER DEFAULT 0"),
@@ -744,8 +803,12 @@ def init_db():
     ]:
         try:
             cursor.execute(idx_sql)
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS system_settings (
@@ -843,6 +906,7 @@ def seed_data(cursor):
         "willing_to_relocate": True
     })
 
+    demo_cv_pdf = get_demo_cv_pdf_data_url()
     cv_list = json.dumps([
         {
             "id": "cv_1",
@@ -850,7 +914,8 @@ def seed_data(cursor):
             "title": "Front Office & Guest Relations Executive CV",
             "uploaded_at": "2026-10-12",
             "size": "245 KB",
-            "is_default": True
+            "is_default": True,
+            "file_data": demo_cv_pdf
         },
         {
             "id": "cv_2",
@@ -858,7 +923,8 @@ def seed_data(cursor):
             "title": "Rooms Division & Opera Cloud Manager CV",
             "uploaded_at": "2026-10-14",
             "size": "210 KB",
-            "is_default": False
+            "is_default": False,
+            "file_data": demo_cv_pdf
         },
         {
             "id": "cv_3",
@@ -866,7 +932,8 @@ def seed_data(cursor):
             "title": "Hospitality Operations & Night Audit Resume",
             "uploaded_at": "2026-10-15",
             "size": "180 KB",
-            "is_default": False
+            "is_default": False,
+            "file_data": demo_cv_pdf
         }
     ])
 
@@ -874,8 +941,8 @@ def seed_data(cursor):
     INSERT INTO employee_profiles (
         user_id, headline, location, summary, current_position, experience_years,
         open_to_work, visibility, skills, languages, certifications, experience,
-        education, preferences, cv_name, cv_updated_at, profile_completion, cv_list
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (user_id) DO UPDATE SET
         headline = excluded.headline,
         location = excluded.location,
@@ -893,7 +960,8 @@ def seed_data(cursor):
         cv_name = excluded.cv_name,
         cv_updated_at = excluded.cv_updated_at,
         profile_completion = excluded.profile_completion,
-        cv_list = excluded.cv_list
+        cv_list = excluded.cv_list,
+        cv_url = excluded.cv_url
     """, (
         "user_rahim",
         "Experienced Front Office Supervisor | Opera PMS Expert | 5-Star Hotel Professional",
@@ -912,7 +980,8 @@ def seed_data(cursor):
         "Rahim_Ahmed_Front_Office_Executive_CV.pdf",
         "Updated 3 days ago",
         92,
-        cv_list
+        cv_list,
+        demo_cv_pdf
     ))
 
     # 3. Businesses (Hotels & Resorts in Bangladesh)
@@ -1412,9 +1481,9 @@ def seed_data(cursor):
     cursor.execute("""
     INSERT INTO applications (
         id, job_id, user_id, status, applied_at, updated_at,
-        cover_letter, selected_cv, screening_answers, recruiter_notes,
+        cover_letter, selected_cv, selected_cv_url, screening_answers, recruiter_notes,
         interview_time, interview_notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
         job_id = excluded.job_id,
         user_id = excluded.user_id,
@@ -1423,6 +1492,7 @@ def seed_data(cursor):
         updated_at = excluded.updated_at,
         cover_letter = excluded.cover_letter,
         selected_cv = excluded.selected_cv,
+        selected_cv_url = excluded.selected_cv_url,
         screening_answers = excluded.screening_answers,
         recruiter_notes = excluded.recruiter_notes,
         interview_time = excluded.interview_time,
@@ -1436,6 +1506,7 @@ def seed_data(cursor):
         "2026-10-15 16:30",
         "Dear Hiring Team, With over 5 years of dedicated front desk and Opera PMS experience at InterContinental and Pan Pacific, I am thrilled to apply for the Front Office Supervisor role at Radisson Blu Dhaka Water Garden.",
         "Rahim_Ahmed_Front_Office_Executive_CV.pdf",
+        demo_cv_pdf,
         json.dumps({
             "How many years of hands-on Opera PMS experience do you possess?": "4.5 years",
             "Are you comfortable working rotating morning, evening, and occasional night shifts?": "Yes, completely comfortable.",

@@ -71,7 +71,12 @@ A specialized hospitality employment platform connecting certified hotel leaders
    uvicorn app:app --reload --port 8000
    ```
 
-4. **Open in your browser**:
+4. **Run automated tests**:
+   ```bash
+   python3 -m unittest discover tests
+   ```
+
+5. **Open in your browser**:
    Navigate to [http://localhost:8000](http://localhost:8000)
 
 ---
@@ -95,24 +100,33 @@ The platform includes demo accounts seeded automatically on first launch:
 
 ```
 NiceJobs/
+├── AGENTS.md                                     # AI coding agent guide & architecture constraints
 ├── api/
 │   └── index.py                                  # Vercel serverless entry point
 ├── app.py                                        # FastAPI application & REST endpoints
-├── database.py                                   # SQLite schema definitions & seed data (with Vercel /tmp fallback)
+├── database.py                                   # Dual-engine DB layer (SQLite + Supabase PostgreSQL)
 ├── vercel.json                                   # Vercel serverless rewrite configuration
 ├── nicejobs.db                                   # SQLite database file
 ├── requirements.txt                              # Python package dependencies
-├── PROJECT_WORKFLOW_AND_UPDATES.md               # Detailed changelog and architectural logs
+├── docs/                                         # Historical documentation and requirement specs
+│   ├── PROJECT_WORKFLOW_AND_UPDATES.md           # Master technical architecture & chronological log
+│   └── NiceJobs_Product_Scope_and_Workflows.docx # Original client product requirements
 ├── static/
 │   ├── index.html                                # Main Single Page Application shell
 │   ├── css/
-│   │   └── styles.css                            # Dark Glassmorphism design system & responsive layout
+│   │   ├── styles.css                            # Dark Glassmorphism design system & responsive layout
+│   │   └── fonts.css                             # Local webfonts
 │   ├── js/
 │   │   └── app.js                                # Client routing, UI rendering & state management
-│   └── images/
-│       ├── bell_image.png                        # Hero luxury concierge bell visual
-│       └── ...                                   # Hotel brand assets and sponsor visual banners
-└── README.md                                     # Project overview and documentation
+│   ├── font/                                     # Self-hosted woff2 font files
+│   └── images/                                   # Luxury hospitality assets & SVG icons
+├── scripts/
+│   └── migrate_sqlite_to_supabase.py             # SQLite to Supabase PostgreSQL migration script
+├── tests/
+│   ├── test_api_endpoints.py                     # Standalone API unit test suite
+│   ├── test_realtime.py                          # Realtime WebSocket test suite
+│   └── test_realtime_and_security.py             # Authentication & security test suite
+└── README.md                                     # Public project documentation
 ```
 
 ---

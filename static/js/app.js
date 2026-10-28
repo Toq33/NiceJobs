@@ -241,9 +241,10 @@ function svgIcon(name, customClass = '', size = 16) {
     chevronLeft: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
     chevronRight: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
     chevronDown: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
-    chevronUp: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`,
-    image: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`
+    image: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+    plus: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`
   };
+  icons['shield_check'] = icons.shieldCheck;
   return icons[name] || '';
 }
 
@@ -887,6 +888,12 @@ function parseRoute() {
   state.screenParams = paramStr ? new URLSearchParams(paramStr) : new URLSearchParams();
 
   if (state.currentScreen === 'inbox') {
+    if (!state.currentUser || state.currentRole === 'guest') {
+      state.currentScreen = 'home';
+      window.location.hash = '#home';
+      startLoginFlow('candidate');
+      return;
+    }
     if (paramStr && state.screenParams.get('conv')) {
       state.activeConvId = state.screenParams.get('conv');
       state.inboxMobileView = 'chat';
@@ -2309,7 +2316,6 @@ function updateNavigation() {
       <li class="nav-item"><a href="#home" onclick="navigateTo('home'); return false;" class="${screen === 'home' ? 'active' : ''}">Jobs</a></li>
       <li class="nav-item"><a href="#hotels" onclick="navigateTo('hotels'); return false;" class="${screen === 'hotels' ? 'active' : ''}">Employers</a></li>
       <li class="nav-item"><a href="#blog" onclick="navigateTo('blog'); return false;" class="${screen === 'blog' ? 'active' : ''}">Blog</a></li>
-      <li class="nav-item"><a href="#inbox" onclick="navigateTo('inbox'); return false;" class="${screen === 'inbox' ? 'active' : ''}">Messages</a></li>
       <li class="nav-item"><a href="#resources" onclick="navigateTo('resources'); return false;" class="${screen === 'resources' ? 'active' : ''}">About</a></li>
     `;
     actionsHtml = `
@@ -2370,6 +2376,10 @@ async function renderApp() {
   } else if (screen === 'ats') {
     await renderATSBoard(viewport);
   } else if (screen === 'inbox') {
+    if (!state.currentUser || state.currentRole === 'guest') {
+      navigateTo('home');
+      return;
+    }
     await renderInboxScreen(viewport);
   } else if (screen === 'admin-login') {
     renderAdminLoginScreen(viewport);
@@ -3653,7 +3663,7 @@ async function renderProfileScreen(viewport) {
               ${!cv.is_default ? `
                 <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="setDefaultCv('${cv.id}')">Make Default</button>
               ` : ''}
-              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(cv.title || cv.name).replace(/'/g, "\\'")}', '${cv.name.replace(/'/g, "\\'")}')">Preview</button>
+              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(cv.title || cv.name).replace(/'/g, "\\'")}', '${cv.name.replace(/'/g, "\\'")}', '${cv.id}')">Preview</button>
               <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: #f87171; display: inline-flex; align-items: center; justify-content: center;" onclick="deleteCv('${cv.id}')" title="Delete CV">${svgIcon('x', '', 14)}</button>
             </div>
           </div>
@@ -5180,6 +5190,7 @@ async function renderAdminScreen(viewport) {
                   <th>Contact (+88 Cell & Email)</th>
                   <th>Account Status</th>
                   <th>Business Role</th>
+                  <th>Blog Permission</th>
                   <th style="text-align: right;">Administrative Actions</th>
                 </tr>
               </thead>
@@ -5220,6 +5231,22 @@ async function renderAdminScreen(viewport) {
                         </div>
                       ` : `
                         <span style="font-size: 0.75rem; color: var(--text-dim);">${u.candidate_location || 'Dhaka, Bangladesh'}</span>
+                      `}
+                    </td>
+                    <td>
+                      ${u.role === 'admin' ? `
+                        <span class="badge-count" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+                          ${svgIcon('shield_check', '', 12)} Admin Author
+                        </span>
+                      ` : `
+                        <button 
+                          class="admin-btn-action" 
+                          style="${u.can_post_blog ? 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);' : 'background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1);'}"
+                          onclick="handleAdminToggleBlogPermission('${u.id}', ${!u.can_post_blog})"
+                          title="${u.can_post_blog ? 'Revoke blog posting permission' : 'Approve for blog posting'}"
+                        >
+                          ${u.can_post_blog ? `${svgIcon('check', '', 12)} Approved` : `${svgIcon('plus', '', 12)} Allow Blog`}
+                        </button>
                       `}
                     </td>
                     <td style="text-align: right;">
@@ -5569,6 +5596,24 @@ async function handleAdminDeleteUser(userId, userName) {
   }
 }
 
+async function handleAdminToggleBlogPermission(userId, allow) {
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/blog-permission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ can_post_blog: allow })
+    });
+    if (!res.ok) throw new Error('Failed to update blog posting permission');
+    if (state.currentUser && state.currentUser.id === userId) {
+      state.currentUser.can_post_blog = allow ? 1 : 0;
+    }
+    showToast(allow ? 'Blog posting permission granted.' : 'Blog posting permission revoked.', 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
 async function handleAdminJobStatus(jobId, status) {
   try {
     const res = await fetch(`/api/admin/jobs/${jobId}/status`, {
@@ -5812,20 +5857,28 @@ async function renderBlogScreen(viewport) {
 
   const featuredBlog = (activeBlogCategory === 'All' && !activeBlogSearch && filtered.length > 0) ? filtered[0] : null;
   const gridBlogs = featuredBlog ? filtered.slice(1) : filtered;
+  const canPostBlog = Boolean(state.currentUser && (state.currentUser.can_post_blog || state.currentUser.role === 'admin'));
 
   viewport.innerHTML = `
     <div style="max-width: 1200px; margin: 0 auto; padding: 10px 0 60px;">
       <!-- Blog Header -->
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 32px;">
-        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: rgba(255, 107, 0, 0.12); border: 1px solid rgba(255, 107, 0, 0.35); color: var(--orange-primary); font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; width: fit-content;">
-          ${svgIcon('sparkles', '', 14)} Hospitality Knowledge Hub
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 32px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; max-width: 760px;">
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: rgba(255, 107, 0, 0.12); border: 1px solid rgba(255, 107, 0, 0.35); color: var(--orange-primary); font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; width: fit-content;">
+            ${svgIcon('sparkles', '', 14)} Hospitality Knowledge Hub
+          </div>
+          <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--white); margin: 0; letter-spacing: -0.5px;">
+            Industry Insights & Career Blueprints
+          </h1>
+          <p style="font-size: 0.95rem; color: rgba(255, 255, 255, 0.65); line-height: 1.6; margin: 0;">
+            Operational standards, trade test checklists, and leadership compensation benchmarks curated by seasoned 5-star hotel executives.
+          </p>
         </div>
-        <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--white); margin: 0; letter-spacing: -0.5px;">
-          Industry Insights & Career Blueprints
-        </h1>
-        <p style="font-size: 0.95rem; color: rgba(255, 255, 255, 0.65); max-width: 720px; line-height: 1.6; margin: 0;">
-          Operational standards, trade test checklists, and leadership compensation benchmarks curated by seasoned 5-star hotel executives.
-        </p>
+        ${canPostBlog ? `
+          <button class="btn-orange" onclick="openCreateBlogModal()" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; font-weight: 700; border-radius: 12px; box-shadow: 0 4px 18px rgba(255, 107, 0, 0.35); cursor: pointer; white-space: nowrap;">
+            ${svgIcon('plus', '', 16)} Post Article
+          </button>
+        ` : ''}
       </div>
 
       <!-- Search & Category Filter Toolbar -->
@@ -5967,6 +6020,46 @@ function clearBlogFilter() {
   renderBlogScreen(document.getElementById('app-viewport'));
 }
 
+function formatArticleContent(text) {
+  if (!text) return '';
+  const trimmed = text.trim();
+  if (trimmed.startsWith('<article') || trimmed.startsWith('<div class="blog-prose')) {
+    return trimmed;
+  }
+  return text.split('\n\n').map(block => {
+    const b = block.trim();
+    if (!b) return '';
+    if (b.startsWith('### ')) {
+      return `<h3>${escapeHtml(b.slice(4))}</h3>`;
+    }
+    if (b.startsWith('## ')) {
+      return `<h2>${escapeHtml(b.slice(3))}</h2>`;
+    }
+    if (b.startsWith('# ')) {
+      return `<h2>${escapeHtml(b.slice(2))}</h2>`;
+    }
+    if (b.startsWith('> ')) {
+      return `<blockquote>${escapeHtml(b.slice(2))}</blockquote>`;
+    }
+    if (b.startsWith('- ') || b.startsWith('* ')) {
+      const items = b.split('\n').map(li => `<li>${escapeHtml(li.replace(/^[-*]\s+/, ''))}</li>`).join('');
+      return `<ul>${items}</ul>`;
+    }
+    if (b.startsWith('![') && b.includes('](')) {
+      const m = b.match(/^!\[(.*?)\]\((.*?)\)$/);
+      if (m) {
+        return `<figure style="margin: 24px 0;"><img src="${escapeHtml(m[2])}" alt="${escapeHtml(m[1])}" style="max-width: 100%; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); display: block;" onerror="this.style.display='none'"/><figcaption style="margin-top: 8px; font-size: 0.8rem; color: rgba(255,255,255,0.6); text-align: center;">${escapeHtml(m[1])}</figcaption></figure>`;
+      }
+    }
+    if (b.startsWith('<img ') || b.startsWith('<figure')) {
+      return b;
+    }
+    let rendered = escapeHtml(b).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    rendered = rendered.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 12px; margin: 12px 0; display: block;" onerror="this.style.display=\'none\'" />');
+    return `<p>${rendered}</p>`;
+  }).join('');
+}
+
 async function openBlogDetailModal(blogId) {
   let blog = (state.blogs || []).find(b => b.id === blogId || b.slug === blogId);
   if (!blog) {
@@ -5981,35 +6074,6 @@ async function openBlogDetailModal(blogId) {
     showToast('Article not found', 'warning');
     return;
   }
-
-  const formatArticleContent = (text) => {
-    if (!text) return '';
-    const trimmed = text.trim();
-    if (trimmed.startsWith('<')) {
-      return trimmed;
-    }
-    return text.split('\n\n').map(block => {
-      const b = block.trim();
-      if (!b) return '';
-      if (b.startsWith('### ')) {
-        return `<h3>${escapeHtml(b.slice(4))}</h3>`;
-      }
-      if (b.startsWith('## ')) {
-        return `<h2>${escapeHtml(b.slice(3))}</h2>`;
-      }
-      if (b.startsWith('# ')) {
-        return `<h2>${escapeHtml(b.slice(2))}</h2>`;
-      }
-      if (b.startsWith('> ')) {
-        return `<blockquote>${escapeHtml(b.slice(2))}</blockquote>`;
-      }
-      if (b.startsWith('- ') || b.startsWith('* ')) {
-        const items = b.split('\n').map(li => `<li>${escapeHtml(li.replace(/^[-*]\s+/, ''))}</li>`).join('');
-        return `<ul>${items}</ul>`;
-      }
-      return `<p>${escapeHtml(b).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
-    }).join('');
-  };
 
   let tagList = [];
   if (Array.isArray(blog.tags)) {
@@ -6126,6 +6190,487 @@ function copyBlogShareLink(blogId) {
     });
   } else {
     showToast('Article link: #blog?id=' + blogId);
+  }
+}
+
+// ==========================================================================
+// Article Publishing System (Admin-Approved Authors)
+// ==========================================================================
+
+let createBlogState = {
+  tab: 'edit',
+  title: '',
+  category: 'Hotel Standards',
+  coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80',
+  excerpt: '',
+  tags: '',
+  content: ''
+};
+
+function openCreateBlogModal() {
+  if (!state.currentUser || (!state.currentUser.can_post_blog && state.currentUser.role !== 'admin')) {
+    showToast('You do not have permission to publish articles.', 'warning');
+    return;
+  }
+
+  createBlogState = {
+    tab: 'edit',
+    title: '',
+    category: 'Hotel Standards',
+    coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80',
+    excerpt: '',
+    tags: '',
+    content: ''
+  };
+
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-create-blog" onclick="if(event.target === this) closeModal('modal-create-blog')">
+      <div class="modal-dialog" style="max-width: 860px; max-height: 92vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #0c1430; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.65);">
+        
+        <!-- Header -->
+        <div style="padding: 20px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.02);">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--orange-primary);">${svgIcon('sparkles', '', 18)}</span>
+              <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0;">Publish Industry Article</h2>
+            </div>
+            <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.55); margin-top: 4px;">Share operational checklists, standard operating procedures, and hospitality blueprints.</div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-create-blog')" style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--white);">
+            ${svgIcon('x', '', 16)}
+          </button>
+        </div>
+
+        <!-- Mode Toggle Tabs (Editor vs Preview) -->
+        <div style="padding: 10px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; gap: 10px; background: rgba(0,0,0,0.15);">
+          <button id="tab-btn-blog-edit" class="btn-secondary" style="padding: 6px 16px; font-size: 0.82rem; border-color: var(--orange-primary); color: var(--orange-primary); background: rgba(255, 107, 0, 0.1);" onclick="switchCreateBlogTab('edit')">
+            ${svgIcon('edit', '', 13)} Write & Edit
+          </button>
+          <button id="tab-btn-blog-preview" class="btn-secondary" style="padding: 6px 16px; font-size: 0.82rem; color: rgba(255, 255, 255, 0.7);" onclick="switchCreateBlogTab('preview')">
+            ${svgIcon('eye', '', 13)} Live Reader Preview
+          </button>
+        </div>
+
+        <!-- Scrollable Modal Body -->
+        <div id="create-blog-modal-body" style="padding: 24px; overflow-y: auto; flex: 1;">
+          <!-- Filled by renderCreateBlogBody() -->
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.2);">
+          <button class="btn-secondary" onclick="closeModal('modal-create-blog')">Cancel</button>
+          <button class="btn-orange" id="btn-submit-blog" onclick="handleCreateBlogSubmit()" style="padding: 10px 24px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+            ${svgIcon('send', '', 15)} Publish Article
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  renderCreateBlogBody();
+}
+
+function syncCreateBlogFields() {
+  const titleEl = document.getElementById('new-blog-title');
+  if (titleEl) createBlogState.title = titleEl.value;
+  const catEl = document.getElementById('new-blog-category');
+  if (catEl) createBlogState.category = catEl.value;
+  const coverEl = document.getElementById('new-blog-cover-url');
+  if (coverEl) createBlogState.coverImage = coverEl.value;
+  const excEl = document.getElementById('new-blog-excerpt');
+  if (excEl) createBlogState.excerpt = excEl.value;
+  const tagsEl = document.getElementById('new-blog-tags');
+  if (tagsEl) createBlogState.tags = tagsEl.value;
+  const contentEl = document.getElementById('new-blog-content');
+  if (contentEl) createBlogState.content = contentEl.value;
+}
+
+function switchCreateBlogTab(tab) {
+  syncCreateBlogFields();
+  createBlogState.tab = tab;
+  
+  const editBtn = document.getElementById('tab-btn-blog-edit');
+  const prevBtn = document.getElementById('tab-btn-blog-preview');
+  if (editBtn && prevBtn) {
+    if (tab === 'edit') {
+      editBtn.style.borderColor = 'var(--orange-primary)';
+      editBtn.style.color = 'var(--orange-primary)';
+      editBtn.style.background = 'rgba(255, 107, 0, 0.1)';
+      prevBtn.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      prevBtn.style.color = 'rgba(255, 255, 255, 0.7)';
+      prevBtn.style.background = 'transparent';
+    } else {
+      prevBtn.style.borderColor = 'var(--orange-primary)';
+      prevBtn.style.color = 'var(--orange-primary)';
+      prevBtn.style.background = 'rgba(255, 107, 0, 0.1)';
+      editBtn.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      editBtn.style.color = 'rgba(255, 255, 255, 0.7)';
+      editBtn.style.background = 'transparent';
+    }
+  }
+  renderCreateBlogBody();
+}
+
+function renderCreateBlogBody() {
+  const body = document.getElementById('create-blog-modal-body');
+  if (!body) return;
+
+  if (createBlogState.tab === 'preview') {
+    const wordCount = (createBlogState.content || '').split(/\s+/).filter(Boolean).length;
+    const readMin = Math.max(1, Math.round(wordCount / 180));
+    const authorName = state.currentUser ? state.currentUser.name : 'Hospitality Contributor';
+    const authorTitle = (state.currentUser && state.currentUser.designation) || 'Hospitality Specialist';
+    const authorAvatar = (state.currentUser && state.currentUser.avatar) || DEFAULT_AVATAR_PREVIEW;
+
+    let tagArray = (createBlogState.tags || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    if (tagArray.length === 0) tagArray = [createBlogState.category || 'Hospitality'];
+
+    body.innerHTML = `
+      <div style="max-width: 740px; margin: 0 auto; color: var(--white);">
+        <div style="border-radius: 14px; overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); background: #000;">
+          <img src="${createBlogState.coverImage || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'}" alt="Cover" style="width: 100%; height: 260px; object-fit: cover; display: block;" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'" />
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span class="blog-cat-pill">${escapeHtml(createBlogState.category || 'Hotel Standards')}</span>
+          <span style="font-size: 0.78rem; color: rgba(255, 255, 255, 0.5);">${svgIcon('clock', '', 12)} ${readMin} min read</span>
+        </div>
+        <h1 style="font-size: 1.8rem; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
+          ${escapeHtml(createBlogState.title) || '<span style="color: rgba(255,255,255,0.35);">Untitled Article</span>'}
+        </h1>
+        ${createBlogState.excerpt ? `
+          <p style="font-size: 1rem; color: rgba(255, 255, 255, 0.7); line-height: 1.6; margin: 0 0 20px 0; font-style: italic;">
+            ${escapeHtml(createBlogState.excerpt)}
+          </p>
+        ` : ''}
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0; margin-bottom: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <img src="${authorAvatar}" alt="${escapeHtml(authorName)}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--orange-primary);" />
+          <div>
+            <div style="font-weight: 700; font-size: 0.9rem;">${escapeHtml(authorName)}</div>
+            <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">${escapeHtml(authorTitle)}</div>
+          </div>
+        </div>
+        <div class="blog-prose" style="font-size: 0.95rem; line-height: 1.75; color: rgba(255, 255, 255, 0.9);">
+          ${formatArticleContent(createBlogState.content || '<p style="color: rgba(255,255,255,0.35);">Your article body will be previewed here. Use markdown or insert images to format.</p>')}
+        </div>
+        <div style="margin-top: 30px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <div style="font-size: 0.75rem; color: rgba(255,255,255,0.45); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Tags</div>
+          <div>${tagArray.map(t => `<span class="blog-tag-badge">#${escapeHtml(t)}</span>`).join('')}</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Edit Tab
+  body.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <!-- Title -->
+      <div>
+        <label style="display: block; font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 6px;">
+          Article Title <span style="color: var(--orange-primary);">*</span>
+        </label>
+        <input 
+          type="text" 
+          id="new-blog-title" 
+          value="${escapeHtml(createBlogState.title)}"
+          placeholder="e.g. 5 Core Service Tenets of Michelin-Star Butlering in Bangladesh"
+          style="width: 100%; padding: 12px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; color: var(--white); font-size: 0.95rem; outline: none;"
+          oninput="createBlogState.title = this.value"
+        />
+      </div>
+
+      <!-- Category & Tags (Grid) -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label style="display: block; font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 6px;">
+            Category
+          </label>
+          <select 
+            id="new-blog-category" 
+            style="width: 100%; padding: 11px 14px; background: #0f1938; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; color: var(--white); font-size: 0.88rem; outline: none;"
+            onchange="createBlogState.category = this.value"
+          >
+            <option value="Hotel Standards" ${createBlogState.category === 'Hotel Standards' ? 'selected' : ''}>Hotel Standards</option>
+            <option value="Interview Prep" ${createBlogState.category === 'Interview Prep' ? 'selected' : ''}>Interview Prep</option>
+            <option value="Career Advice" ${createBlogState.category === 'Career Advice' ? 'selected' : ''}>Career Advice</option>
+            <option value="Culinary & F&B" ${createBlogState.category === 'Culinary & F&B' ? 'selected' : ''}>Culinary & F&B</option>
+            <option value="Front Office & Concierge" ${createBlogState.category === 'Front Office & Concierge' ? 'selected' : ''}>Front Office & Concierge</option>
+            <option value="Housekeeping Excellence" ${createBlogState.category === 'Housekeeping Excellence' ? 'selected' : ''}>Housekeeping Excellence</option>
+            <option value="Leadership & Management" ${createBlogState.category === 'Leadership & Management' ? 'selected' : ''}>Leadership & Management</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 6px;">
+            Tags (comma separated)
+          </label>
+          <input 
+            type="text" 
+            id="new-blog-tags" 
+            value="${escapeHtml(createBlogState.tags)}"
+            placeholder="e.g. SOP, Butler, Guest Experience"
+            style="width: 100%; padding: 11px 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; color: var(--white); font-size: 0.88rem; outline: none;"
+            oninput="createBlogState.tags = this.value"
+          />
+        </div>
+      </div>
+
+      <!-- Cover Image (Upload or URL) -->
+      <div>
+        <label style="display: block; font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 6px;">
+          Cover Image (URL or Upload Image File)
+        </label>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+          <input 
+            type="text" 
+            id="new-blog-cover-url" 
+            value="${escapeHtml(createBlogState.coverImage)}"
+            placeholder="https://images.unsplash.com/... or upload below"
+            style="flex: 1; padding: 10px 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; color: var(--white); font-size: 0.85rem; outline: none;"
+            oninput="createBlogState.coverImage = this.value; updateBlogCoverPreview();"
+          />
+          <label class="btn-secondary" style="padding: 10px 16px; font-size: 0.82rem; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+            ${svgIcon('camera', '', 14)} Upload Image
+            <input type="file" accept="image/*" style="display: none;" onchange="handleBlogCoverUpload(this.files)" />
+          </label>
+        </div>
+        <div id="blog-cover-preview-box" style="width: 100%; height: 160px; border-radius: 12px; overflow: hidden; border: 1px dashed rgba(255, 255, 255, 0.15); background: rgba(0, 0, 0, 0.25); display: flex; align-items: center; justify-content: center;">
+          ${createBlogState.coverImage ? `
+            <img src="${createBlogState.coverImage}" alt="Cover Preview" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'" />
+          ` : `
+            <span style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.4);">${svgIcon('image', '', 18)} Cover image preview</span>
+          `}
+        </div>
+      </div>
+
+      <!-- Excerpt -->
+      <div>
+        <label style="display: block; font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin-bottom: 6px;">
+          Summary / Excerpt (Optional)
+        </label>
+        <input 
+          type="text" 
+          id="new-blog-excerpt" 
+          value="${escapeHtml(createBlogState.excerpt)}"
+          placeholder="Brief 1-2 sentence hook summarizing the article..."
+          style="width: 100%; padding: 10px 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; color: var(--white); font-size: 0.88rem; outline: none;"
+          oninput="createBlogState.excerpt = this.value"
+        />
+      </div>
+
+      <!-- Content Editor & Toolbar -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label style="font-size: 0.82rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); margin: 0;">
+            Article Content <span style="color: var(--orange-primary);">*</span>
+          </label>
+          <span style="font-size: 0.74rem; color: rgba(255, 255, 255, 0.45);">Markdown & Images supported</span>
+        </div>
+
+        <!-- Formatting Toolbar -->
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: none; border-radius: 12px 12px 0 0; align-items: center;">
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem; font-weight: 700;" onclick="insertBlogFormat('**', '**')" title="Bold">
+            B
+          </button>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem; font-style: italic;" onclick="insertBlogFormat('*', '*')" title="Italic">
+            I
+          </button>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem;" onclick="insertBlogFormat('\n## ', '\n')" title="Heading 2">
+            H2
+          </button>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem;" onclick="insertBlogFormat('\n### ', '\n')" title="Heading 3">
+            H3
+          </button>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem;" onclick="insertBlogFormat('\n> ', '\n')" title="Quote">
+            Quote
+          </button>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.76rem;" onclick="insertBlogFormat('\n- ', '\n')" title="List">
+            List
+          </button>
+          <div style="height: 18px; width: 1px; background: rgba(255, 255, 255, 0.15); margin: 0 4px;"></div>
+          <!-- Insert Image Button -->
+          <label class="btn-secondary" style="padding: 4px 12px; font-size: 0.76rem; cursor: pointer; color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); display: inline-flex; align-items: center; gap: 6px;" title="Insert image into body">
+            ${svgIcon('image', '', 13)} Insert Image
+            <input type="file" accept="image/*" style="display: none;" onchange="handleBlogInlineImageUpload(this.files)" />
+          </label>
+          <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.74rem;" onclick="promptInsertImageByUrl()" title="Insert image by URL">
+            By URL
+          </button>
+        </div>
+
+        <!-- Textarea -->
+        <textarea 
+          id="new-blog-content" 
+          rows="12"
+          placeholder="Write your article here...&#10;&#10;## 1. Establishing Uncompromised Standards&#10;In luxury hospitality, precision is paramount...&#10;&#10;![Butler Station Setup](https://...)&#10;&#10;Use the toolbar above to embed images and format headings."
+          style="width: 100%; padding: 14px 16px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0 0 12px 12px; color: var(--white); font-size: 0.92rem; line-height: 1.6; outline: none; resize: vertical; min-height: 220px;"
+          oninput="createBlogState.content = this.value"
+        >${escapeHtml(createBlogState.content)}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function updateBlogCoverPreview() {
+  const box = document.getElementById('blog-cover-preview-box');
+  if (!box) return;
+  const url = createBlogState.coverImage;
+  if (url) {
+    box.innerHTML = `<img src="${url}" alt="Cover Preview" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:0.8rem; color:rgba(255,255,255,0.4);\\'>Image failed to load</span>'" />`;
+  } else {
+    box.innerHTML = `<span style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.4);">${svgIcon('image', '', 18)} Cover image preview</span>`;
+  }
+}
+
+function handleBlogCoverUpload(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (PNG, JPG, WebP).', 'warning');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    createBlogState.coverImage = e.target.result;
+    const urlInput = document.getElementById('new-blog-cover-url');
+    if (urlInput) urlInput.value = e.target.result;
+    updateBlogCoverPreview();
+    showToast('Cover image loaded.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function insertBlogFormat(prefix, suffix) {
+  const textarea = document.getElementById('new-blog-content');
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selected = text.substring(start, end) || 'text';
+  const replacement = prefix + selected + suffix;
+  textarea.value = text.substring(0, start) + replacement + text.substring(end);
+  createBlogState.content = textarea.value;
+  textarea.focus();
+  textarea.selectionStart = start + prefix.length;
+  textarea.selectionEnd = start + prefix.length + selected.length;
+}
+
+function handleBlogInlineImageUpload(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (PNG, JPG, WebP).', 'warning');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    const caption = file.name.replace(/\.[^/.]+$/, '');
+    insertImageIntoEditor(caption, dataUrl);
+    showToast('Image inserted into article body.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function promptInsertImageByUrl() {
+  const url = prompt('Enter the image URL:');
+  if (!url || !url.trim()) return;
+  const caption = prompt('Enter optional caption for this image:', 'Article photo') || 'Image';
+  insertImageIntoEditor(caption, url.trim());
+}
+
+function insertImageIntoEditor(caption, url) {
+  const textarea = document.getElementById('new-blog-content');
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const text = textarea.value;
+  const insertion = `\n\n![${caption}](${url})\n\n`;
+  textarea.value = text.substring(0, start) + insertion + text.substring(start);
+  createBlogState.content = textarea.value;
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+}
+
+async function handleCreateBlogSubmit() {
+  syncCreateBlogFields();
+  const title = (createBlogState.title || '').trim();
+  const content = (createBlogState.content || '').trim();
+
+  if (!title) {
+    showToast('Please enter an article title.', 'warning');
+    document.getElementById('new-blog-title')?.focus();
+    return;
+  }
+  if (!content) {
+    showToast('Please write some content for your article.', 'warning');
+    document.getElementById('new-blog-content')?.focus();
+    return;
+  }
+  if (!state.currentUser) {
+    showToast('You must be logged in to publish articles.', 'warning');
+    return;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-blog');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `${svgIcon('sparkles', '', 14)} Publishing...`;
+  }
+
+  const tags = (createBlogState.tags || '')
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  try {
+    const res = await fetch('/api/blogs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        category: createBlogState.category || 'Hotel Standards',
+        content,
+        cover_image: createBlogState.coverImage || undefined,
+        excerpt: createBlogState.excerpt || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        author_id: state.currentUser.id
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to publish article');
+    }
+
+    showToast('Article published successfully!', 'success');
+    closeModal('modal-create-blog');
+
+    if (data.blog) {
+      if (!state.blogs) state.blogs = [];
+      state.blogs.unshift(data.blog);
+    }
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'blog') {
+      renderBlogScreen(viewport);
+    }
+
+    if (data.blog?.id) {
+      openBlogDetailModal(data.blog.id);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `${svgIcon('send', '', 15)} Publish Article`;
+    }
   }
 }
 
@@ -6798,7 +7343,7 @@ function renderSignupPage(viewport) {
                 ${signupState.cv_name ? `
                   <div class="cv-uploaded-badge" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between;">
                     <span>✓ CV Attached: <strong>${signupState.cv_name}</strong></span>
-                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}')">Preview CV</button>
+                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}', signupState.cv_data || signupState.cv_url)">Preview CV</button>
                   </div>
                 ` : ''}
               </div>
@@ -7999,12 +8544,29 @@ function removeBizLogo() {
 }
 
 function handleCvFileSelected(event) {
-  const file = event.target.files?.[0];
-  if (file) {
-    signupState.cv_name = file.name;
-    showToast(`CV attached: ${file.name} (${Math.round(file.size / 1024)} KB)`, 'success');
-    renderSignupPage(document.getElementById('app-viewport'));
+  const file = event.target?.files?.[0];
+  if (!file) return;
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['pdf', 'docx', 'doc'].includes(ext)) {
+    showToast('Please upload a PDF or Word document (.pdf, .docx, .doc)', 'warning');
+    return;
   }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('CV file size exceeds 10MB limit', 'warning');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    signupState.cv_name = file.name;
+    signupState.cv_data = e.target.result;
+    signupState.cv_url = e.target.result;
+    saveSignupProgress();
+    renderSignupPage(document.getElementById('app-viewport'));
+    showToast(`CV attached: ${file.name} (${Math.round(file.size / 1024)} KB)`, 'success');
+  };
+  reader.readAsDataURL(file);
 }
 
 // Education dynamic add/remove
@@ -8847,15 +9409,7 @@ async function handlePfpFileSelected(event, target = 'candidate') {
   openPfpSettingModal(dataUrl, target);
 }
 
-function handleCvFileSelected(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-
-  signupState.cv_name = file.name;
-  saveSignupProgress();
-  renderSignupPage(document.getElementById('app-viewport'));
-  showToast(`CV attached: ${file.name}`, 'success');
-}
+// CV upload handled by primary handleCvFileSelected
 
 // Features schema helpers
 function updateFeaturesDOM() {
@@ -9267,6 +9821,8 @@ async function finalizeCandidateRegistration() {
       avatar_url: signupState.pfp,
       bio: signupState.bio,
       cv_name: signupState.cv_name,
+      cv_data: signupState.cv_data || signupState.cv_url || '',
+      cv_url: signupState.cv_data || signupState.cv_url || '',
       education: signupState.education,
       skills: signupState.skills,
       languages: signupState.languages,
@@ -11213,8 +11769,9 @@ async function openApplicationWizardModal(jobId) {
 
   const profRes = state.currentUser ? await fetch(`/api/profile?user_id=${state.currentUser.id}`) : null;
   const profile = profRes && profRes.ok ? await profRes.json() : {};
+  if (profile && profile.user_id) state.profile = profile;
   const cvList = profile.cv_list || (profile.cv_name ? [
-    { id: 'cv_default', name: profile.cv_name, title: 'Primary Resume', is_default: true }
+    { id: 'cv_default', name: profile.cv_name, title: 'Primary Resume', is_default: true, file_data: profile.cv_url }
   ] : []);
 
   let questions = job.screening_questions;
@@ -11325,6 +11882,9 @@ async function submitApplicationForm(event, jobId) {
   const form = event.target;
   const coverNote = document.getElementById('app-cover-note')?.value || '';
   const selectedCv = form.selected_cv_radio?.value || (state.currentUser?.cv_name || '');
+  const profCvList = state.profile?.cv_list || [];
+  const matchCv = profCvList.find(c => c.name === selectedCv || c.title === selectedCv) || {};
+  const selectedCvUrl = matchCv.file_data || matchCv.cv_url || state.profile?.cv_url || '';
 
   const screeningAnswers = {};
   const job = state.jobs.find(j => j.id === jobId);
@@ -11346,6 +11906,7 @@ async function submitApplicationForm(event, jobId) {
     user_id: state.currentUser?.id || '',
     cover_letter: coverNote,
     selected_cv: selectedCv,
+    selected_cv_url: selectedCvUrl,
     screening_answers: screeningAnswers
   };
 
@@ -11762,7 +12323,102 @@ async function saveCandidateStatus(appId) {
   }
 }
 
-// Interactive CV Viewer Modal
+// Helper to resolve CV file data into a safe, performant Blob URL
+function getResolvedCvBlobUrl(fileData, fileName = '') {
+  if (!fileData) return null;
+  if (!fileData.startsWith('data:')) return fileData;
+  try {
+    const parts = fileData.split(';base64,');
+    if (parts.length === 2) {
+      let mime = parts[0].replace('data:', '').trim();
+      if (!mime || mime === 'application/octet-stream') {
+        const lower = (fileName || '').toLowerCase();
+        if (lower.endsWith('.pdf')) mime = 'application/pdf';
+        else if (lower.endsWith('.png')) mime = 'image/png';
+        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) mime = 'image/jpeg';
+        else if (lower.endsWith('.docx')) mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        else if (lower.endsWith('.doc')) mime = 'application/msword';
+        else mime = 'application/pdf';
+      }
+      const b64 = parts[1];
+      const byteChars = atob(b64);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNums);
+      const blob = new Blob([byteArray], { type: mime });
+      return URL.createObjectURL(blob);
+    }
+  } catch (err) {
+    console.warn('Failed to convert base64 to Blob URL:', err);
+  }
+  return fileData;
+}
+
+// Unified renderer for uploaded CV document preview
+function renderUploadedCvViewerBody(viewUrl, fileName, fileSize = '') {
+  const lowerName = (fileName || '').toLowerCase();
+  const isPdf = lowerName.endsWith('.pdf') || (viewUrl && (viewUrl.startsWith('data:application/pdf') || viewUrl.includes('application/pdf')));
+  const isImage = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp') || (viewUrl && viewUrl.startsWith('data:image/'));
+  const isDoc = lowerName.endsWith('.docx') || lowerName.endsWith('.doc');
+
+  if (viewUrl && (isPdf || (!isImage && !isDoc))) {
+    return `
+      <div style="width: 100%; height: 74vh; min-height: 520px; border-radius: 8px; overflow: hidden; background: #1e293b; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+        <object data="${viewUrl}" type="application/pdf" width="100%" height="100%">
+          <iframe src="${viewUrl}#toolbar=1" style="width: 100%; height: 100%; border: none;" title="${escapeHtml(fileName)}">
+            <div style="padding: 30px; text-align: center; color: var(--white); background: #070d1e;">
+              <p style="margin-bottom: 16px;">This browser does not support inline PDF embedding.</p>
+              <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                ${svgIcon('download', '', 15)} Download ${escapeHtml(fileName)}
+              </a>
+            </div>
+          </iframe>
+        </object>
+      </div>
+    `;
+  } else if (viewUrl && isImage) {
+    return `
+      <div style="text-align: center; max-height: 74vh; overflow-y: auto; padding: 18px; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+        <img src="${viewUrl}" alt="${escapeHtml(fileName)}" style="max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.15);">
+      </div>
+    `;
+  } else if (viewUrl && isDoc) {
+    return `
+      <div style="padding: 40px 24px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 14px;">
+        <div style="color: var(--orange-primary);">${svgIcon('fileText', '', 52)}</div>
+        <div>
+          <div style="font-weight: 800; color: var(--white); font-size: 1.1rem; margin-bottom: 4px;">${escapeHtml(fileName)}</div>
+          <div style="font-size: 0.82rem; color: var(--text-dim);">${fileSize ? fileSize + ' • ' : ''}Microsoft Word Document (.docx)</div>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 440px; margin: 0; line-height: 1.5;">
+          This CV was uploaded as a Word document. Word files cannot be rendered directly inside the browser viewport, but the verified candidate document is preserved and ready for review.
+        </p>
+        <div style="display: flex; gap: 10px; margin-top: 6px;">
+          <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration: none; padding: 10px 22px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+            ${svgIcon('download', '', 16)} Download &amp; Review Document
+          </a>
+        </div>
+      </div>
+    `;
+  } else {
+    return `
+      <div style="padding: 40px 24px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 12px;">
+        <div style="color: var(--orange-primary);">${svgIcon('alertCircle', '', 40)}</div>
+        <div style="font-weight: 700; color: var(--white); font-size: 1rem;">No Document File Attached</div>
+        <p style="font-size: 0.84rem; color: var(--text-muted); max-width: 400px; margin: 0; line-height: 1.5;">
+          No physical CV file (PDF or DOCX) was attached to this record yet.
+        </p>
+        <button class="btn-orange" onclick="closeModal('modal-candidate-cv-preview'); openAddCvModal();" style="font-size: 0.85rem; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px;">
+          ${svgIcon('upload', '', 15)} Upload CV Document
+        </button>
+      </div>
+    `;
+  }
+}
+
+// Interactive CV Viewer Modal for Recruiter / ATS
 async function viewSubmittedApplicationCv(appId) {
   const viewerRole = state.currentRole;
   const viewerId = state.currentUser ? state.currentUser.id : null;
@@ -11774,74 +12430,54 @@ async function viewSubmittedApplicationCv(appId) {
       throw new Error(err.detail || 'Access denied');
     }
     const cvData = await res.json();
+    const fileName = cvData.selected_cv || 'Candidate_CV.pdf';
+    const rawData = cvData.selected_cv_url || cvData.cv_url || '';
+    const viewUrl = getResolvedCvBlobUrl(rawData, fileName);
 
     const container = document.getElementById('modal-container');
     container.innerHTML = `
       <div class="modal-backdrop open" id="modal-cv-viewer">
-        <div class="modal-dialog" style="max-width: 760px;">
-          <div class="modal-header">
+        <div class="modal-dialog" style="max-width: 880px; max-height: 92vh; display: flex; flex-direction: column;">
+          <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
             <div>
-              <div style="font-size: 0.8rem; color: var(--orange-primary); font-weight: 700;">Resume Preview</div>
-              <h2 class="modal-title" style="display: flex; align-items: center; gap: 8px;">${svgIcon('fileText', '', 20)} ${cvData.selected_cv}</h2>
+              <div style="font-size: 0.78rem; color: var(--orange-primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Candidate Application CV</div>
+              <h2 class="modal-title" style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                ${svgIcon('fileText', 'var(--orange-primary)', 20)} ${escapeHtml(cvData.candidate_name)} — ${escapeHtml(cvData.job_title || 'Hospitality Role')}
+              </h2>
+              <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 3px;">
+                Applied to <strong>${escapeHtml(cvData.brand_name)}</strong> • ${escapeHtml(cvData.candidate_phone || '')} • ${escapeHtml(cvData.candidate_email || '')} • Document: ${escapeHtml(fileName)}
+              </div>
             </div>
             <button class="modal-close" onclick="closeModal('modal-cv-viewer')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
           </div>
 
-          <div class="modal-body" style="background: #ffffff; color: #0f172a; border-radius: var(--radius-md); padding: 30px; margin: 12px; font-family: 'Plus Jakarta Sans', sans-serif;">
-            <!-- Document Header -->
-            <div style="border-bottom: 2px solid #2563eb; padding-bottom: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
-              <div>
-                <h1 style="font-size: 1.6rem; font-weight: 800; color: #1e3a8a; margin-bottom: 3px;">${cvData.candidate_name}</h1>
-                <div style="font-size: 0.95rem; color: #f97316; font-weight: 700;">${cvData.headline || 'Front Office & Guest Relations Executive'}</div>
-                <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">
-                  ${svgIcon('phone', '', 14)} ${cvData.candidate_phone} • ${svgIcon('mail', '', 14)} ${cvData.candidate_email} • Dhaka, Bangladesh
-                </div>
+          <div class="modal-body" style="overflow-y: auto; padding: 18px; background: #070d1e; display: flex; flex-direction: column; gap: 14px;">
+            ${cvData.cover_letter ? `
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 18px;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--orange-primary); margin-bottom: 4px;">Candidate Cover Note</div>
+                <div style="font-size: 0.84rem; color: var(--text-muted); line-height: 1.5; white-space: pre-wrap;">${escapeHtml(cvData.cover_letter)}</div>
               </div>
-              <span style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px;">
-                For ${cvData.brand_name}
-              </span>
-            </div>
+            ` : ''}
 
-            <!-- Summary -->
-            <div style="margin-bottom: 16px;">
-              <h3 style="font-size: 0.9rem; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Executive Summary</h3>
-              <p style="font-size: 0.85rem; color: #334155; line-height: 1.6;">${cvData.summary || 'Hospitality professional with 5+ years of 5-star hotel front office excellence.'}</p>
-            </div>
-
-            <!-- Skills -->
-            <div style="margin-bottom: 16px;">
-              <h3 style="font-size: 0.9rem; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Skills & Tools</h3>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                ${(cvData.skills || []).map(s => `<span style="background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-size: 0.75rem; font-weight: 600; padding: 3px 8px; border-radius: 4px;">${s}</span>`).join('')}
-              </div>
-            </div>
-
-            <!-- Experience -->
-            <div style="margin-bottom: 16px;">
-              <h3 style="font-size: 0.9rem; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Career History</h3>
-              ${(cvData.experience || []).map(exp => `
-                <div style="margin-bottom: 10px; border-left: 2px solid #3b82f6; padding-left: 12px;">
-                  <div style="font-weight: 800; font-size: 0.88rem; color: #0f172a;">${exp.role} — <span style="color: #2563eb;">${exp.hotel}</span></div>
-                  <div style="font-size: 0.75rem; color: #64748b;">${exp.period}</div>
-                  <div style="font-size: 0.8rem; color: #475569; margin-top: 3px;">${exp.description}</div>
-                </div>
-              `).join('')}
-            </div>
-
-            <!-- Education -->
-            <div>
-              <h3 style="font-size: 0.9rem; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Education</h3>
-              ${(cvData.education || []).map(ed => `
-                <div style="font-size: 0.82rem; color: #334155; margin-bottom: 3px;">
-                  <strong>${ed.degree}</strong> — ${ed.institution} (${ed.year})
-                </div>
-              `).join('')}
-            </div>
+            <!-- Actual Uploaded CV Document Viewer -->
+            ${renderUploadedCvViewerBody(viewUrl, fileName)}
           </div>
 
-          <div class="modal-footer">
-            <button class="btn-secondary" onclick="closeModal('modal-cv-viewer')">Close</button>
-            ${cvData.cv_url ? `<a href="${cvData.cv_url}" download="${cvData.selected_cv || 'Candidate_CV.pdf'}" target="_blank" class="btn-orange" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">${svgIcon('download', '', 15)} Download CV File</a>` : `<button class="btn-orange" onclick="window.print()">${svgIcon('download', '', 15)} Print / Save PDF</button>`}
+          <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+              ${svgIcon('shield', '#10b981', 14)} Shared exclusively with ${escapeHtml(cvData.brand_name)} Recruitment Team
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn-secondary" onclick="closeModal('modal-cv-viewer')">Close</button>
+              ${viewUrl ? `
+                <button type="button" class="btn-secondary" onclick="window.open('${viewUrl}', '_blank')" style="display: inline-flex; align-items: center; gap: 6px;">
+                  ${svgIcon('externalLink', '', 14)} Open in New Tab
+                </button>
+                <a href="${viewUrl}" download="${escapeHtml(fileName)}" class="btn-orange" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                  ${svgIcon('download', '', 15)} Download Submitted CV
+                </a>
+              ` : ''}
+            </div>
           </div>
         </div>
       </div>
@@ -12150,113 +12786,73 @@ async function saveProfileField(patchObj) {
   }
 }
 
-// Preview Candidate CV Modal
-function previewCandidateCvModal(cvTitle, cvName) {
-  const profile = state.profile || {};
-  const name = profile.name || state.currentUser?.name || 'Hospitality Candidate';
-  const headline = profile.headline || 'Hospitality Specialist';
-  const email = profile.email || state.currentUser?.email || '';
-  const phone = profile.phone || state.currentUser?.phone || '';
-  const location = profile.location || 'Dhaka, Bangladesh';
-  const summary = profile.summary || 'Hospitality professional.';
-  const experience = profile.experience || [];
-  const skills = profile.skills || [];
-  const languages = profile.languages || [];
-  const certifications = profile.certifications || [];
+// Preview Candidate CV Modal: Displays the ACTUAL uploaded CV document
+function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
+  let fileData = null;
+  let title = cvTitle || 'Hospitality Resume';
+  let name = cvName || 'Resume.pdf';
+  let size = '';
+
+  if (typeof cvIdentifierOrData === 'string' && cvIdentifierOrData.startsWith('data:')) {
+    fileData = cvIdentifierOrData;
+  } else if (typeof cvIdentifierOrData === 'string' && (cvIdentifierOrData.startsWith('http://') || cvIdentifierOrData.startsWith('https://') || cvIdentifierOrData.startsWith('/'))) {
+    fileData = cvIdentifierOrData;
+  } else {
+    // Check in state.profile.cv_list
+    const cvList = state.profile?.cv_list || [];
+    const foundCv = cvList.find(c => c.id === cvIdentifierOrData || c.name === cvName || c.title === cvTitle);
+    if (foundCv) {
+      fileData = foundCv.file_data || foundCv.cv_url || foundCv.url;
+      title = foundCv.title || title;
+      name = foundCv.name || name;
+      size = foundCv.size || '';
+    }
+    if (!fileData) {
+      if (signupState && signupState.cv_name === cvName) {
+        fileData = signupState.cv_data || signupState.cv_url;
+      } else if (state.profile?.cv_name === cvName || !cvIdentifierOrData) {
+        fileData = state.profile?.cv_url || (cvList[0]?.file_data);
+      }
+    }
+  }
+
+  const viewUrl = getResolvedCvBlobUrl(fileData, name);
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-candidate-cv-preview">
-      <div class="modal-dialog" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-dialog" style="max-width: 860px; max-height: 92vh; display: flex; flex-direction: column;">
         <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
           <div>
             <h2 class="modal-title" style="display: flex; align-items: center; gap: 8px;">
               ${svgIcon('fileText', 'var(--orange-primary)', 20)}
-              ${cvTitle || cvName || 'Hospitality Resume'}
+              ${escapeHtml(title)}
             </h2>
             <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
-              Document: ${cvName || 'Resume.pdf'} • Formatted for 5-Star Hotel HR Verification
+              Document: ${escapeHtml(name)} ${size ? `• ${escapeHtml(size)}` : ''} • Verified Uploaded Candidate CV
             </div>
           </div>
           <button class="modal-close" onclick="closeModal('modal-candidate-cv-preview')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
 
-        <div class="modal-body" style="overflow-y: auto; padding: 24px; background: #070d1e;">
-          <!-- Paper Resume Simulation -->
-          <div style="background: #ffffff; color: #1e293b; border-radius: 8px; padding: 32px 36px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-family: 'Inter', -apple-system, sans-serif;">
-            
-            <!-- Resume Header -->
-            <div style="border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
-              <div>
-                <h1 style="font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 0 0 4px 0; letter-spacing: -0.5px;">${name}</h1>
-                <div style="font-size: 0.95rem; font-weight: 600; color: #2563eb;">${headline}</div>
-              </div>
-              <div style="text-align: right; font-size: 0.78rem; color: #64748b; line-height: 1.5;">
-                <div>${email}</div>
-                <div>+88 ${phone}</div>
-                <div>${location}</div>
-              </div>
-            </div>
-
-            <!-- Professional Summary -->
-            <div style="margin-bottom: 18px;">
-              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Professional Summary</h3>
-              <p style="font-size: 0.84rem; line-height: 1.6; color: #334155; margin: 0;">${summary}</p>
-            </div>
-
-            <!-- Experience -->
-            <div style="margin-bottom: 18px;">
-              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px;">Hospitality Experience</h3>
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                ${experience.length === 0 ? '<div style="font-size: 0.82rem; color: #64748b;">No experience listed.</div>' : experience.map(e => `
-                  <div>
-                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                      <span style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">${e.role}</span>
-                      <span style="font-size: 0.78rem; font-weight: 600; color: #64748b;">${e.period}</span>
-                    </div>
-                    <div style="font-size: 0.82rem; font-weight: 600; color: #f97316; margin-bottom: 4px;">${e.hotel}</div>
-                    <p style="font-size: 0.8rem; color: #475569; margin: 0; line-height: 1.5;">${e.description || ''}</p>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-
-            <!-- Skills -->
-            <div style="margin-bottom: 18px;">
-              <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Key Hospitality Skills</h3>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                ${skills.length === 0 ? '<div style="font-size: 0.82rem; color: #64748b;">No skills listed.</div>' : skills.map(s => `
-                  <span style="background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px;">${s}</span>
-                `).join('')}
-              </div>
-            </div>
-
-            <!-- Certifications & Languages Grid -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <div>
-                <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Accreditations</h3>
-                <div style="font-size: 0.78rem; color: #334155; line-height: 1.6;">
-                  ${certifications.length === 0 ? '<div style="color: #64748b;">None listed.</div>' : certifications.map(c => `<div><strong>${c.title}</strong> - ${c.issuer} (${c.year})</div>`).join('')}
-                </div>
-              </div>
-              <div>
-                <h3 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">Languages</h3>
-                <div style="font-size: 0.78rem; color: #334155; line-height: 1.6;">
-                  ${languages.length === 0 ? '<div style="color: #64748b;">None listed.</div>' : languages.map(l => `<div><strong>${l.name}</strong>: ${l.level}</div>`).join('')}
-                </div>
-              </div>
-            </div>
-
-          </div>
+        <div class="modal-body" style="overflow-y: auto; padding: 18px; background: #070d1e;">
+          ${renderUploadedCvViewerBody(viewUrl, name, size)}
         </div>
 
-        <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+        <div class="modal-footer" style="border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <div style="font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
-            ${svgIcon('shield', '#10b981', 14)} Verified NiceJobs Candidate Profile
+            ${svgIcon('shield', '#10b981', 14)} Verified Candidate Uploaded CV
           </div>
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; align-items: center;">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-candidate-cv-preview')">Close Preview</button>
-            <button type="button" class="btn-orange" onclick="showToast('Downloading verified CV copy...', 'info'); closeModal('modal-candidate-cv-preview');">${svgIcon('download', '', 14)} Download PDF</button>
+            ${viewUrl ? `
+              <button type="button" class="btn-secondary" onclick="window.open('${viewUrl}', '_blank')" style="display: inline-flex; align-items: center; gap: 6px;">
+                ${svgIcon('externalLink', '', 14)} Open in New Tab
+              </button>
+              <a href="${viewUrl}" download="${escapeHtml(name)}" class="btn-orange" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                ${svgIcon('download', '', 14)} Download CV Document
+              </a>
+            ` : ''}
           </div>
         </div>
       </div>

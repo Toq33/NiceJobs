@@ -1,17 +1,19 @@
 """
 NiceJobs - FastAPI Server & REST API
 """
-from dotenv.main import logger
 import os
 import json
-import sqlite3
+import logging
 import uuid
 import time
 import secrets
+import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Set
 from collections import defaultdict
 import asyncio
+
+logger = logging.getLogger("nicejobs")
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -1375,6 +1377,136 @@ def get_blog(blog_id: str):
     b["tags"] = json.loads(b["tags"]) if b["tags"] else []
     return b
 
+class BlogCreatePayload(BaseModel):
+    title: str
+    category: Optional[str] = "Career Advice"
+    content: str
+    cover_image: Optional[str] = None
+    excerpt: Optional[str] = None
+    tags: Optional[List[str]] = None
+    author_id: Optional[str] = None
+
+@app.post("/api/blogs")
+def create_blog(payload: BlogCreatePayload):
+    author_id = (payload.author_id or "").strip()
+    if not author_id:
+        raise HTTPException(status_code=401, detail="Author identification is required to publish articles.")
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, designation, avatar_url, role, can_post_blog FROM users WHERE id = ?", (author_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    is_admin = (user["role"] == "admin")
+    can_post = bool(user["can_post_blog"]) or is_admin
+    if not can_post:
+        conn.close()
+        raise HTTPException(status_code=403, detail="You do not have permission to publish blog articles.")
+
+    title = payload.title.strip()
+    if not title:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Article title is required.")
+
+    content = payload.content.strip()
+    if not content:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Article content is required.")
+
+    category = (payload.category or "").strip() or "Career Advice"
+
+    # Generate unique slug
+    base_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+    if not base_slug:
+        base_slug = "article"
+    slug = base_slug
+    cursor.execute("SELECT 1 FROM blogs WHERE slug = ?", (slug,))
+    if cursor.fetchone():
+        slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+
+    # Excerpt
+    excerpt = (payload.excerpt or "").strip()
+    if not excerpt:
+        clean_text = re.sub(r'<[^>]+>', ' ', content)
+        clean_text = re.sub(r'!\[.*?\]\(.*?\)', ' ', clean_text)
+        clean_text = re.sub(r'#+\s*', '', clean_text)
+        words = clean_text.split()
+        excerpt = " ".join(words[:32]) + ("..." if len(words) > 32 else "")
+
+    cover_img = (payload.cover_image or "").strip()
+    if not cover_img:
+        cover_img = "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80"
+
+    word_count = len(content.split())
+    read_minutes = max(1, round(word_count / 180))
+    read_time = f"{read_minutes} min read"
+
+    tags = payload.tags or [category]
+    tags_json = json.dumps(tags)
+    published_at = datetime.utcnow().strftime("%Y-%m-%d")
+
+    author_name = user["name"]
+    author_title = user["designation"] or ("Hospitality Leader" if is_admin else "Hospitality Specialist")
+    author_avatar = user["avatar_url"] or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80"
+    blog_id = f"blog_{uuid.uuid4().hex[:10]}"
+
+    cursor.execute("""
+        INSERT INTO blogs (id, title, slug, category, excerpt, content, author_name, author_title, author_avatar, cover_image, read_time, published_at, tags, author_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        blog_id, title, slug, category, excerpt, content,
+        author_name, author_title, author_avatar, cover_img,
+        read_time, published_at, tags_json, user["id"]
+    ))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("blogs")
+
+    new_blog = {
+        "id": blog_id,
+        "title": title,
+        "slug": slug,
+        "category": category,
+        "excerpt": excerpt,
+        "content": content,
+        "author_name": author_name,
+        "author_title": author_title,
+        "author_avatar": author_avatar,
+        "cover_image": cover_img,
+        "read_time": read_time,
+        "published_at": published_at,
+        "tags": tags,
+        "author_id": user["id"]
+    }
+    return {"success": True, "blog": new_blog}
+
+@app.delete("/api/blogs/{blog_id}")
+def delete_blog(blog_id: str, user_id: Optional[str] = None):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM blogs WHERE id = ? OR slug = ?", (blog_id, blog_id))
+    b = cursor.fetchone()
+    if not b:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Blog article not found")
+
+    if user_id:
+        cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+        u = cursor.fetchone()
+        if not u or (u["role"] != "admin" and b["author_id"] != user_id):
+            conn.close()
+            raise HTTPException(status_code=403, detail="Unauthorized to delete this blog article")
+
+    cursor.execute("DELETE FROM blogs WHERE id = ?", (b["id"],))
+    conn.commit()
+    conn.close()
+    invalidate_api_cache("blogs")
+    return {"success": True, "message": "Article removed successfully"}
+
 @app.post("/api/businesses/{business_id}/follow")
 def toggle_follow(business_id: str, user_id: str = "user_rahim"):
     conn = database.get_db()
@@ -2470,7 +2602,8 @@ def login(payload: LoginPayload):
                 "business_id": biz["id"],
                 "avatar": user["avatar_url"],
                 "designation": user["designation"] or membership["org_role"],
-                "is_business_admin": True
+                "is_business_admin": True,
+                "can_post_blog": bool(user["can_post_blog"] or user["role"] == "admin")
             },
             "business": biz_info,
             "profile": None,
@@ -2662,7 +2795,8 @@ def login(payload: LoginPayload):
             "phone": user["phone"],
             "role": user["role"],
             "avatar": user["avatar_url"],
-            "designation": user["designation"]
+            "designation": user["designation"],
+            "can_post_blog": bool(user["can_post_blog"] or user["role"] == "admin")
         },
         "business": business_info,
         "profile": profile_info,
@@ -2684,7 +2818,7 @@ def get_profile(user_id: str = "user_rahim"):
 
     cursor.execute("""
         SELECT p.*,
-               u.name, u.email, u.phone, u.avatar_url, u.designation,
+               u.name, u.email, u.phone, u.avatar_url, u.designation, u.role as user_role, u.can_post_blog,
                COALESCE(NULLIF(p.first_name, ''), u.first_name, '') as first_name,
                COALESCE(NULLIF(p.middle_name, ''), u.middle_name, '') as middle_name,
                COALESCE(NULLIF(p.last_name, ''), u.last_name, '') as last_name,
@@ -2702,6 +2836,7 @@ def get_profile(user_id: str = "user_rahim"):
     for field in ["skills", "languages", "certifications", "experience", "education", "cv_list"]:
         profile[field] = json.loads(profile[field]) if profile.get(field) else []
     profile["preferences"] = json.loads(profile["preferences"]) if profile.get("preferences") else {}
+    profile["can_post_blog"] = bool(row["can_post_blog"] or row.get("user_role") == "admin")
 
     conn.close()
     return profile
@@ -2732,6 +2867,8 @@ class ProfileUpdatePayload(BaseModel):
     education: Optional[List[Dict[str, Any]]] = None
     preferences: Optional[Dict[str, Any]] = None
     cv_list: Optional[List[Dict[str, Any]]] = None
+    cv_name: Optional[str] = None
+    cv_url: Optional[str] = None
 
 @app.put("/api/profile")
 @app.post("/api/profile")
@@ -2847,6 +2984,12 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.cv_list is not None:
         updates.append("cv_list = ?")
         params.append(json.dumps(payload.cv_list))
+    if payload.cv_name is not None:
+        updates.append("cv_name = ?")
+        params.append(payload.cv_name)
+    if payload.cv_url is not None:
+        updates.append("cv_url = ?")
+        params.append(payload.cv_url)
 
     if updates:
         params.append(effective_user_id)
@@ -2913,9 +3056,16 @@ def add_profile_cv(payload: CvCreatePayload, user_id: Optional[str] = None):
     cv_list.append(new_cv)
 
     if row is not None:
-        cursor.execute("UPDATE employee_profiles SET cv_list = ?, cv_name = ? WHERE user_id = ?", (json.dumps(cv_list), payload.name, effective_user_id))
+        cursor.execute("""
+            UPDATE employee_profiles 
+            SET cv_list = ?, 
+                cv_name = ?, 
+                cv_url = CASE WHEN ? != '' THEN ? ELSE cv_url END 
+            WHERE user_id = ?
+        """, (json.dumps(cv_list), payload.name, payload.file_data or "", payload.file_data or "", effective_user_id))
     else:
-        cursor.execute("INSERT INTO employee_profiles (user_id, cv_list, cv_name) VALUES (?, ?, ?)", (effective_user_id, json.dumps(cv_list), payload.name))
+        cursor.execute("INSERT INTO employee_profiles (user_id, cv_list, cv_name, cv_url) VALUES (?, ?, ?, ?)", 
+                       (effective_user_id, json.dumps(cv_list), payload.name, payload.file_data or ""))
 
     conn.commit()
     conn.close()
@@ -2947,7 +3097,18 @@ def set_default_cv(cv_id: str, user_id: Optional[str] = None):
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
     for c in cv_list:
         c["is_default"] = (c["id"] == cv_id)
-    cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
+    def_cv = next((c for c in cv_list if c["id"] == cv_id), None)
+    if def_cv:
+        def_file = def_cv.get("file_data") or ""
+        cursor.execute("""
+            UPDATE employee_profiles 
+            SET cv_list = ?, 
+                cv_name = ?, 
+                cv_url = CASE WHEN ? != '' THEN ? ELSE cv_url END 
+            WHERE user_id = ?
+        """, (json.dumps(cv_list), def_cv.get("name", ""), def_file, def_file, effective_user_id))
+    else:
+        cursor.execute("UPDATE employee_profiles SET cv_list = ? WHERE user_id = ?", (json.dumps(cv_list), effective_user_id))
     conn.commit()
     conn.close()
     notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
@@ -2959,7 +3120,7 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
     cursor = conn.cursor()
     effective_vid = viewer_id if viewer_id else ""
     cursor.execute("""
-        SELECT a.id, a.user_id, a.selected_cv, a.applied_at, a.status,
+        SELECT a.id, a.user_id, a.selected_cv, a.selected_cv_url, a.cover_letter, a.applied_at, a.status,
                j.title as job_title, j.business_id,
                b.brand_name, b.verification_status,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone,
@@ -2980,6 +3141,21 @@ def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer
         raise HTTPException(status_code=404, detail="Application record not found")
 
     data = dict(row)
+
+    # Resolve attached CV file data
+    cv_url = data.get("selected_cv_url") or ""
+    if not cv_url:
+        cv_list = json.loads(data["cv_list"]) if data.get("cv_list") else []
+        match_cv = next((c for c in cv_list if c.get("name") == data.get("selected_cv") or c.get("title") == data.get("selected_cv")), None)
+        if match_cv and match_cv.get("file_data"):
+            cv_url = match_cv["file_data"]
+        elif data.get("cv_url"):
+            cv_url = data["cv_url"]
+        elif cv_list and cv_list[0].get("file_data"):
+            cv_url = cv_list[0]["file_data"]
+
+    data["selected_cv_url"] = cv_url
+    data["cv_url"] = cv_url
 
     # Permission check: Candidate cv will ONLY be visible to the jobs/businesses that he has applied for
     is_admin = viewer_role == "admin"
@@ -3129,6 +3305,7 @@ class ApplicationSubmitPayload(BaseModel):
     user_id: str = "user_rahim"
     cover_letter: Optional[str] = ""
     selected_cv: str = "Rahim_Ahmed_Executive_Hospitality_CV.pdf"
+    selected_cv_url: Optional[str] = None
     screening_answers: Optional[Dict[str, Any]] = None
 
 @app.post("/api/applications")
@@ -3145,11 +3322,26 @@ def submit_application(payload: ApplicationSubmitPayload):
     app_id = f"app_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Resolve CV file data to save directly in the application record
+    selected_cv_url = (payload.selected_cv_url or "").strip()
+    if not selected_cv_url:
+        cursor.execute("SELECT cv_url, cv_list FROM employee_profiles WHERE user_id = ?", (payload.user_id,))
+        cand_prof = cursor.fetchone()
+        if cand_prof:
+            cand_cvs = json.loads(cand_prof["cv_list"]) if cand_prof["cv_list"] else []
+            match_cv = next((c for c in cand_cvs if c.get("name") == payload.selected_cv or c.get("title") == payload.selected_cv), None)
+            if match_cv and match_cv.get("file_data"):
+                selected_cv_url = match_cv["file_data"]
+            elif cand_prof["cv_url"]:
+                selected_cv_url = cand_prof["cv_url"]
+            elif cand_cvs and cand_cvs[0].get("file_data"):
+                selected_cv_url = cand_cvs[0]["file_data"]
+
     cursor.execute("""
         INSERT INTO applications (
             id, job_id, user_id, status, applied_at, updated_at,
-            cover_letter, selected_cv, screening_answers, recruiter_notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            cover_letter, selected_cv, selected_cv_url, screening_answers, recruiter_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         app_id,
         payload.job_id,
@@ -3159,6 +3351,7 @@ def submit_application(payload: ApplicationSubmitPayload):
         now,
         payload.cover_letter,
         payload.selected_cv,
+        selected_cv_url,
         json.dumps(payload.screening_answers or {}),
         ""
     ))
@@ -4415,6 +4608,23 @@ def update_user_status(user_id: str, payload: UserStatusPayload):
     conn.commit()
     conn.close()
     return {"success": True, "user_id": user_id, "status": payload.status}
+
+class BlogPermissionPayload(BaseModel):
+    can_post_blog: bool
+
+@app.post("/api/admin/users/{user_id}/blog-permission")
+@app.patch("/api/admin/users/{user_id}/blog-permission")
+def update_user_blog_permission(user_id: str, payload: BlogPermissionPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    cursor.execute("UPDATE users SET can_post_blog = ? WHERE id = ?", (1 if payload.can_post_blog else 0, user_id))
+    conn.commit()
+    conn.close()
+    return {"success": True, "user_id": user_id, "can_post_blog": payload.can_post_blog}
 
 @app.delete("/api/admin/users/{user_id}")
 def delete_user(user_id: str):

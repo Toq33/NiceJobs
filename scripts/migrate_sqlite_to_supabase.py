@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS blogs (
     cover_image TEXT,
     read_time TEXT DEFAULT '5 min read',
     published_at TEXT,
-    tags TEXT
+    tags TEXT,
+    author_id TEXT DEFAULT ''
 );
 
 -- 3. Moderation Reports
@@ -89,7 +90,8 @@ CREATE TABLE IF NOT EXISTS users (
     designation TEXT DEFAULT '',
     status TEXT DEFAULT 'active',
     is_business_admin INTEGER DEFAULT 0,
-    is_demo INTEGER DEFAULT 0
+    is_demo INTEGER DEFAULT 0,
+    can_post_blog INTEGER DEFAULT 0
 );
 
 -- 7. Employee Profiles
@@ -247,6 +249,7 @@ CREATE TABLE IF NOT EXISTS applications (
     updated_at TEXT,
     cover_letter TEXT,
     selected_cv TEXT,
+    selected_cv_url TEXT DEFAULT '',
     screening_answers TEXT,
     recruiter_notes TEXT,
     interview_time TEXT,
