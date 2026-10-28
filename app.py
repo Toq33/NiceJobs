@@ -797,11 +797,11 @@ def dispatch_system_email(to_email: str, subject: str, body_text: str, event_typ
                 msg["To"] = to_email
 
             if smtp_use_ssl:
-                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as server:
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=25) as server:
                     server.login(smtp_user, smtp_pass)
                     server.send_message(msg)
             else:
-                with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=25) as server:
                     server.starttls()
                     server.login(smtp_user, smtp_pass)
                     server.send_message(msg)
