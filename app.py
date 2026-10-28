@@ -84,6 +84,24 @@ def readiness_check():
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database service unavailable: {str(e)}")
 
+@app.get("/api/auth/mail-status")
+def get_mail_status():
+    """Diagnostic check: verifies whether SMTP or Resend credentials are configured."""
+    has_host = bool(os.environ.get("SMTP_HOST"))
+    has_pass = bool(os.environ.get("SMTP_PASSWORD"))
+    has_resend = bool(os.environ.get("RESEND_API_KEY"))
+    return {
+        "is_configured": bool((has_host and has_pass) or has_resend),
+        "smtp_host": os.environ.get("SMTP_HOST") or None,
+        "smtp_port": int(os.environ.get("SMTP_PORT", 465)),
+        "smtp_user": os.environ.get("SMTP_USER") or DEFAULT_SYSTEM_EMAIL,
+        "smtp_has_password": has_pass,
+        "smtp_use_ssl": os.environ.get("SMTP_USE_SSL", "").strip().lower() in ("1", "true", "yes"),
+        "has_resend_api_key": has_resend,
+        "environment": os.environ.get("ENVIRONMENT", "development"),
+        "is_production": database.is_production()
+    }
+
 # =======================
 # CRYPTOGRAPHY & RATE LIMITING
 # =======================
@@ -1869,7 +1887,7 @@ def send_otp(payload: SendOtpPayload):
     plain_text, html_body = generate_otp_email_content(code, payload.purpose)
     subject = f"{code} is your NiceJobs verification code"
 
-    dispatch_system_email(
+    mail_result = dispatch_system_email(
         to_email=target_email,
         subject=subject,
         body_text=plain_text,
@@ -1881,11 +1899,25 @@ def send_otp(payload: SendOtpPayload):
     conn.commit()
     conn.close()
 
+    status = (mail_result or {}).get("status", "")
+    if status.startswith("smtp_failed") or status.startswith("resend_failed"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Unable to dispatch verification email ({status}). Please check mail configuration."
+        )
+
+    if status == "delivered_simulated" and database.is_production():
+        raise HTTPException(
+            status_code=500,
+            detail="Mail server credentials are not configured in Vercel Environment Variables. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASSWORD in your Vercel Project Settings."
+        )
+
     res_data = {
         "success": True,
         "message": f"6-digit verification code sent to {target_email}. Code is valid for 5 minutes.",
         "expires_in_seconds": 300,
-        "sender": "no-reply.nicejobs@nicesoftware.com.bd"
+        "sender": "no-reply.nicejobs@nicesoftware.com.bd",
+        "mail_status": status
     }
     return res_data
 
