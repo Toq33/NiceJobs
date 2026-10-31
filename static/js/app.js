@@ -8173,6 +8173,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Date of Birth (DOB)</label>
                   <input type="date" id="cand-dob" class="auth-input" required 
+                    style="color-scheme: dark;"
                     value="${signupState.dob || ''}">
                 </div>
                 <div class="auth-field">

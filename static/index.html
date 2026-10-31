@@ -9,8 +9,23 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/static/css/styles.css?v=realtime_perfect_v17_20261031">
+  <link rel="stylesheet" href="/static/css/styles.css?v=white_calendar_v18_20261031">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>">
+  <style>
+    /* Instant Anti-Cache Override: Pure White Calendar Button on DOB */
+    input[type="date"], .auth-input[type="date"], #cand-dob { color-scheme: dark !important; }
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    .auth-input[type="date"]::-webkit-calendar-picker-indicator,
+    #cand-dob::-webkit-calendar-picker-indicator {
+      cursor: pointer !important;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E") !important;
+      background-repeat: no-repeat !important;
+      background-position: center !important;
+      background-size: 18px 18px !important;
+      filter: brightness(0) invert(1) !important;
+      opacity: 1 !important;
+    }
+  </style>
 </head>
 <body>
 
