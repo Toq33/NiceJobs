@@ -5225,13 +5225,14 @@ const adminState = {
 
 async function renderAdminScreen(viewport) {
   try {
+    const t = Date.now();
     const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes] = await Promise.all([
-      fetch('/api/admin/overview').catch(() => ({ json: () => ({}) })),
-      fetch('/api/admin/users').catch(() => ({ json: () => [] })),
-      fetch('/api/admin/jobs-list').catch(() => ({ json: () => [] })),
-      fetch('/api/admin/businesses-list').catch(() => ({ json: () => [] })),
-      fetch('/api/admin/moderator-requests').catch(() => ({ json: () => [] })),
-      fetch('/api/admin/verifications').catch(() => ({ json: () => [] }))
+      fetch(`/api/admin/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(`/api/admin/users?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/jobs-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/businesses-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/moderator-requests?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/verifications?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] }))
     ]);
 
     const overview = await overviewRes.json();
@@ -5428,7 +5429,7 @@ async function renderAdminScreen(viewport) {
                       `}
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px;">
+                      <div style="display: inline-flex; gap: 6px; align-items: center;">
                         ${u.status === 'suspended' ? `
                           <button class="admin-btn-action btn-activate" onclick="handleAdminUserStatus('${u.id}', 'active')">
                             Reactivate
@@ -5438,9 +5439,17 @@ async function renderAdminScreen(viewport) {
                             Suspend
                           </button>
                         `}
-                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteUser('${u.id}', '${u.name}')" title="Delete account">
-                          ${svgIcon('trash', '', 14)}
-                        </button>
+                        ${u.id === 'user_admin' ? `
+                          <span style="font-size: 0.72rem; color: var(--text-dim); padding: 4px 6px;">Protected</span>
+                        ` : `
+                          <button class="admin-btn-action btn-delete" 
+                            data-user-id="${u.id}" 
+                            data-user-name="${escapeHtml(u.name || 'User')}"
+                            onclick="openAdminDeleteUserModal('${u.id}', '${(u.name || 'User').replace(/['"\\]/g, ' ')}', '${(u.email || '').replace(/['"\\]/g, ' ')}')" 
+                            title="Delete user account">
+                            ${svgIcon('trash', '', 14)}
+                          </button>
+                        `}
                       </div>
                     </td>
                   </tr>
@@ -5524,7 +5533,7 @@ async function renderAdminScreen(viewport) {
                         <button class="admin-btn-action btn-feature" onclick="handleAdminJobFeature('${j.id}', ${!j.is_featured}, ${j.is_urgent})">
                           ${j.is_featured ? `${svgIcon('starFilled', '', 13)} Unfeature` : `${svgIcon('star', '', 13)} Feature`}
                         </button>
-                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteJob('${j.id}', '${j.title}')">
+                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteJob('${j.id}', '${(j.title || 'Job Post').replace(/['"\\]/g, ' ')}')">
                           ${svgIcon('trash', '', 14)}
                         </button>
                       </div>
@@ -5762,16 +5771,85 @@ async function handleAdminUserStatus(userId, status) {
   }
 }
 
-async function handleAdminDeleteUser(userId, userName) {
-  if (!confirm(`Are you sure you want to completely remove user ${userName}?`)) return;
+function openAdminDeleteUserModal(userId, userName, userEmail) {
+  if (state.currentUser && state.currentUser.id === userId) {
+    showToast('Cannot delete your own active administrator account.', 'warning');
+    return;
+  }
+  if (userId === 'user_admin') {
+    showToast('Cannot delete root system administrator account.', 'warning');
+    return;
+  }
+
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  const cleanName = (userName || 'User').trim();
+  const cleanEmail = (userEmail || '').trim();
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-admin-delete-user">
+      <div class="modal-dialog" style="max-width: 480px; text-align: center; padding: 32px 28px; background: rgba(13, 21, 44, 0.98); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 20px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);">
+        <div style="width: 58px; height: 58px; margin: 0 auto 16px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; color: #f87171;">
+          ${svgIcon('trash', '', 26)}
+        </div>
+        <div style="font-size: 0.78rem; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">
+          Confirm Account Deletion
+        </div>
+        <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--white); margin: 0 0 10px 0;">
+          Delete User Account?
+        </h3>
+        <p style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.55; margin: 0 0 8px 0;">
+          Are you sure you want to permanently delete <strong style="color: var(--white);">${escapeHtml(cleanName)}</strong>${cleanEmail ? ` (<span style="color: var(--text-dim);">${escapeHtml(cleanEmail)}</span>)` : ''}?
+        </p>
+        <p style="color: #94a3b8; font-size: 0.8rem; margin: 0 0 24px 0;">
+          This will purge their profile, job applications, messages, and saved records from the database. This action cannot be undone.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button type="button" class="btn-secondary" style="flex: 1; padding: 11px 20px; font-weight: 700; font-size: 0.88rem; justify-content: center;" onclick="closeModal('modal-admin-delete-user')">
+            Cancel
+          </button>
+          <button type="button" id="btn-confirm-delete-user" class="btn-primary" style="flex: 1; padding: 11px 20px; font-weight: 700; font-size: 0.88rem; justify-content: center; background: #dc2626; border-color: #ef4444;" onclick="executeAdminDeleteUser('${userId}', '${cleanName.replace(/['"\\]/g, ' ')}')">
+            ${svgIcon('trash', '', 14)} Delete User
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function executeAdminDeleteUser(userId, userName) {
+  const confirmBtn = document.getElementById('btn-confirm-delete-user');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Deleting...';
+  }
   try {
-    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete user');
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, { 
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Failed to delete user');
+    }
+    closeModal('modal-admin-delete-user');
     showToast(`User ${userName} deleted successfully.`, 'info');
-    renderAdminScreen(document.getElementById('app-viewport'));
+    const viewport = document.getElementById('app-viewport');
+    if (viewport) {
+      await renderAdminScreen(viewport);
+    }
   } catch (err) {
     showToast(err.message, 'danger');
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = `${svgIcon('trash', '', 14)} Delete User`;
+    }
   }
+}
+
+async function handleAdminDeleteUser(userId, userName) {
+  openAdminDeleteUserModal(userId, userName);
 }
 
 async function handleAdminToggleBlogPermission(userId, allow) {
@@ -5825,8 +5903,9 @@ async function handleAdminJobFeature(jobId, isFeatured, isUrgent) {
 async function handleAdminDeleteJob(jobId, jobTitle) {
   if (!confirm(`Are you sure you want to delete job post "${jobTitle}"?`)) return;
   try {
-    const res = await fetch(`/api/admin/jobs/${jobId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete job post');
+    const res = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.message || 'Failed to delete job post');
     showToast(`Job post deleted.`, 'info');
     renderAdminScreen(document.getElementById('app-viewport'));
   } catch (err) {

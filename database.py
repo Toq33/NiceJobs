@@ -826,14 +826,17 @@ def seed_data(cursor):
 
     # 1. Users
     users = [
-        ("user_rahim", "Rahim Ahmed", "rahim.ahmed@example.bd", "+880 1711 234567", "jobseeker", "/static/images/candidate_rahim.jpg", now),
-        ("user_fatima", "Fatima Khan", "fatima.khan@radissondhaka.com", "+880 1819 876543", "recruiter", "/static/images/candidate_rahim.jpg", now),
-        ("user_admin", "Tariqul Islam (Trust & Safety)", "admin@nicejobs.bd", "+880 1912 334455", "admin", "", now)
+        ("user_rahim", "Rahim Ahmed", "rahim.ahmed@example.bd", "+880 1711 234567", "jobseeker", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
+        ("user_fatima", "Fatima Khan", "fatima.khan@radissondhaka.com", "+880 1819 876543", "recruiter", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
+        ("user_admin", "Tariqul Islam (Trust & Safety)", "admin@nicejobs.bd", "+880 1912 334455", "admin", "Password123!", "", now, 1)
     ]
     cursor.executemany("""
-    INSERT INTO users (id, name, email, phone, role, avatar_url, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (id) DO NOTHING
+    INSERT INTO users (id, name, email, phone, role, password, avatar_url, created_at, is_demo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        password = excluded.password,
+        role = excluded.role,
+        is_demo = excluded.is_demo
     """, users)
 
     # 2. Employee Profile for Rahim Ahmed

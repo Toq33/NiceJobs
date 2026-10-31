@@ -4971,14 +4971,53 @@ def update_user_blog_permission(user_id: str, payload: BlogPermissionPayload):
 
 @app.delete("/api/admin/users/{user_id}")
 def delete_user(user_id: str):
+    if user_id == "user_admin":
+        raise HTTPException(status_code=400, detail="Cannot delete root system administrator account.")
+
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (user_id,))
-    cursor.execute("DELETE FROM business_memberships WHERE user_id = ?", (user_id,))
-    cursor.execute("DELETE FROM applications WHERE user_id = ?", (user_id,))
-    conn.commit()
+
+    try:
+        cursor.execute("SELECT id, name FROM users WHERE id = ?", (user_id,))
+        existing_user = cursor.fetchone()
+        if not existing_user:
+            conn.close()
+            return {"success": True, "message": "User not found or already deleted."}
+
+        # 1. Delete application events for any applications by this user
+        cursor.execute("DELETE FROM application_events WHERE application_id IN (SELECT id FROM applications WHERE user_id = ?)", (user_id,))
+        # 2. Delete applications by this user
+        cursor.execute("DELETE FROM applications WHERE user_id = ?", (user_id,))
+        # 3. Delete messages involving this user or conversations
+        cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?) OR sender_id = ?", (user_id, user_id))
+        # 4. Delete conversations involving this user
+        cursor.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
+        # 5. Delete employee profile (which contains CV files)
+        cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (user_id,))
+        # 6. Delete saved jobs, followed businesses, and notifications
+        cursor.execute("DELETE FROM saved_jobs WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM followed_businesses WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        # 7. Delete moderation reports regarding this user
+        cursor.execute("DELETE FROM moderation_reports WHERE item_type = 'user' AND item_id = ?", (user_id,))
+        # 8. Delete business memberships
+        cursor.execute("DELETE FROM business_memberships WHERE user_id = ?", (user_id,))
+        # 9. Clear admin_user_id on businesses
+        cursor.execute("UPDATE businesses SET admin_user_id = '' WHERE admin_user_id = ?", (user_id,))
+        # 10. Delete or detach blogs
+        cursor.execute("DELETE FROM blogs WHERE author_id = ?", (user_id,))
+        # 11. Finally delete user from users table
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error deleting user: {str(e)}")
+
     conn.close()
+    invalidate_api_cache()
+    notify_realtime("user_deleted", {"user_id": user_id})
     return {"success": True, "message": "User deleted successfully."}
 
 @app.get("/api/admin/jobs-list")

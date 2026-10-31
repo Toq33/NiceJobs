@@ -253,6 +253,51 @@ class TestNiceJobsAPI(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_admin_delete_user_cascade_and_protection(self):
+        """Verifies deleting user via /api/admin/users/{user_id} cascades child records and root admin is protected."""
+        # 1. Protect root admin
+        del_admin_resp = self.client.delete("/api/admin/users/user_admin")
+        self.assertEqual(del_admin_resp.status_code, 400)
+
+        # 2. Create a test candidate with profile and notification
+        import time
+        unique_id = int(time.time() * 1000)
+        test_uid = f"user_del_{unique_id}"
+        test_email = f"del_user_{unique_id}@hospitalitytest.bd"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (id, name, email, role, phone, status, created_at)
+            VALUES (?, ?, ?, 'jobseeker', '01700000000', 'active', '2026-10-31 12:00:00')
+        """, (test_uid, "Delete Me Candidate", test_email))
+        cursor.execute("""
+            INSERT INTO employee_profiles (user_id, headline, location)
+            VALUES (?, 'Concierge Associate', 'Dhaka')
+        """, (test_uid,))
+        cursor.execute("""
+            INSERT INTO notifications (id, user_id, title, message, type, timestamp)
+            VALUES (?, ?, 'Welcome', 'Welcome to NiceJobs', 'system', '2026-10-31 12:00:00')
+        """, (f"notif_{unique_id}", test_uid))
+        conn.commit()
+        conn.close()
+
+        # 3. Call admin delete endpoint
+        del_resp = self.client.delete(f"/api/admin/users/{test_uid}")
+        self.assertEqual(del_resp.status_code, 200)
+        self.assertTrue(del_resp.json().get("success"))
+
+        # 4. Verify user and child records are deleted
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT count(*) as count FROM users WHERE id = ?", (test_uid,))
+        self.assertEqual(cursor.fetchone()["count"], 0)
+        cursor.execute("SELECT count(*) as count FROM employee_profiles WHERE user_id = ?", (test_uid,))
+        self.assertEqual(cursor.fetchone()["count"], 0)
+        cursor.execute("SELECT count(*) as count FROM notifications WHERE user_id = ?", (test_uid,))
+        self.assertEqual(cursor.fetchone()["count"], 0)
+        conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 
