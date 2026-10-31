@@ -827,6 +827,8 @@ def seed_data(cursor):
     # 1. Users
     users = [
         ("user_rahim", "Rahim Ahmed", "rahim.ahmed@example.bd", "+880 1711 234567", "jobseeker", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
+        ("user_tariq", "Chef Tariq Hossain", "tariq.chef@example.bd", "+880 1712 345678", "jobseeker", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
+        ("user_nasrin", "Nasrin Akter", "nasrin.akter@example.bd", "+880 1812 345678", "jobseeker", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
         ("user_fatima", "Fatima Khan", "fatima.khan@radissondhaka.com", "+880 1819 876543", "recruiter", "Password123!", "/static/images/candidate_rahim.jpg", now, 1),
         ("user_admin", "Tariqul Islam (Trust & Safety)", "admin@nicejobs.bd", "+880 1912 334455", "admin", "Password123!", "", now, 1)
     ]
@@ -956,6 +958,146 @@ def seed_data(cursor):
         "Rahim_Ahmed_Front_Office_Executive_CV.pdf",
         "Updated 3 days ago",
         92,
+        cv_list,
+        demo_cv_pdf
+    ))
+
+    # 2b. Employee Profile for Chef Tariq Hossain
+    tariq_skills = json.dumps([
+        "HACCP Certified", "Menu Engineering", "Cost Control & Kitchen P&L", 
+        "Fine Dining Banquet Operations", "Sous Vide & Modern Plating", "Culinary Team Leadership"
+    ])
+    tariq_exp = json.dumps([
+        {
+            "role": "Executive Sous Chef",
+            "hotel": "The Westin Dhaka",
+            "period": "2021 - Present",
+            "description": "Leading kitchen brigade of 22 chefs across 3 international specialty restaurants and grand banquet dining."
+        },
+        {
+            "role": "Chef de Cuisine",
+            "hotel": "Radisson Blu Chattogram",
+            "period": "2018 - 2021",
+            "description": "Oversaw continental fine dining culinary development, cost control, and food safety standards."
+        }
+    ])
+    tariq_edu = json.dumps([
+        {
+            "degree": "Diploma in Culinary Arts & Professional Cookery",
+            "institution": "National Hotel & Tourism Training Institute (NHTTI)",
+            "year": "2015 - 2017"
+        }
+    ])
+    tariq_prefs = json.dumps({
+        "target_roles": ["Executive Chef", "Executive Sous Chef", "Chef de Cuisine"],
+        "department": "Food & Beverage / Culinary",
+        "locations": ["Dhaka", "Chittagong", "Cox's Bazar"],
+        "expected_salary": "BDT 90,000 - 120,000 / month",
+        "willing_to_relocate": True
+    })
+
+    cursor.execute("""
+    INSERT INTO employee_profiles (
+        user_id, headline, location, summary, current_position, experience_years,
+        open_to_work, visibility, skills, languages, certifications, experience,
+        education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET
+        headline = excluded.headline,
+        location = excluded.location,
+        summary = excluded.summary,
+        current_position = excluded.current_position,
+        experience_years = excluded.experience_years,
+        open_to_work = excluded.open_to_work,
+        skills = excluded.skills,
+        experience = excluded.experience,
+        education = excluded.education,
+        preferences = excluded.preferences
+    """, (
+        "user_tariq",
+        "Executive Sous Chef | 8+ Yrs Culinary Leadership | Continental & Fine Dining Specialist",
+        "Banani, Dhaka, Bangladesh",
+        "Passionate Executive Sous Chef with 8+ years of 5-star kitchen management experience. Expert in modern plating, kitchen P&L optimization, and banquet service for up to 1,000 guests.",
+        "Executive Sous Chef",
+        8,
+        1,
+        "eligible_employers",
+        tariq_skills,
+        languages,
+        certs,
+        tariq_exp,
+        tariq_edu,
+        tariq_prefs,
+        "Chef_Tariq_Hossain_Culinary_Executive_CV.pdf",
+        "Updated 2 days ago",
+        95,
+        cv_list,
+        demo_cv_pdf
+    ))
+
+    # 2c. Employee Profile for Nasrin Akter
+    nasrin_skills = json.dumps([
+        "Opera PMS Rooms Module", "Linen & Laundry Inventory", "Room Inspection Standards", 
+        "VIP Turn-down Protocols", "Housekeeping Team Rostering", "Deep Cleaning & Hygiene"
+    ])
+    nasrin_exp = json.dumps([
+        {
+            "role": "Housekeeping Supervisor",
+            "hotel": "Sayeman Beach Resort Cox's Bazar",
+            "period": "2022 - Present",
+            "description": "Managing floor supervisors and 18 room attendants across 120 ocean-view suites. Maintaining 98% room audit scores."
+        }
+    ])
+    nasrin_edu = json.dumps([
+        {
+            "degree": "Higher Secondary Certificate & Hotel Operations Certificate",
+            "institution": "Bangladesh Hotel Management Training Academy",
+            "year": "2018 - 2020"
+        }
+    ])
+    nasrin_prefs = json.dumps({
+        "target_roles": ["Assistant Housekeeping Manager", "Housekeeping Executive", "Floor Supervisor"],
+        "department": "Housekeeping",
+        "locations": ["Cox's Bazar", "Dhaka", "Sylhet"],
+        "expected_salary": "BDT 40,000 - 55,000 / month",
+        "willing_to_relocate": True
+    })
+
+    cursor.execute("""
+    INSERT INTO employee_profiles (
+        user_id, headline, location, summary, current_position, experience_years,
+        open_to_work, visibility, skills, languages, certifications, experience,
+        education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET
+        headline = excluded.headline,
+        location = excluded.location,
+        summary = excluded.summary,
+        current_position = excluded.current_position,
+        experience_years = excluded.experience_years,
+        open_to_work = excluded.open_to_work,
+        skills = excluded.skills,
+        experience = excluded.experience,
+        education = excluded.education,
+        preferences = excluded.preferences
+    """, (
+        "user_nasrin",
+        "Housekeeping Supervisor | Luxury Hotel Rooms & Public Area Quality Control Specialist",
+        "Cox's Bazar, Bangladesh",
+        "Meticulous housekeeping leader with 4+ years of luxury resort rooms management experience. Proven expertise in quality audits, staff training, and VIP arrival preparation.",
+        "Housekeeping Supervisor",
+        4,
+        1,
+        "eligible_employers",
+        nasrin_skills,
+        languages,
+        certs,
+        nasrin_exp,
+        nasrin_edu,
+        nasrin_prefs,
+        "Nasrin_Akter_Housekeeping_Executive_CV.pdf",
+        "Updated 1 day ago",
+        88,
         cv_list,
         demo_cv_pdf
     ))

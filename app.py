@@ -3643,6 +3643,76 @@ def get_applications(
     conn.close()
     return results
 
+@app.get("/api/candidates")
+def get_candidates(
+    q: Optional[str] = None,
+    department: Optional[str] = None,
+    location: Optional[str] = None,
+    open_to_work: Optional[bool] = True
+):
+    conn = database.get_db()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.designation, u.created_at,
+               p.headline, p.location, p.summary, p.current_position, p.experience_years,
+               p.education, p.skills, p.languages, p.certifications,
+               p.experience, p.preferences, p.cv_name, p.cv_url, p.open_to_work
+        FROM users u
+        JOIN employee_profiles p ON u.id = p.user_id
+        WHERE u.role = 'jobseeker' AND (u.status = 'active' OR u.status IS NULL)
+    """
+    params = []
+
+    if is_demo_hidden():
+        query += " AND (u.is_demo = 0 OR u.is_demo IS NULL)"
+
+    if open_to_work is not None:
+        query += " AND p.open_to_work = ?"
+        params.append(1 if open_to_work else 0)
+
+    if location and location != "all":
+        query += " AND (p.location LIKE ? OR p.preferences LIKE ?)"
+        like_loc = f"%{location}%"
+        params.extend([like_loc, like_loc])
+
+    if department and department != "all":
+        query += " AND (p.headline LIKE ? OR p.current_position LIKE ? OR u.designation LIKE ? OR p.preferences LIKE ?)"
+        like_dept = f"%{department}%"
+        params.extend([like_dept, like_dept, like_dept, like_dept])
+
+    if q:
+        like_q = f"%{q}%"
+        query += """ AND (
+            u.name LIKE ? OR 
+            u.designation LIKE ? OR 
+            p.headline LIKE ? OR 
+            p.current_position LIKE ? OR 
+            p.skills LIKE ? OR 
+            p.summary LIKE ? OR
+            p.preferences LIKE ?
+        )"""
+        params.extend([like_q, like_q, like_q, like_q, like_q, like_q, like_q])
+
+    query += " ORDER BY u.created_at DESC"
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    candidates = []
+    for r in rows:
+        d = dict(r)
+        # Parse JSON fields safely
+        for json_field in ['skills', 'languages', 'certifications', 'experience', 'education', 'preferences']:
+            if d.get(json_field) and isinstance(d[json_field], str):
+                try:
+                    d[json_field] = json.loads(d[json_field])
+                except Exception:
+                    pass
+        candidates.append(d)
+
+    conn.close()
+    return candidates
+
 class ApplicationSubmitPayload(BaseModel):
     job_id: str
     user_id: str = "user_rahim"

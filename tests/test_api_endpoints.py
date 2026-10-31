@@ -298,6 +298,35 @@ class TestNiceJobsAPI(unittest.TestCase):
         self.assertEqual(cursor.fetchone()["count"], 0)
         conn.close()
 
+    def test_get_candidates_open_to_work(self):
+        """Verifies businesses can discover candidates who have Open to Work enabled."""
+        # 1. Fetch all open to work candidates
+        response = self.client.get("/api/candidates?open_to_work=true")
+        self.assertEqual(response.status_code, 200)
+        candidates = response.json()
+        self.assertIsInstance(candidates, list)
+        self.assertGreater(len(candidates), 0)
+
+        # Verify attributes on candidates
+        first_candidate = candidates[0]
+        self.assertIn("name", first_candidate)
+        self.assertIn("email", first_candidate)
+        self.assertIn("open_to_work", first_candidate)
+        self.assertEqual(first_candidate["open_to_work"], 1)
+
+        # 2. Search by query filter
+        q_response = self.client.get("/api/candidates?open_to_work=true&q=Sous")
+        self.assertEqual(q_response.status_code, 200)
+        q_candidates = q_response.json()
+        self.assertIsInstance(q_candidates, list)
+        for c in q_candidates:
+            # Query match should be in name, headline, current_position, skills, or preferences
+            matches = any("sous" in str(v).lower() for v in [
+                c.get("name"), c.get("headline"), c.get("current_position"), 
+                c.get("skills"), c.get("preferences")
+            ])
+            self.assertTrue(matches)
+
 if __name__ == "__main__":
     unittest.main()
 

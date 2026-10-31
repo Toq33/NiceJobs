@@ -315,6 +315,16 @@ const state = {
     urgent_only: false
   },
 
+  // Talent Discovery State (Open to Work)
+  talentSearch: {
+    query: '',
+    department: 'all',
+    location: 'all',
+    open_to_work: true
+  },
+  atsActiveTab: 'talent',
+  talentCandidates: [],
+
   // Cached Data
   jobs: [],
   businesses: [],
@@ -3963,15 +3973,18 @@ async function renderRecruiterDashboard(viewport) {
     `;
     return;
   }
-  const [jobsRes, appsRes, bizRes] = await Promise.all([
+  const [jobsRes, appsRes, bizRes, openCandsRes] = await Promise.all([
     fetch(`/api/jobs?business_id=${bId}&status=all`),
     fetch(`/api/applications?business_id=${bId}`),
-    fetch(`/api/businesses/${bId}`)
+    fetch(`/api/businesses/${bId}`),
+    fetch('/api/candidates?open_to_work=true')
   ]);
   if (!bizRes.ok) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">🏨</div>
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('hotel', '', 32)}
+        </div>
         <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Business Profile Not Found</h2>
         <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Could not load business details.</p>
         <button class="btn-orange" onclick="startSignupFlow('business')">Register New Business</button>
@@ -3981,8 +3994,10 @@ async function renderRecruiterDashboard(viewport) {
   }
   const jobs = jobsRes.ok ? await jobsRes.json() : [];
   const apps = appsRes.ok ? await appsRes.json() : [];
+  const openCands = openCandsRes.ok ? await openCandsRes.json() : [];
   const biz = await bizRes.json();
   state.currentBusiness = biz;
+  state.talentCandidates = openCands;
 
   const isPending = (biz.verification_status || 'pending') !== 'verified';
   if (isPending) {
@@ -4107,22 +4122,85 @@ async function renderRecruiterDashboard(viewport) {
     </div>
 
     <!-- Quick ATS Preview -->
-    <div class="profile-section-card">
+    <div class="profile-section-card" style="margin-bottom: 24px;">
       <div class="section-header" style="margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white);">Recent Applicants</h2>
       </div>
       ${renderCandidatesTableHTML(apps.slice(0, 5))}
     </div>
+
+    <!-- Open to Work Talent Pool Spotlight -->
+    <div class="profile-section-card">
+      <div class="section-header" style="margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white);">Open to Work Hospitality Talent</h2>
+            <span class="open-to-work-badge"><span class="dot-pulse"></span> Available Now</span>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">Directly browse and message qualified professionals actively seeking luxury hotel roles.</p>
+        </div>
+        <button class="btn-secondary" style="font-size: 0.78rem;" onclick="navigateTo('ats', { tab: 'talent' })">
+          Explore Talent Pool (${openCands.length}) →
+        </button>
+      </div>
+
+      ${openCands.length === 0 ? `
+        <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">No open to work candidates available right now.</div>
+      ` : `
+        <div class="talent-pool-grid">
+          ${openCands.slice(0, 3).map(cand => {
+            const skills = Array.isArray(cand.skills) ? cand.skills : [];
+            const expYears = cand.experience_years ? `${cand.experience_years} Yrs Exp` : 'Hospitality Pro';
+            const location = cand.location || 'Bangladesh';
+            const currentPos = cand.current_position || cand.headline || cand.designation || 'Hospitality Professional';
+            return `
+              <div class="talent-card" id="dash-talent-card-${cand.id}">
+                <div>
+                  <div class="talent-card-header">
+                    <img src="${cand.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(cand.name)}" class="talent-card-avatar" onerror="this.src='${DEFAULT_AVATAR_PREVIEW}'">
+                    <div class="talent-card-info">
+                      <div class="talent-card-name">${escapeHtml(cand.name)}</div>
+                      <div class="talent-card-title">${escapeHtml(currentPos)}</div>
+                      <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
+                    </div>
+                  </div>
+                  <div class="talent-card-meta">
+                    <span class="talent-card-meta-item">${svgIcon('mapPin', '', 13)} ${escapeHtml(location.split(',')[0].trim())}</span>
+                    <span class="talent-card-meta-item">${svgIcon('award', '', 13)} ${escapeHtml(expYears)}</span>
+                  </div>
+                  <p class="talent-card-summary">${escapeHtml(cand.summary || cand.headline || 'Verified candidate open to opportunities.')}</p>
+                  ${skills.length > 0 ? `
+                    <div class="talent-card-skills">
+                      ${skills.slice(0, 3).map(s => `<span class="talent-skill-chip">${escapeHtml(s)}</span>`).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+                <div class="talent-card-actions">
+                  <button class="btn-secondary" onclick="openCandidateTalentDossierModal('${cand.id}')">
+                    ${svgIcon('eye', '', 13)} View Dossier
+                  </button>
+                  <button class="btn-primary" onclick="openConversationForJob(null, '${bId}', '${cand.id}')">
+                    ${svgIcon('messageCircle', '', 13)} Message
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
   `;
 }
 
-// ATS Board Full Page
+// ATS Board & Open to Work Talent Discovery Full Page
 async function renderATSBoard(viewport) {
   const bId = state.currentUser?.business_id || state.activeHotelId || null;
   if (!bId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">📋</div>
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('users', '', 32)}
+        </div>
         <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Business Active</h2>
         <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Demo data is removed or no business session is active. Please register or sign in.</p>
         <button class="btn-orange" onclick="startSignupFlow('business')">Register Business</button>
@@ -4131,14 +4209,33 @@ async function renderATSBoard(viewport) {
     `;
     return;
   }
+
+  const tabParam = state.screenParams?.get('tab');
+  if (tabParam === 'pipeline' || state.screenParams?.get('job_id')) {
+    state.atsActiveTab = 'pipeline';
+  } else if (tabParam === 'talent') {
+    state.atsActiveTab = 'talent';
+  }
+
   const jobId = state.screenParams?.get('job_id');
   let url = `/api/applications?business_id=${bId}`;
   if (jobId) url += `&job_id=${jobId}`;
-  const [appsRes, bizRes] = await Promise.all([
+
+  // Build candidate query url
+  let candsUrl = '/api/candidates?open_to_work=true';
+  if (state.talentSearch?.query) candsUrl += `&q=${encodeURIComponent(state.talentSearch.query)}`;
+  if (state.talentSearch?.department && state.talentSearch.department !== 'all') candsUrl += `&department=${encodeURIComponent(state.talentSearch.department)}`;
+  if (state.talentSearch?.location && state.talentSearch.location !== 'all') candsUrl += `&location=${encodeURIComponent(state.talentSearch.location)}`;
+
+  const [appsRes, bizRes, candsRes] = await Promise.all([
     fetch(url),
-    (!state.currentBusiness || state.currentBusiness.id !== bId) ? fetch(`/api/businesses/${bId}`) : Promise.resolve(null)
+    (!state.currentBusiness || state.currentBusiness.id !== bId) ? fetch(`/api/businesses/${bId}`) : Promise.resolve(null),
+    fetch(candsUrl)
   ]);
   const apps = appsRes.ok ? await appsRes.json() : [];
+  const openCandidates = candsRes.ok ? await candsRes.json() : [];
+  state.talentCandidates = openCandidates;
+
   if (bizRes && bizRes.ok) {
     try { state.currentBusiness = await bizRes.json(); } catch(e) {}
   }
@@ -4151,7 +4248,7 @@ async function renderATSBoard(viewport) {
         </div>
         <h2 style="font-weight: 800; font-size: 1.5rem; color: var(--white); margin-bottom: 12px;">Verification Required</h2>
         <p style="color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 20px;">
-          Applicant tracking is restricted until your business account is verified by platform administrators.
+          Candidate discovery and applicant tracking are restricted until your business account is verified by platform administrators.
         </p>
         <button class="btn-secondary" onclick="navigateTo('home')">Return to Home</button>
       </div>
@@ -4159,18 +4256,75 @@ async function renderATSBoard(viewport) {
     return;
   }
 
+  const activeTab = state.atsActiveTab || 'talent';
+
   viewport.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px;">
       <div>
-        <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white);">Applicant Tracking</h1>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Review resumes, advance candidates, and manage interview pipelines.</p>
+        <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 4px; color: var(--white); display: flex; align-items: center; gap: 10px;">
+          Candidates &amp; Recruitment Desk
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          Find candidates who have "Open to work" enabled, explore hospitality talent, and manage applicants.
+        </p>
       </div>
       <button class="btn-orange" id="btn-ats-post-job" onclick="openCreateJobModal()">+ Job Post</button>
     </div>
 
-    <div class="profile-section-card">
-      ${renderCandidatesTableHTML(apps)}
+    <!-- Segmented Navigation Tabs -->
+    <div class="talent-segmented-tabs">
+      <button class="talent-tab-btn ${activeTab === 'talent' ? 'active' : ''}" onclick="switchAtsTab('talent')">
+        ${svgIcon('search', '', 15)} <span>Open to Work Talent Pool</span>
+        <span class="talent-tab-badge" id="talent-pool-count">${openCandidates.length}</span>
+      </button>
+      <button class="talent-tab-btn ${activeTab === 'pipeline' ? 'active' : ''}" onclick="switchAtsTab('pipeline')">
+        ${svgIcon('clipboard', '', 15)} <span>Job Applicants Pipeline</span>
+        <span class="talent-tab-badge">${apps.length}</span>
+      </button>
     </div>
+
+    ${activeTab === 'talent' ? `
+      <!-- Search & Filters Toolbar -->
+      <div class="talent-filter-bar">
+        <div class="talent-search-input-wrap">
+          <span class="talent-search-icon">${svgIcon('search', '', 16)}</span>
+          <input type="text" class="talent-search-input" id="talent-search-input" 
+                 placeholder="Search candidate by name, designation, or skill (e.g. Executive Chef, Opera PMS)..."
+                 value="${escapeHtml(state.talentSearch?.query || '')}"
+                 oninput="onTalentSearchInput(event)">
+        </div>
+
+        <select class="talent-filter-select" id="talent-dept-select" onchange="onTalentDeptChange(event)">
+          <option value="all" ${(!state.talentSearch?.department || state.talentSearch.department === 'all') ? 'selected' : ''}>All Departments</option>
+          ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${state.talentSearch?.department === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+        </select>
+
+        <select class="talent-filter-select" id="talent-loc-select" onchange="onTalentLocChange(event)">
+          <option value="all" ${(!state.talentSearch?.location || state.talentSearch.location === 'all') ? 'selected' : ''}>All Locations</option>
+          <option value="Dhaka" ${state.talentSearch?.location === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
+          <option value="Chittagong" ${state.talentSearch?.location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
+          <option value="Cox's Bazar" ${state.talentSearch?.location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
+          <option value="Sylhet" ${state.talentSearch?.location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
+          <option value="Gazipur" ${state.talentSearch?.location === 'Gazipur' ? 'selected' : ''}>Gazipur</option>
+          <option value="Sreemangal" ${state.talentSearch?.location === 'Sreemangal' ? 'selected' : ''}>Sreemangal</option>
+          <option value="Khulna" ${state.talentSearch?.location === 'Khulna' ? 'selected' : ''}>Khulna</option>
+        </select>
+
+        <div class="open-to-work-badge" title="Only showing candidates actively seeking opportunities">
+          <span class="dot-pulse"></span> Open to Work
+        </div>
+      </div>
+
+      <!-- Talent Pool Cards Grid -->
+      <div id="talent-pool-grid-wrap">
+        ${renderTalentCandidatesGrid(openCandidates, bId)}
+      </div>
+    ` : `
+      <!-- Applications Pipeline Table -->
+      <div class="profile-section-card">
+        ${renderCandidatesTableHTML(apps)}
+      </div>
+    `}
   `;
 }
 
@@ -4233,6 +4387,354 @@ function renderCandidatesTableHTML(apps) {
     </div>
   `;
 }
+
+function switchAtsTab(tab) {
+  state.atsActiveTab = tab;
+  const viewport = document.getElementById('app-viewport');
+  if (viewport) renderATSBoard(viewport);
+}
+window.switchAtsTab = switchAtsTab;
+
+let talentSearchDebounceTimer = null;
+function onTalentSearchInput(event) {
+  if (!state.talentSearch) state.talentSearch = {};
+  state.talentSearch.query = event.target.value.trim();
+  clearTimeout(talentSearchDebounceTimer);
+  talentSearchDebounceTimer = setTimeout(() => {
+    fetchAndRenderTalentPool();
+  }, 250);
+}
+window.onTalentSearchInput = onTalentSearchInput;
+
+function onTalentDeptChange(event) {
+  if (!state.talentSearch) state.talentSearch = {};
+  state.talentSearch.department = event.target.value;
+  fetchAndRenderTalentPool();
+}
+window.onTalentDeptChange = onTalentDeptChange;
+
+function onTalentLocChange(event) {
+  if (!state.talentSearch) state.talentSearch = {};
+  state.talentSearch.location = event.target.value;
+  fetchAndRenderTalentPool();
+}
+window.onTalentLocChange = onTalentLocChange;
+
+function resetTalentFilters() {
+  if (!state.talentSearch) state.talentSearch = {};
+  state.talentSearch.query = '';
+  state.talentSearch.department = 'all';
+  state.talentSearch.location = 'all';
+  const inp = document.getElementById('talent-search-input');
+  if (inp) inp.value = '';
+  const dSel = document.getElementById('talent-dept-select');
+  if (dSel) dSel.value = 'all';
+  const lSel = document.getElementById('talent-loc-select');
+  if (lSel) lSel.value = 'all';
+  fetchAndRenderTalentPool();
+}
+window.resetTalentFilters = resetTalentFilters;
+
+async function fetchAndRenderTalentPool() {
+  const wrap = document.getElementById('talent-pool-grid-wrap');
+  if (!wrap) return;
+
+  wrap.innerHTML = `
+    <div style="padding: 40px; text-align: center; color: var(--text-dim); display: flex; align-items: center; justify-content: center; gap: 10px;">
+      <div class="loader-spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+      <span>Searching open to work hospitality talent...</span>
+    </div>
+  `;
+
+  let url = '/api/candidates?open_to_work=true';
+  if (state.talentSearch?.query) url += `&q=${encodeURIComponent(state.talentSearch.query)}`;
+  if (state.talentSearch?.department && state.talentSearch.department !== 'all') url += `&department=${encodeURIComponent(state.talentSearch.department)}`;
+  if (state.talentSearch?.location && state.talentSearch.location !== 'all') url += `&location=${encodeURIComponent(state.talentSearch.location)}`;
+
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const candidates = await res.json();
+      state.talentCandidates = candidates;
+      const countEl = document.getElementById('talent-pool-count');
+      if (countEl) countEl.textContent = candidates.length;
+      const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+      wrap.innerHTML = renderTalentCandidatesGrid(candidates, bId);
+    } else {
+      wrap.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">Failed to load candidates.</div>`;
+    }
+  } catch(e) {
+    console.error('Failed to fetch talent pool candidates:', e);
+    wrap.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">Error connecting to candidate database.</div>`;
+  }
+}
+window.fetchAndRenderTalentPool = fetchAndRenderTalentPool;
+
+function renderTalentCandidatesGrid(candidates, businessId) {
+  const bId = businessId || state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  if (!candidates || candidates.length === 0) {
+    return `
+      <div class="empty-state-card" style="padding: 50px 20px; text-align: center; background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-lg); border: 1px solid rgba(255, 255, 255, 0.06);">
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--text-dim);">
+          ${svgIcon('search', '', 26)}
+        </div>
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin-bottom: 6px;">No Open Candidates Found</h3>
+        <p style="color: var(--text-muted); font-size: 0.88rem; max-width: 420px; margin: 0 auto 16px;">
+          Try adjusting your search query, department, or location filter to discover available talent.
+        </p>
+        <button class="btn-secondary" onclick="resetTalentFilters()">Reset Filters</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="talent-pool-grid">
+      ${candidates.map(cand => {
+        const skills = Array.isArray(cand.skills) ? cand.skills : [];
+        const expYears = cand.experience_years ? `${cand.experience_years} Yrs Exp` : 'Hospitality Pro';
+        const location = cand.location || 'Bangladesh';
+        const currentPos = cand.current_position || cand.headline || cand.designation || 'Hospitality Professional';
+        const summary = cand.summary || cand.headline || 'Verified hospitality talent open to luxury hotel & resort opportunities across Bangladesh.';
+        
+        return `
+          <div class="talent-card" id="talent-card-${cand.id}">
+            <div>
+              <div class="talent-card-header">
+                <img src="${cand.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(cand.name)}" class="talent-card-avatar" onerror="this.src='${DEFAULT_AVATAR_PREVIEW}'">
+                <div class="talent-card-info">
+                  <div class="talent-card-name">${escapeHtml(cand.name)}</div>
+                  <div class="talent-card-title">${escapeHtml(currentPos)}</div>
+                  <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
+                </div>
+              </div>
+
+              <div class="talent-card-meta">
+                <span class="talent-card-meta-item">
+                  ${svgIcon('mapPin', '', 13)} ${escapeHtml(location.split(',')[0].trim())}
+                </span>
+                <span class="talent-card-meta-item">
+                  ${svgIcon('award', '', 13)} ${escapeHtml(expYears)}
+                </span>
+                ${cand.preferences?.department ? `
+                  <span class="talent-card-meta-item">
+                    ${svgIcon('briefcase', '', 13)} ${escapeHtml(cand.preferences.department.split('/')[0].trim())}
+                  </span>
+                ` : ''}
+              </div>
+
+              <p class="talent-card-summary">${escapeHtml(summary)}</p>
+
+              ${skills.length > 0 ? `
+                <div class="talent-card-skills">
+                  ${skills.slice(0, 4).map(s => `<span class="talent-skill-chip">${escapeHtml(s)}</span>`).join('')}
+                  ${skills.length > 4 ? `<span class="talent-skill-chip" style="background: rgba(255, 107, 0, 0.1); color: var(--orange-primary); border-color: rgba(255, 107, 0, 0.25);">+${skills.length - 4} more</span>` : ''}
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="talent-card-actions">
+              <button class="btn-secondary" onclick="openCandidateTalentDossierModal('${cand.id}')">
+                ${svgIcon('eye', '', 13)} View Dossier
+              </button>
+              <button class="btn-primary" onclick="openConversationForJob(null, '${bId}', '${cand.id}')">
+                ${svgIcon('messageCircle', '', 13)} Message
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+window.renderTalentCandidatesGrid = renderTalentCandidatesGrid;
+
+async function openCandidateTalentDossierModal(candidateId) {
+  let cand = (state.talentCandidates || []).find(c => c && c.id === candidateId);
+  if (!cand) {
+    try {
+      const res = await fetch(`/api/candidates?open_to_work=true&q=${encodeURIComponent(candidateId)}`);
+      if (res.ok) {
+        const list = await res.json();
+        cand = list.find(c => c.id === candidateId) || list[0];
+      }
+    } catch(e) {}
+  }
+  if (!cand) {
+    showToast('Could not load candidate profile.', 'warning');
+    return;
+  }
+
+  const skills = Array.isArray(cand.skills) ? cand.skills : [];
+  const expList = Array.isArray(cand.experience) ? cand.experience : [];
+  const eduList = Array.isArray(cand.education) ? cand.education : [];
+  const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-cand-dossier" onclick="if(event.target === this) closeModal('modal-cand-dossier')">
+      <div class="modal-dialog" style="max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(10, 17, 40, 0.98); display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; color: #34d399;">
+              ${svgIcon('candidate', '', 20)}
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <h2 style="font-size: 1.28rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(cand.name)}</h2>
+                <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
+              </div>
+              <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+                ${escapeHtml(cand.headline || cand.current_position || cand.designation || 'Hospitality Professional')}
+              </div>
+            </div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-cand-dossier')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+
+        <div class="modal-body" style="padding: 24px;">
+          <div class="talent-dossier-grid">
+            
+            <!-- Left Column: Identity & Contact Card -->
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <div style="text-align: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 20px;">
+                <img src="${cand.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(cand.name)}" style="width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255, 107, 0, 0.4); margin: 0 auto 12px; display: block;" onerror="this.src='${DEFAULT_AVATAR_PREVIEW}'">
+                <div style="font-weight: 800; font-size: 1.1rem; color: var(--white);">${escapeHtml(cand.name)}</div>
+                <div style="font-size: 0.8rem; color: var(--orange-primary); font-weight: 700; margin-top: 2px;">${escapeHtml(cand.current_position || cand.designation || '')}</div>
+                ${cand.experience_years ? `<div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 4px;">${cand.experience_years} Years Hotel Industry Experience</div>` : ''}
+              </div>
+
+              <!-- Contact & Details -->
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
+                <h4 style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 12px;">Contact Information</h4>
+                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.84rem;">
+                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted);">
+                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('phone', '', 14)}</span>
+                    <span style="color: var(--white);">${escapeHtml(cand.phone || 'Available on request')}</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); word-break: break-all;">
+                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('mail', '', 14)}</span>
+                    <span style="color: var(--white);">${escapeHtml(cand.email || '')}</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted);">
+                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('mapPin', '', 14)}</span>
+                    <span style="color: var(--white);">${escapeHtml(cand.location || 'Bangladesh')}</span>
+                  </div>
+                </div>
+
+                ${cand.preferences ? `
+                  <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
+                    <h4 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px;">Preferences</h4>
+                    ${cand.preferences.expected_salary ? `
+                      <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 4px;">
+                        Expected: <strong style="color: #34d399;">${escapeHtml(cand.preferences.expected_salary)}</strong>
+                      </div>
+                    ` : ''}
+                    ${cand.preferences.willing_to_relocate ? `
+                      <div style="font-size: 0.78rem; color: var(--text-dim);">
+                        Relocation: <strong style="color: var(--white);">Willing to Relocate</strong>
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Quick Actions -->
+              <button class="btn-orange" style="width: 100%; justify-content: center; padding: 12px;" onclick="closeModal('modal-cand-dossier'); openConversationForJob(null, '${bId}', '${cand.id}');">
+                ${svgIcon('messageCircle', '', 16)} Message Candidate
+              </button>
+            </div>
+
+            <!-- Right Column: Dossier Details -->
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+              
+              <!-- Summary -->
+              ${cand.summary ? `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
+                  <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">Professional Summary</h3>
+                  <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; margin: 0;">${escapeHtml(cand.summary)}</p>
+                </div>
+              ` : ''}
+
+              <!-- Skills -->
+              ${skills.length > 0 ? `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
+                  <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 12px;">Hospitality Skills &amp; Competencies</h3>
+                  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${skills.map(s => `
+                      <span style="background: rgba(255, 107, 0, 0.12); color: #ff9d42; border: 1px solid rgba(255, 107, 0, 0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600;">
+                        ${escapeHtml(s)}
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Experience Timeline -->
+              ${expList.length > 0 ? `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
+                  <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 14px;">Work Experience</h3>
+                  <div style="display: flex; flex-direction: column; gap: 14px;">
+                    ${expList.map(exp => `
+                      <div style="border-left: 2px solid var(--orange-primary); padding-left: 14px;">
+                        <div style="font-weight: 800; font-size: 0.92rem; color: var(--white);">${escapeHtml(exp.role || exp.title || '')}</div>
+                        <div style="font-size: 0.8rem; color: var(--orange-primary); font-weight: 600;">${escapeHtml(exp.hotel || exp.company || '')} ${exp.period ? `• <span style="color: var(--text-dim);">${escapeHtml(exp.period)}</span>` : ''}</div>
+                        ${exp.description ? `<p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin: 4px 0 0 0;">${escapeHtml(exp.description)}</p>` : ''}
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Education & Certifications -->
+              ${(eduList.length > 0 || (Array.isArray(cand.certifications) && cand.certifications.length > 0)) ? `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
+                  <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-bottom: 12px;">Education &amp; Credentials</h3>
+                  ${eduList.map(edu => `
+                    <div style="margin-bottom: 8px;">
+                      <div style="font-weight: 700; font-size: 0.88rem; color: var(--white);">${escapeHtml(edu.degree || edu.institution || '')}</div>
+                      <div style="font-size: 0.78rem; color: var(--text-dim);">${escapeHtml(edu.institution || '')} ${edu.year ? `(${escapeHtml(edu.year)})` : ''}</div>
+                    </div>
+                  `).join('')}
+                  ${Array.isArray(cand.certifications) && cand.certifications.length > 0 ? `
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
+                      <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 6px; font-weight: 700;">Certifications</div>
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        ${cand.certifications.map(c => `
+                          <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; padding: 2px 8px; font-size: 0.74rem; color: var(--white);">
+                            ${escapeHtml(c)}
+                          </span>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+
+              <!-- CV Document -->
+              ${cand.cv_url ? `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 14px 18px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="color: var(--orange-primary);">${svgIcon('fileText', '', 20)}</div>
+                    <div>
+                      <div style="font-size: 0.85rem; font-weight: 700; color: var(--white);">${escapeHtml(cand.cv_name || 'Candidate_Resume.pdf')}</div>
+                      <div style="font-size: 0.72rem; color: var(--text-dim);">Attached PDF Resume</div>
+                    </div>
+                  </div>
+                  <a href="${cand.cv_url}" target="_blank" download="${cand.cv_name || 'Resume.pdf'}" class="btn-secondary" style="font-size: 0.78rem; padding: 6px 12px;">
+                    ${svgIcon('download', '', 14)} Download CV
+                  </a>
+                </div>
+              ` : ''}
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.openCandidateTalentDossierModal = openCandidateTalentDossierModal;
 
 // ==========================================================================
 // Screen 6: Redesigned Inbox & Messaging Desk (Clean, Fixed UI/UX)
