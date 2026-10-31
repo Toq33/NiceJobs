@@ -2199,6 +2199,7 @@ class CandidateRegisterPayload(BaseModel):
     visibility: Optional[str] = "eligible_employers"
     open_to_work: Optional[bool] = True
     job_preferences: Optional[Any] = None
+    designation: Optional[str] = None
 
 @app.post("/api/auth/register-candidate")
 @app.post("/api/auth/candidate-signup")
@@ -2243,11 +2244,12 @@ def register_candidate(payload: CandidateRegisterPayload):
     computed_name = " ".join(name_parts).strip()
     full_name = computed_name if computed_name else (payload.name or "Candidate").strip()
     secure_password_hash = hash_password(payload.password)
+    cand_designation = (payload.designation or payload.current_position or "").strip()
 
     cursor.execute("""
-        INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active"))
+        INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo, designation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active", cand_designation))
 
     cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
     cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
@@ -2286,10 +2288,12 @@ def register_candidate(payload: CandidateRegisterPayload):
         exp_list = []
 
     bio_text = payload.bio or payload.summary or ""
-    headline_text = f"{payload.current_position} • {payload.department}" if payload.current_position and payload.department else (payload.current_position or payload.department or "Hospitality Specialist")
+    effective_role = cand_designation or payload.current_position or "Hospitality Specialist"
+    headline_text = f"{effective_role} • {payload.department}" if effective_role and payload.department else (effective_role or payload.department or "Hospitality Specialist")
 
     prefs_data = {
-        "target_roles": [payload.current_position or "Hospitality Associate"] if payload.current_position else [],
+        "designation": effective_role,
+        "target_roles": [effective_role] if effective_role else [],
         "locations": [payload.location] if payload.location else ["Dhaka"],
         "expected_salary": payload.expected_salary or "Negotiable",
         "work_type": payload.work_type or "Full-time",
@@ -2316,7 +2320,7 @@ def register_candidate(payload: CandidateRegisterPayload):
         headline_text,
         payload.location or "Dhaka, Bangladesh",
         bio_text,
-        payload.current_position or "Hospitality Specialist",
+        effective_role,
         payload.experience_years or 0,
         1 if payload.open_to_work else 0,
         payload.visibility or "eligible_employers",
@@ -2985,6 +2989,7 @@ def login(payload: LoginPayload):
                         profile_info[f] = json.loads(profile_info[f])
                     except Exception:
                         pass
+            profile_info["designation"] = user["designation"] or profile_info.get("current_position") or ""
 
     conn.close()
     return {
@@ -3038,6 +3043,7 @@ def get_profile(user_id: str = "user_rahim"):
         profile[field] = json.loads(profile[field]) if profile.get(field) else []
     profile["preferences"] = json.loads(profile["preferences"]) if profile.get("preferences") else {}
     profile["can_post_blog"] = bool(row["can_post_blog"] or row.get("user_role") == "admin")
+    profile["designation"] = (profile.get("designation") or profile.get("current_position") or "").strip()
 
     conn.close()
     return profile

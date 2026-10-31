@@ -308,7 +308,7 @@ def reset_demo_data():
         cursor.execute("DELETE FROM moderation_reports WHERE id = 'rep_101'")
 
         # Explicitly restore demo persona credentials and names
-        cursor.execute("UPDATE users SET name = 'Rahim Ahmed', email = 'rahim.ahmed@example.bd', phone = '+880 1711 234567', role = 'jobseeker', password = 'Password123!', is_demo = 1 WHERE id = 'user_rahim'")
+        cursor.execute("UPDATE users SET name = 'Rahim Ahmed', email = 'rahim.ahmed@example.bd', phone = '+880 1711 234567', role = 'jobseeker', password = 'Password123!', is_demo = 1, designation = 'Front Desk Supervisor' WHERE id = 'user_rahim'")
         cursor.execute("UPDATE users SET name = 'Fatima Khan', email = 'fatima.khan@radissondhaka.com', phone = '+880 1819 876543', role = 'recruiter', password = 'Password123!', is_demo = 1 WHERE id = 'user_fatima'")
         cursor.execute("UPDATE users SET name = 'Tariqul Islam (Trust & Safety)', email = 'admin@nicejobs.bd', phone = '+880 1912 334455', role = 'admin', password = 'Password123!', is_demo = 1 WHERE id = 'user_admin'")
 
@@ -797,6 +797,7 @@ def init_db():
     # Mark demo fixture rows with is_demo = 1
     try:
         cursor.execute("UPDATE users SET is_demo = 1 WHERE id IN ('user_rahim', 'user_fatima', 'user_admin')")
+        cursor.execute("UPDATE users SET designation = 'Front Desk Supervisor' WHERE id = 'user_rahim' AND (designation IS NULL OR designation = '')")
         cursor.execute("UPDATE businesses SET is_demo = 1 WHERE id IN ('biz_radisson', 'biz_intercon', 'biz_westin', 'biz_seagull', 'biz_sayeman', 'biz_grandsultan') OR id LIKE 'biz_1792337641%'")
         cursor.execute("UPDATE jobs SET is_demo = 1 WHERE business_id IN (SELECT id FROM businesses WHERE is_demo = 1) OR id LIKE 'job_%'")
         cursor.execute("UPDATE applications SET is_demo = 1 WHERE user_id = 'user_rahim' OR job_id IN (SELECT id FROM jobs WHERE is_demo = 1)")

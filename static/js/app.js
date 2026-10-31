@@ -350,6 +350,169 @@ const HOTEL_ALL_DEPARTMENTS = [
   "Executive Office / General Management"
 ];
 
+const HOTEL_DEPARTMENT_TITLES = {
+  "Front Office & Guest Services": [
+    "Front Office Manager",
+    "Assistant Front Office Manager",
+    "Duty Manager",
+    "Night Auditor",
+    "Front Desk Supervisor",
+    "Front Desk Agent",
+    "Guest Relations Executive",
+    "Guest Service Agent",
+    "Telephone Operator / PBX Agent"
+  ],
+  "Housekeeping & Laundry": [
+    "Executive Housekeeper",
+    "Assistant Executive Housekeeper",
+    "Housekeeping Supervisor",
+    "Housekeeping Attendant / Room Attendant",
+    "Public Area Supervisor",
+    "Public Area Attendant",
+    "Laundry Manager",
+    "Laundry Attendant / Presser",
+    "Linen & Uniform Attendant"
+  ],
+  "Food & Beverage Service": [
+    "Director of Food & Beverage",
+    "Food & Beverage Manager",
+    "Assistant F&B Manager",
+    "Restaurant Manager",
+    "Restaurant Supervisor",
+    "F&B Captain",
+    "Waiter / Waitress / Server",
+    "Bartender",
+    "Barista",
+    "Hostess / Welcomer",
+    "In-Room Dining Order Taker"
+  ],
+  "Culinary / Kitchen & Bakery": [
+    "Executive Chef",
+    "Executive Sous Chef",
+    "Sous Chef",
+    "Chef de Partie (CDP)",
+    "Demi Chef de Partie",
+    "Commis Chef",
+    "Pastry Chef",
+    "Baker",
+    "Specialty Chef",
+    "Kitchen Steward"
+  ],
+  "Events, Banquets & Catering": [
+    "Banquet Director",
+    "Banquet Manager",
+    "Banquet Captain",
+    "Catering Sales Manager",
+    "Event Coordinator",
+    "Banquet Server",
+    "Banquet Setup Attendant"
+  ],
+  "Sales, Marketing & PR": [
+    "Director of Sales & Marketing",
+    "Sales Manager",
+    "Assistant Sales Manager",
+    "Sales Executive",
+    "Marketing Executive",
+    "Public Relations (PR) Officer",
+    "Digital Marketing Specialist"
+  ],
+  "Engineering & Maintenance": [
+    "Chief Engineer",
+    "Assistant Chief Engineer",
+    "Duty Engineer",
+    "Electrician",
+    "HVAC & Refrigeration Technician",
+    "Plumber / Mechanical Technician",
+    "Maintenance Technician",
+    "Painter / Carpenter"
+  ],
+  "Finance, Accounts & Purchasing": [
+    "Financial Controller",
+    "Assistant Financial Controller",
+    "Senior Accountant",
+    "Accounts Officer",
+    "Income Auditor",
+    "Cost Controller",
+    "Purchasing Manager",
+    "Storekeeper / Receiving Officer"
+  ],
+  "Human Resources & Training": [
+    "Director of Human Resources",
+    "Human Resources Manager",
+    "Assistant HR Manager",
+    "HR Executive",
+    "Training & Development Manager",
+    "Talent Acquisition Specialist"
+  ],
+  "Security, Safety & Loss Prevention": [
+    "Chief Security Officer",
+    "Assistant Security Manager",
+    "Security Supervisor",
+    "Security Guard / Officer",
+    "CCTV Operator",
+    "Fire & Life Safety Officer"
+  ],
+  "Spa, Wellness & Fitness": [
+    "Spa & Wellness Manager",
+    "Spa Supervisor",
+    "Spa Therapist",
+    "Esthetician / Beautician",
+    "Fitness Instructor / Gym Trainer",
+    "Pool Attendant / Lifeguard"
+  ],
+  "Recreation, Water Sports & Eco-Tours": [
+    "Recreation Manager",
+    "Water Sports Instructor",
+    "Tour & Excursion Coordinator",
+    "Activity Coordinator",
+    "Lifeguard"
+  ],
+  "Concierge, Butler & VIP Services": [
+    "Chief Concierge",
+    "Concierge",
+    "Bell Captain",
+    "Bell Attendant / Porter",
+    "Head Butler / Butler",
+    "VIP Lounge Host / Hostess",
+    "Airport Representative"
+  ],
+  "Revenue Management & Reservations": [
+    "Director of Revenue Management",
+    "Revenue Manager",
+    "Revenue Analyst",
+    "Reservations Manager",
+    "Reservations Supervisor",
+    "Reservations Agent"
+  ],
+  "Information Technology (IT & Telecom)": [
+    "IT Manager",
+    "Assistant IT Manager",
+    "IT Support Specialist",
+    "Network Engineer",
+    "Hotel Systems Specialist (Opera / POS)"
+  ],
+  "Executive Office / General Management": [
+    "General Manager",
+    "Hotel Manager / Resident Manager",
+    "Executive Assistant Manager (EAM)",
+    "Director of Operations",
+    "Operations Manager",
+    "Executive Secretary / Assistant to GM"
+  ]
+};
+
+function getJobTitlesForDepartment(dept) {
+  if (!dept) return HOTEL_DEPARTMENT_TITLES["Front Office & Guest Services"];
+  if (HOTEL_DEPARTMENT_TITLES[dept]) return HOTEL_DEPARTMENT_TITLES[dept];
+  const dNorm = dept.toLowerCase().replace(/&amp;/g, '&').trim();
+  const match = Object.keys(HOTEL_DEPARTMENT_TITLES).find(k => {
+    const kNorm = k.toLowerCase().replace(/&amp;/g, '&').trim();
+    return kNorm === dNorm || kNorm.includes(dNorm) || dNorm.includes(kNorm);
+  });
+  if (match) return HOTEL_DEPARTMENT_TITLES[match];
+  return HOTEL_DEPARTMENT_TITLES["Front Office & Guest Services"];
+}
+
 const SEARCH_LOCATIONS = [
   { value: '', label: 'All Locations', shortLabel: 'All Locations' },
   { value: 'Dhaka', label: 'Dhaka', shortLabel: 'Dhaka' },
@@ -2231,6 +2394,7 @@ function updateNavigation() {
           <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}">
           <div class="user-badge-info">
             <span class="user-badge-name">${state.currentUser.name}</span>
+            ${(state.currentUser.designation || state.currentUser.title) ? `<span class="user-badge-role" style="font-size: 0.72rem; color: var(--text-dim); display: block;">${state.currentUser.designation || state.currentUser.title.split('•')[0].trim()}</span>` : ''}
           </div>
         </div>
         <button class="btn-secondary nav-signout-btn" style="font-size: 0.78rem; padding: 6px 14px;" onclick="switchRole('guest')" title="Sign Out">Sign Out</button>
@@ -2242,6 +2406,7 @@ function updateNavigation() {
         <img src="${state.currentUser.avatar || DEFAULT_AVATAR_PREVIEW}" alt="${state.currentUser.name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);">
         <div>
           <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${state.currentUser.name}</div>
+          ${(state.currentUser.designation || state.currentUser.title) ? `<div style="font-size: 0.75rem; color: var(--orange-primary); font-weight: 600;">${state.currentUser.designation || state.currentUser.title.split('•')[0].trim()}</div>` : ''}
           <div style="font-size: 0.78rem; color: var(--text-dim); font-weight: 500;">View Profile →</div>
         </div>
       </div>
@@ -3593,10 +3758,17 @@ async function renderProfileScreen(viewport) {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
-              ${profile.name_bangla ? `<span style="font-size: 1.15rem; color: #94a3b8; font-weight: 500;" title="Full Name in Bangla">(${escapeHtml(profile.name_bangla)})</span>` : ''}
+              ${profile.name_bangla ? `<span style="font-size: 1.15rem; color: #cbd5e1; font-weight: 500;" title="Full Name in Bangla">(${escapeHtml(profile.name_bangla)})</span>` : ''}
               <span class="verified-badge" title="Verified">✓ Verified</span>
             </div>
-            <p style="font-size: 1.05rem; color: #cbd5e1; margin-top: 4px; font-weight: 600;">${escapeHtml(profile.headline || 'Hospitality Specialist')}</p>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
+              ${(profile.designation || profile.current_position) ? `
+                <span class="profile-designation-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 800; padding: 4px 12px; border-radius: 6px; background: rgba(255, 107, 0, 0.14); border: 1.5px solid var(--orange-primary); color: var(--orange-primary); letter-spacing: 0.3px;">
+                  ${svgIcon('briefcase', '', 14)} ${escapeHtml(profile.designation || profile.current_position)}
+                </span>
+              ` : ''}
+              <span style="font-size: 1.02rem; color: #cbd5e1; font-weight: 600;">${escapeHtml(profile.headline || profile.designation || profile.current_position || 'Hospitality Specialist')}</span>
+            </div>
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 6px;">
               ${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || 'Dhaka, Bangladesh')} • ${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')} • ${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}
             </div>
@@ -3756,7 +3928,13 @@ async function renderProfileScreen(viewport) {
             <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0;">Job Preferences</h3>
             <button class="btn-icon" onclick="openEditJobPreferencesModal()" title="Edit Career Preferences">${svgIcon('edit', '', 14)}</button>
           </div>
-          <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
+            ${(profile.designation || profile.current_position) ? `
+              <div>${svgIcon('briefcase', '', 15)} <strong>Designation:</strong> <span style="color: var(--white); font-weight: 700;">${escapeHtml(profile.designation || profile.current_position)}</span></div>
+            ` : ''}
+            ${profile.department ? `
+              <div>${svgIcon('hotel', '', 15)} <strong>Department:</strong> <span>${escapeHtml(profile.department)}</span></div>
+            ` : ''}
             <div>${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> ${profile.preferences?.expected_salary || 'Negotiable'}</div>
             <div>${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> ${(profile.preferences?.locations || []).join(', ') || 'Dhaka'}</div>
             <div>${svgIcon('clock', '', 15)} <strong>Notice Period:</strong> ${profile.preferences?.notice_period || 'Immediate'}</div>
@@ -7353,14 +7531,21 @@ function renderSignupPage(viewport) {
                 <label class="auth-label">Career &amp; Job Preferences</label>
                 <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 8px;">
                   <div>
-                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Target Department</label>
-                    <select id="cand-pref-dept" class="auth-input">
-                      ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${(signupState.job_preferences?.department || 'Front Office') === d ? 'selected' : ''}>${d}</option>`).join('')}
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Department</label>
+                    <select id="cand-pref-dept" class="auth-input" onchange="handleCandidateDepartmentChange(this.value)">
+                      ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${(signupState.job_preferences?.department || 'Front Office & Guest Services') === d ? 'selected' : ''}>${d}</option>`).join('')}
                     </select>
                   </div>
                   <div>
-                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Desired Role / Title</label>
-                    <input type="text" id="cand-pref-role" class="auth-input" placeholder="Enter target job title or role" value="${signupState.job_preferences?.desired_role || ''}">
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Job Title (Designation)</label>
+                    <select id="cand-pref-role" class="auth-input" required>
+                      ${(() => {
+                        const curDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
+                        const titles = getJobTitlesForDepartment(curDept);
+                        const selectedRole = signupState.job_preferences?.desired_role || signupState.designation || titles[0];
+                        return titles.map(t => `<option value="${t}" ${selectedRole === t ? 'selected' : ''}>${t}</option>`).join('');
+                      })()}
+                    </select>
                   </div>
                 </div>
                 <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
@@ -8534,6 +8719,19 @@ function removeBizLogo() {
   renderSignupPage(document.getElementById('app-viewport'));
 }
 
+function handleCandidateDepartmentChange(dept) {
+  if (!signupState.job_preferences) signupState.job_preferences = {};
+  signupState.job_preferences.department = dept;
+  const roleSelect = document.getElementById('cand-pref-role');
+  if (roleSelect) {
+    const titles = getJobTitlesForDepartment(dept);
+    roleSelect.innerHTML = titles.map(t => `<option value="${t}">${t}</option>`).join('');
+    roleSelect.value = titles[0] || '';
+    signupState.job_preferences.desired_role = roleSelect.value;
+    signupState.designation = roleSelect.value;
+  }
+}
+
 function handleCvFileSelected(event) {
   const file = event.target?.files?.[0];
   if (!file) return;
@@ -9602,19 +9800,21 @@ async function nextSignupStage(targetStage) {
     signupState.bio = bio;
 
     // Collect job preferences
-    const prefDept = document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office';
-    const prefRole = (document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || 'Front Desk Associate';
-    const prefShift = document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
-    const prefSalary = (document.getElementById('pref-salary')?.value || '').trim() || signupState.job_preferences?.expected_salary || 'Negotiable';
-    const prefLoc = (document.getElementById('pref-loc')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Dhaka';
+    const prefDept = document.getElementById('cand-pref-dept')?.value || document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
+    const prefRole = (document.getElementById('cand-pref-role')?.value || document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || (getJobTitlesForDepartment(prefDept)[0] || 'Front Desk Agent');
+    const prefShift = document.getElementById('cand-pref-shift')?.value || document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
+    const prefSalary = (document.getElementById('cand-pref-salary')?.value || document.getElementById('pref-salary')?.value || '').trim() || signupState.job_preferences?.expected_salary || 'Negotiable';
+    const prefLoc = (document.getElementById('cand-pref-location')?.value || document.getElementById('pref-loc')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Dhaka';
 
     signupState.job_preferences = {
       department: prefDept,
       desired_role: prefRole,
+      designation: prefRole,
       shift: prefShift,
       expected_salary: prefSalary,
       preferred_location: prefLoc
     };
+    signupState.designation = prefRole;
 
     // Collect dynamic education rows
     const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
@@ -9815,7 +10015,8 @@ async function finalizeCandidateRegistration() {
       languages: signupState.languages,
       experience: signupState.experience,
       job_preferences: signupState.job_preferences,
-      current_position: signupState.job_preferences?.desired_role || signupState.experience[0]?.role || '',
+      current_position: signupState.job_preferences?.desired_role || signupState.designation || signupState.experience[0]?.role || '',
+      designation: signupState.job_preferences?.desired_role || signupState.designation || '',
       department: signupState.job_preferences?.department || ''
     };
 
@@ -9837,7 +10038,8 @@ async function finalizeCandidateRegistration() {
       email: payload.email,
       phone: payload.phone,
       role: 'jobseeker',
-      title: `${payload.current_position} • ${payload.department}`,
+      designation: payload.designation,
+      title: `${payload.designation || payload.current_position || 'Candidate'} • ${payload.department || 'Hospitality'}`,
       avatar: payload.avatar_url
     };
     state.currentRole = 'jobseeker';
@@ -10446,6 +10648,16 @@ function openAuthModal(defaultTab = 'signin', targetRole = null) {
 }
 
 
+function handleAuthModalCandDeptChange(dept) {
+  const roleSelect = document.getElementById('auth-modal-cand-role');
+  if (!roleSelect) return;
+  const titles = getJobTitlesForDepartment(dept);
+  roleSelect.innerHTML = titles.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (titles.length > 0) {
+    roleSelect.value = titles[0];
+  }
+}
+
 function switchAuthTab(tab) {
   const body = document.getElementById('auth-modal-body');
   if (!body) {
@@ -10545,20 +10757,15 @@ function switchAuthTab(tab) {
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Target / Current Role *</label>
-                <input type="text" name="current_position" placeholder="e.g. Front Desk Associate / Sous Chef" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Department *</label>
+                <select name="department" id="auth-modal-cand-dept" onchange="handleAuthModalCandDeptChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+                </select>
               </div>
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Primary Department *</label>
-                <select name="department" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="Front Office" selected>Front Office & Concierge</option>
-                  <option value="Food & Beverage">Food & Beverage Service</option>
-                  <option value="Culinary">Culinary / Kitchen</option>
-                  <option value="Housekeeping">Housekeeping & Laundry</option>
-                  <option value="Sales & Banquets">Sales, Events & Banquets</option>
-                  <option value="Engineering">Engineering & Facility</option>
-                  <option value="Human Resources">Human Resources & Training</option>
-                  <option value="Finance & Accounts">Finance & Accounts</option>
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Job Title (Designation) *</label>
+                <select name="current_position" id="auth-modal-cand-role" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${getJobTitlesForDepartment(HOTEL_ALL_DEPARTMENTS[0]).map(t => `<option value="${t}">${t}</option>`).join('')}
                 </select>
               </div>
             </div>
@@ -13748,10 +13955,16 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Professional Headline -->
-            <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Headline</label>
-              <input type="text" name="headline" value="${profile.headline || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            <!-- Designation (Job Title) & Professional Headline -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Designation (Job Title) *</label>
+                <input type="text" name="designation" value="${profile.designation || profile.current_position || ''}" required placeholder="e.g. Front Desk Agent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Headline *</label>
+                <input type="text" name="headline" value="${profile.headline || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
             </div>
 
             <!-- Bio / Summary -->
@@ -13917,6 +14130,8 @@ async function handleSaveComprehensiveProfile(event) {
     phone: newPhone,
     otp_code: otpCode,
     avatar_url: avatarUrl,
+    designation: (form.designation?.value || '').trim(),
+    current_position: (form.designation?.value || '').trim(),
     headline: form.headline.value,
     summary: form.summary.value,
     location: form.location.value,
@@ -13946,10 +14161,15 @@ async function handleSaveComprehensiveProfile(event) {
     if (state.currentUser) {
       state.currentUser.avatar = avatarUrl || DEFAULT_AVATAR_PREVIEW;
       state.currentUser.name = payload.name;
+      if (payload.designation) state.currentUser.designation = payload.designation;
     }
     if (state.profile) {
       state.profile.avatar_url = avatarUrl;
       state.profile.name = payload.name;
+      if (payload.designation) {
+        state.profile.designation = payload.designation;
+        state.profile.current_position = payload.designation;
+      }
     }
 
     updateNavigation();
@@ -14451,6 +14671,16 @@ const createJobState = {
   screeningQuestions: []
 };
 
+function handleJobPostDepartmentChange(dept) {
+  const titleSelect = document.getElementById('create-job-title');
+  if (!titleSelect) return;
+  const titles = getJobTitlesForDepartment(dept);
+  titleSelect.innerHTML = titles.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (titles.length > 0) {
+    titleSelect.value = titles[0];
+  }
+}
+
 function toggleJobSalaryMode(mode) {
   createJobState.isNegotiable = (mode === 'negotiable');
   const rangeBox = document.getElementById('salary-range-fields');
@@ -14849,20 +15079,22 @@ async function openCreateJobModal() {
 
         <form id="form-create-job" onsubmit="submitNewJob(event)">
           <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 18px;">
-            <!-- Title & All 16 Hotel Departments -->
-            <div style="display: grid; grid-template-columns: 1.4fr 1.2fr; gap: 14px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
-                  Job Title <span style="color: #f87171;">*</span>
-                </label>
-                <input type="text" name="title" required placeholder="e.g. Executive Sous Chef, Front Office Manager, Duty Engineer" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
+            <!-- Department & Job Title (Department selection filters Job Titles dropdown, single-select) -->
+            <div style="display: grid; grid-template-columns: 1.2fr 1.4fr; gap: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
                   Department <span style="color: #f87171;">*</span>
                 </label>
-                <select name="department" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <select name="department" id="create-job-department" required onchange="handleJobPostDepartmentChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
                   ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
+                  Job Title <span style="color: #f87171;">*</span>
+                </label>
+                <select name="title" id="create-job-title" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${getJobTitlesForDepartment(HOTEL_ALL_DEPARTMENTS[0]).map(t => `<option value="${t}">${t}</option>`).join('')}
                 </select>
               </div>
             </div>

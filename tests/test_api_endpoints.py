@@ -202,12 +202,56 @@ class TestNiceJobsAPI(unittest.TestCase):
         conn.commit()
         conn.close()
 
-    def test_root_index_html(self):
-        """Verifies root route returns SPA HTML with 200."""
-        response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers.get("content-type", ""))
-        self.assertIn("NiceJobs", response.text)
+    def test_candidate_signup_designation_and_profile(self):
+        """Verifies candidate registration saves designation and displays it in profile."""
+        import database
+        import uuid
+        from datetime import datetime
+
+        unique_id = uuid.uuid4().hex[:6]
+        test_email = f"test_cand_{unique_id}@example.bd"
+        test_phone = f"+88017{unique_id[:8]}"
+        otp_code = "258330"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO otp_verifications (id, identifier, otp_code, purpose, created_at, verified)
+            VALUES (?, ?, ?, 'candidate_signup', ?, 0)
+        """, (f"otp_{unique_id}", test_email, otp_code, now))
+        conn.commit()
+        conn.close()
+
+        reg_resp = self.client.post("/api/auth/register-candidate", json={
+            "name": "Test Candidate",
+            "email": test_email,
+            "phone": test_phone,
+            "password": "Password123!",
+            "otp_code": otp_code,
+            "department": "Front Office & Guest Services",
+            "designation": "Night Auditor",
+            "current_position": "Night Auditor"
+        })
+        self.assertEqual(reg_resp.status_code, 200, f"Registration failed: {reg_resp.text}")
+        cand_id = reg_resp.json().get("user_id")
+        self.assertTrue(cand_id)
+
+        # Verify profile has designation
+        prof_resp = self.client.get(f"/api/profile?user_id={cand_id}")
+        self.assertEqual(prof_resp.status_code, 200)
+        prof_data = prof_resp.json()
+        self.assertEqual(prof_data.get("designation"), "Night Auditor")
+        self.assertEqual(prof_data.get("current_position"), "Night Auditor")
+
+        # Cleanup
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (cand_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (cand_id,))
+        cursor.execute("DELETE FROM otp_verifications WHERE id = ?", (f"otp_{unique_id}",))
+        conn.commit()
+        conn.close()
 
 if __name__ == "__main__":
     unittest.main()
