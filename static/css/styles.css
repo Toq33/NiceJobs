@@ -3481,6 +3481,26 @@ select option {
   background: rgba(15, 23, 42, 0.85);
 }
 
+/* Date Input & White Calendar Picker Indicator */
+input[type="date"],
+.auth-input[type="date"] {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+.auth-input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1);
+  opacity: 0.9;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.auth-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
 .auth-password-wrapper {
   position: relative;
 }

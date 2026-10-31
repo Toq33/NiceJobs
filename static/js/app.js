@@ -7694,6 +7694,7 @@ function setSignupRole(role) {
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderSignupPage(viewport);
 }
+window.setSignupRole = setSignupRole;
 
 function selectBizRoute(route) {
   signupState.biz_route = route;
@@ -7702,6 +7703,9 @@ function selectBizRoute(route) {
   const viewport = document.getElementById('app-viewport');
   if (viewport) renderSignupPage(viewport);
 }
+window.selectBizRoute = selectBizRoute;
+window.startSignupFlow = startSignupFlow;
+window.startLoginFlow = startLoginFlow;
 
 // -------------------------------------------------------------
 // LOGIN PAGE RENDERING (Candidate vs Business 2-Part Flow)
