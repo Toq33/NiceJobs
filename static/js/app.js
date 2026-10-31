@@ -3768,7 +3768,6 @@ async function renderProfileScreen(viewport) {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
-              ${profile.name_bangla ? `<span style="font-size: 1.15rem; color: #cbd5e1; font-weight: 500;" title="Full Name in Bangla">(${escapeHtml(profile.name_bangla)})</span>` : ''}
               <span class="verified-badge" title="Verified">✓ Verified</span>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
@@ -7962,20 +7961,12 @@ function renderSignupPage(viewport) {
                 </div>
               </div>
 
-              <!-- Row 2: Full Name in Bangla & Personal Email Address -->
-              <div class="auth-field-grid">
-                <div class="auth-field">
-                  <label class="auth-label">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
-                  <input type="text" id="cand-name-bangla" class="auth-input" required 
-                    placeholder="বাংলায় পূর্ণ নাম লিখুন" 
-                    value="${escapeHtml(signupState.name_bangla || '')}">
-                </div>
-                <div class="auth-field">
-                  <label class="auth-label">Personal Email Address *</label>
-                  <input type="email" id="cand-email" class="auth-input" required 
-                    placeholder="Enter personal email address" 
-                    value="${escapeHtml(signupState.email || '')}">
-                </div>
+              <!-- Row 2: Personal Email Address -->
+              <div class="auth-field">
+                <label class="auth-label">Personal Email Address *</label>
+                <input type="email" id="cand-email" class="auth-input" required 
+                  placeholder="Enter personal email address" 
+                  value="${escapeHtml(signupState.email || '')}">
               </div>
 
               <!-- Row 2: DOB & NID/Passport Grid -->
@@ -10301,7 +10292,6 @@ async function nextSignupStage(targetStage) {
     const firstName = (document.getElementById('cand-first-name')?.value || '').trim();
     const middleName = (document.getElementById('cand-middle-name')?.value || '').trim();
     const lastName = (document.getElementById('cand-last-name')?.value || '').trim();
-    const nameBangla = (document.getElementById('cand-name-bangla')?.value || '').trim();
     const dob = document.getElementById('cand-dob')?.value || '';
     const nid = (document.getElementById('cand-nid')?.value || '').trim();
     const phoneRaw = document.getElementById('cand-phone')?.value || '';
@@ -10314,10 +10304,6 @@ async function nextSignupStage(targetStage) {
     }
     if (!lastName) {
       showToast('Please enter your Last Name', 'danger');
-      return;
-    }
-    if (!nameBangla) {
-      showToast('Please enter your Full Name in Bangla (বাংলায় পূর্ণ নাম)', 'danger');
       return;
     }
 
@@ -10367,7 +10353,6 @@ async function nextSignupStage(targetStage) {
     signupState.first_name = firstName;
     signupState.middle_name = middleName;
     signupState.last_name = lastName;
-    signupState.name_bangla = nameBangla;
     signupState.name = fullName;
     signupState.dob = dob;
     signupState.nid_passport = nid;
@@ -10578,7 +10563,6 @@ async function finalizeCandidateRegistration() {
       first_name: signupState.first_name || '',
       middle_name: signupState.middle_name || '',
       last_name: signupState.last_name || '',
-      name_bangla: signupState.name_bangla || '',
       email: signupState.email,
       phone: signupState.phone,
       phone_secondary: signupState.phone_secondary || null,
@@ -10615,7 +10599,6 @@ async function finalizeCandidateRegistration() {
       first_name: data.first_name || signupState.first_name || '',
       middle_name: data.middle_name || signupState.middle_name || '',
       last_name: data.last_name || signupState.last_name || '',
-      name_bangla: data.name_bangla || signupState.name_bangla || '',
       email: payload.email,
       phone: payload.phone,
       role: 'jobseeker',
@@ -11305,10 +11288,6 @@ function switchAuthTab(tab) {
                 <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Last Name *</label>
                 <input type="text" name="last_name" required placeholder="Last Name" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
-            </div>
-            <div>
-              <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
-              <input type="text" name="name_bangla" required placeholder="বাংলায় আপনার নাম" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
@@ -12211,7 +12190,6 @@ async function handleCandidateSignup(event) {
   const firstName = (form.first_name?.value || '').trim();
   const middleName = (form.middle_name?.value || '').trim();
   const lastName = (form.last_name?.value || '').trim();
-  const nameBangla = (form.name_bangla?.value || '').trim();
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
 
   const payload = {
@@ -12219,7 +12197,6 @@ async function handleCandidateSignup(event) {
     first_name: firstName,
     middle_name: middleName,
     last_name: lastName,
-    name_bangla: nameBangla,
     email: form.email.value,
     phone: form.phone.value,
     password: form.password.value,
@@ -14495,15 +14472,9 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Full Name in Bangla (বাংলায় পূর্ণ নাম) *</label>
-                <input type="text" name="name_bangla" value="${profile.name_bangla || ''}" placeholder="বাংলায় নাম" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Experience (Years)</label>
-                <input type="number" name="experience_years" value="${profile.experience_years || 5}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
+            <div>
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Experience (Years)</label>
+              <input type="number" name="experience_years" value="${profile.experience_years || 5}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
 
             <!-- Contact Credentials -->
@@ -14697,7 +14668,6 @@ async function handleSaveComprehensiveProfile(event) {
   const firstName = (form.first_name?.value || '').trim();
   const middleName = (form.middle_name?.value || '').trim();
   const lastName = (form.last_name?.value || '').trim();
-  const nameBangla = (form.name_bangla?.value || '').trim();
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
 
   const payload = {
@@ -14706,7 +14676,6 @@ async function handleSaveComprehensiveProfile(event) {
     first_name: firstName,
     middle_name: middleName,
     last_name: lastName,
-    name_bangla: nameBangla,
     email: newEmail,
     phone: newPhone,
     otp_code: otpCode,
