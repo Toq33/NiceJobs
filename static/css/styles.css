@@ -7668,6 +7668,119 @@ body.screen-inbox .main-wrapper {
   font-size: 0.82rem;
 }
 
+/* Hospitality Experience Toggle & Totals Widget */
+.exp-toggle-group {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.exp-toggle-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.exp-toggle-btn:hover {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.exp-toggle-btn.active {
+  background: rgba(255, 107, 0, 0.15);
+  border-color: rgba(255, 107, 0, 0.4);
+  color: #ff9d42;
+  box-shadow: 0 2px 8px rgba(255, 107, 0, 0.15);
+}
+
+.exp-totals-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: rgba(255, 107, 0, 0.07);
+  border: 1px solid rgba(255, 107, 0, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+}
+
+/* Anonymous Candidate Cards */
+.talent-card-anonymous-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 107, 0, 0.12);
+  border: 1.5px solid rgba(255, 107, 0, 0.35);
+  color: var(--orange-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.talent-card-dept-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.talent-card-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 14px 0;
+}
+
+.talent-stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.talent-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.talent-stat-value {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--white);
+}
+
+.talent-stat-value.salary-highlight {
+  color: #34d399;
+}
+
 /* Dossier Modal styling */
 .talent-dossier-grid {
   display: grid;

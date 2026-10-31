@@ -3643,9 +3643,65 @@ def get_applications(
     conn.close()
     return results
 
+def compute_candidate_experience_breakdown(exp_list, cand_dept=None, default_exp_years=0):
+    """
+    Computes years of experience in hotel industry and in the specific department separately.
+    """
+    hotel_years = 0.0
+    dept_years = 0.0
+
+    if isinstance(exp_list, list) and len(exp_list) > 0:
+        for entry in exp_list:
+            if not isinstance(entry, dict):
+                continue
+            is_hosp = entry.get("is_hospitality", True)
+            if is_hosp is False or str(is_hosp).lower() in ("false", "0", "no"):
+                continue
+
+            yrs = 0.0
+            if "worked_years" in entry and entry["worked_years"] not in (None, ""):
+                try:
+                    yrs = float(str(entry["worked_years"]).replace("yrs", "").replace("years", "").strip())
+                except (ValueError, TypeError):
+                    yrs = 0.0
+            elif "period" in entry and entry["period"]:
+                period_str = str(entry["period"])
+                years_found = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", period_str)]
+                if len(years_found) >= 2:
+                    yrs = max(0.5, float(years_found[1] - years_found[0]))
+                elif len(years_found) == 1 and "present" in period_str.lower():
+                    yrs = max(0.5, float(2026 - years_found[0]))
+                else:
+                    num_match = re.search(r"(\d+(\.\d+)?)", period_str)
+                    if num_match:
+                        yrs = float(num_match.group(1))
+
+            hotel_years += yrs
+
+            entry_dept = (entry.get("department") or "").strip().lower()
+            target_dept = (cand_dept or "").strip().lower()
+            if entry_dept:
+                if target_dept and (entry_dept in target_dept or target_dept in entry_dept):
+                    dept_years += yrs
+                elif not target_dept:
+                    dept_years += yrs
+            else:
+                dept_years += yrs
+
+    if hotel_years == 0.0 and default_exp_years:
+        try:
+            default_val = float(default_exp_years)
+            hotel_years = default_val
+            dept_years = default_val
+        except (ValueError, TypeError):
+            pass
+
+    return round(hotel_years, 1), round(dept_years, 1)
+
 @app.get("/api/candidates")
 def get_candidates(
     q: Optional[str] = None,
+    id: Optional[str] = None,
     department: Optional[str] = None,
     location: Optional[str] = None,
     open_to_work: Optional[bool] = True
@@ -3667,6 +3723,10 @@ def get_candidates(
     if is_demo_hidden():
         query += " AND (u.is_demo = 0 OR u.is_demo IS NULL)"
 
+    if id:
+        query += " AND u.id = ?"
+        params.append(id)
+
     if open_to_work is not None:
         query += " AND p.open_to_work = ?"
         params.append(1 if open_to_work else 0)
@@ -3681,18 +3741,17 @@ def get_candidates(
         like_dept = f"%{department}%"
         params.extend([like_dept, like_dept, like_dept, like_dept])
 
+    # Rule: when hotels search for candidates, they CANNOT search by candidate name.
+    # Search strictly by designation and job title.
     if q:
         like_q = f"%{q}%"
         query += """ AND (
-            u.name LIKE ? OR 
             u.designation LIKE ? OR 
             p.headline LIKE ? OR 
             p.current_position LIKE ? OR 
-            p.skills LIKE ? OR 
-            p.summary LIKE ? OR
             p.preferences LIKE ?
         )"""
-        params.extend([like_q, like_q, like_q, like_q, like_q, like_q, like_q])
+        params.extend([like_q, like_q, like_q, like_q])
 
     query += " ORDER BY u.created_at DESC"
     cursor.execute(query, params)
@@ -3708,6 +3767,38 @@ def get_candidates(
                     d[json_field] = json.loads(d[json_field])
                 except Exception:
                     pass
+
+        # Calculate department and hotel industry experience
+        cand_prefs = d.get('preferences') if isinstance(d.get('preferences'), dict) else {}
+        cand_dept = cand_prefs.get('department') or ''
+        if not cand_dept and d.get('headline') and '•' in d.get('headline'):
+            cand_dept = d.get('headline').split('•')[-1].strip()
+
+        hotel_exp, dept_exp = compute_candidate_experience_breakdown(
+            d.get('experience'),
+            cand_dept=cand_dept,
+            default_exp_years=d.get('experience_years') or 0
+        )
+        d['experience_years_hotel'] = hotel_exp
+        d['experience_years_department'] = dept_exp
+        d['department'] = cand_dept or 'Hospitality'
+
+        # Extract salary preference
+        sal_pref = cand_prefs.get('expected_salary') or 'Negotiable'
+        d['salary_preference'] = sal_pref
+
+        # Anonymize candidate info for hotel privacy:
+        # Rule: hotels cannot view name or contact details.
+        # Just their salary preference and years of experience in the department and in hotel industry separately.
+        d['name'] = 'Candidate'
+        d['email'] = None
+        d['phone'] = None
+        d['avatar_url'] = None
+        d['dob'] = None
+        d['nid_passport'] = None
+        d['cv_url'] = None
+        d['cv_name'] = None
+
         candidates.append(d)
 
     conn.close()

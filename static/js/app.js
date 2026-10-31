@@ -1019,12 +1019,19 @@ function captureCurrentSignupInputs() {
   // Dynamic Experience cards
   const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
   if (expCards.length > 0) {
-    signupState.experience = Array.from(expCards).map(card => ({
-      company: card.querySelector('.exp-comp')?.value || '',
-      role: card.querySelector('.exp-role')?.value || '',
-      period: card.querySelector('.exp-period')?.value || '',
-      skills_acquired: card.querySelector('.exp-skills')?.value || ''
-    }));
+    signupState.experience = Array.from(expCards).map(card => {
+      const isHosp = card.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
+      const dept = isHosp ? (card.querySelector('.exp-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services') : '';
+      const workedYears = card.querySelector('.exp-years')?.value || '';
+      return {
+        company: card.querySelector('.exp-comp')?.value || '',
+        role: card.querySelector('.exp-role')?.value || '',
+        is_hospitality: isHosp,
+        department: dept,
+        worked_years: workedYears,
+        skills_acquired: card.querySelector('.exp-skills')?.value || ''
+      };
+    });
   }
 
   // Step 3 Passwords
@@ -4482,7 +4489,7 @@ async function renderATSBoard(viewport) {
         <div class="talent-search-input-wrap">
           <span class="talent-search-icon">${svgIcon('search', '', 16)}</span>
           <input type="text" class="talent-search-input" id="talent-search-input" 
-                 placeholder="Search candidate by name, designation, or skill (e.g. Executive Chef, Opera PMS)..."
+                 placeholder="Search candidates by designation or job title (e.g. Executive Chef, Front Desk Officer)..."
                  value="${escapeHtml(state.talentSearch?.query || '')}"
                  oninput="onTalentSearchInput(event)">
         </div>
@@ -4673,7 +4680,7 @@ function renderTalentCandidatesGrid(candidates, businessId) {
         </div>
         <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin-bottom: 6px;">No Open Candidates Found</h3>
         <p style="color: var(--text-muted); font-size: 0.88rem; max-width: 420px; margin: 0 auto 16px;">
-          Try adjusting your search query, department, or location filter to discover available talent.
+          Search candidates exclusively by designation or job title to discover hospitality talent.
         </p>
         <button class="btn-secondary" onclick="resetTalentFilters()">Reset Filters</button>
       </div>
@@ -4683,54 +4690,53 @@ function renderTalentCandidatesGrid(candidates, businessId) {
   return `
     <div class="talent-pool-grid">
       ${candidates.map(cand => {
-        const skills = Array.isArray(cand.skills) ? cand.skills : [];
-        const expYears = cand.experience_years ? `${cand.experience_years} Yrs Exp` : 'Hospitality Pro';
-        const location = cand.location || 'Bangladesh';
-        const currentPos = cand.current_position || cand.headline || cand.designation || 'Hospitality Professional';
-        const summary = cand.summary || cand.headline || 'Verified hospitality talent open to luxury hotel & resort opportunities across Bangladesh.';
-        
+        const designation = cand.designation || cand.current_position || cand.headline || 'Hospitality Professional';
+        const department = cand.department || cand.preferences?.department || 'Hospitality Department';
+        const salaryPref = cand.salary_preference || cand.preferences?.expected_salary || 'Negotiable';
+        const deptExp = cand.experience_years_department != null ? cand.experience_years_department : 0;
+        const hotelExp = cand.experience_years_hotel != null ? cand.experience_years_hotel : (cand.experience_years || 0);
+
         return `
           <div class="talent-card" id="talent-card-${cand.id}">
             <div>
               <div class="talent-card-header">
-                <img src="${cand.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(cand.name)}" class="talent-card-avatar" onerror="this.src='${DEFAULT_AVATAR_PREVIEW}'">
+                <div class="talent-card-anonymous-avatar">
+                  ${svgIcon('briefcase', '', 22)}
+                </div>
                 <div class="talent-card-info">
-                  <div class="talent-card-name">${escapeHtml(cand.name)}</div>
-                  <div class="talent-card-title">${escapeHtml(currentPos)}</div>
-                  <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
+                  <div class="talent-card-name" title="${escapeHtml(designation)}" style="color: var(--white); font-size: 1.05rem; font-weight: 800;">
+                    ${escapeHtml(designation)}
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
+                    <span class="talent-card-dept-badge">${escapeHtml(department)}</span>
+                    <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="talent-card-meta">
-                <span class="talent-card-meta-item">
-                  ${svgIcon('mapPin', '', 13)} ${escapeHtml(location.split(',')[0].trim())}
-                </span>
-                <span class="talent-card-meta-item">
-                  ${svgIcon('award', '', 13)} ${escapeHtml(expYears)}
-                </span>
-                ${cand.preferences?.department ? `
-                  <span class="talent-card-meta-item">
-                    ${svgIcon('briefcase', '', 13)} ${escapeHtml(cand.preferences.department.split('/')[0].trim())}
-                  </span>
-                ` : ''}
-              </div>
-
-              <p class="talent-card-summary">${escapeHtml(summary)}</p>
-
-              ${skills.length > 0 ? `
-                <div class="talent-card-skills">
-                  ${skills.slice(0, 4).map(s => `<span class="talent-skill-chip">${escapeHtml(s)}</span>`).join('')}
-                  ${skills.length > 4 ? `<span class="talent-skill-chip" style="background: rgba(255, 107, 0, 0.1); color: var(--orange-primary); border-color: rgba(255, 107, 0, 0.25);">+${skills.length - 4} more</span>` : ''}
+              <!-- Anonymized Discovery Details: Salary Preference & Experience Breakdown -->
+              <div class="talent-card-stats-grid">
+                <div class="talent-stat-box">
+                  <span class="talent-stat-label">Salary Preference</span>
+                  <span class="talent-stat-value salary-highlight">${escapeHtml(salaryPref)}</span>
                 </div>
-              ` : ''}
+                <div class="talent-stat-box">
+                  <span class="talent-stat-label">Years in Dept</span>
+                  <span class="talent-stat-value">${deptExp} Yrs</span>
+                </div>
+                <div class="talent-stat-box">
+                  <span class="talent-stat-label">Hotel Industry Exp</span>
+                  <span class="talent-stat-value">${hotelExp} Yrs</span>
+                </div>
+              </div>
             </div>
 
             <div class="talent-card-actions">
               <button class="btn-secondary" onclick="openCandidateTalentDossierModal('${cand.id}')">
-                ${svgIcon('eye', '', 13)} View Dossier
+                ${svgIcon('eye', '', 13)} View Details
               </button>
               <button class="btn-primary" onclick="openConversationForJob(null, '${bId}', '${cand.id}')">
-                ${svgIcon('messageCircle', '', 13)} Message
+                ${svgIcon('messageCircle', '', 13)} Message Candidate
               </button>
             </div>
           </div>
@@ -4769,16 +4775,16 @@ async function openCandidateTalentDossierModal(candidateId) {
       <div class="modal-dialog" style="max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(10, 17, 40, 0.98); display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; color: #34d399;">
-              ${svgIcon('candidate', '', 20)}
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.35); display: flex; align-items: center; justify-content: center; color: var(--orange-primary);">
+              ${svgIcon('briefcase', '', 20)}
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <h2 style="font-size: 1.28rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(cand.name)}</h2>
+                <h2 style="font-size: 1.2rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(cand.designation || cand.current_position || cand.headline || 'Hospitality Professional')}</h2>
                 <span class="open-to-work-badge"><span class="dot-pulse"></span> Open to Work</span>
               </div>
               <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
-                ${escapeHtml(cand.headline || cand.current_position || cand.designation || 'Hospitality Professional')}
+                ${escapeHtml(cand.department || cand.preferences?.department || 'Hospitality Department')}
               </div>
             </div>
           </div>
@@ -4791,45 +4797,30 @@ async function openCandidateTalentDossierModal(candidateId) {
             <!-- Left Column: Identity & Contact Card -->
             <div style="display: flex; flex-direction: column; gap: 16px;">
               <div style="text-align: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 20px;">
-                <img src="${cand.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(cand.name)}" style="width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255, 107, 0, 0.4); margin: 0 auto 12px; display: block;" onerror="this.src='${DEFAULT_AVATAR_PREVIEW}'">
-                <div style="font-weight: 800; font-size: 1.1rem; color: var(--white);">${escapeHtml(cand.name)}</div>
-                <div style="font-size: 0.8rem; color: var(--orange-primary); font-weight: 700; margin-top: 2px;">${escapeHtml(cand.current_position || cand.designation || '')}</div>
-                ${cand.experience_years ? `<div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 4px;">${cand.experience_years} Years Hotel Industry Experience</div>` : ''}
+                <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 107, 0, 0.12); border: 2px solid rgba(255, 107, 0, 0.35); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--orange-primary);">
+                  ${svgIcon('briefcase', '', 30)}
+                </div>
+                <div style="font-weight: 800; font-size: 1.05rem; color: var(--white);">${escapeHtml(cand.designation || cand.current_position || cand.headline || 'Hospitality Professional')}</div>
+                <div style="font-size: 0.8rem; color: var(--orange-primary); font-weight: 700; margin-top: 2px;">${escapeHtml(cand.department || cand.preferences?.department || 'Hospitality Department')}</div>
               </div>
 
-              <!-- Contact & Details -->
+              <!-- Candidate Professional Metrics -->
               <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); padding: 18px;">
-                <h4 style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 12px;">Contact Information</h4>
-                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.84rem;">
-                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted);">
-                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('phone', '', 14)}</span>
-                    <span style="color: var(--white);">${escapeHtml(cand.phone || 'Available on request')}</span>
+                <h4 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 12px;">Candidate Profile Metrics</h4>
+                <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.84rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                    <span style="color: var(--text-muted);">Salary Preference:</span>
+                    <strong style="color: #34d399; font-weight: 800;">${escapeHtml(cand.salary_preference || cand.preferences?.expected_salary || 'Negotiable')}</strong>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); word-break: break-all;">
-                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('mail', '', 14)}</span>
-                    <span style="color: var(--white);">${escapeHtml(cand.email || '')}</span>
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                    <span style="color: var(--text-muted);">Years in Department:</span>
+                    <strong style="color: var(--white); font-weight: 800;">${cand.experience_years_department != null ? cand.experience_years_department : 0} Years</strong>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted);">
-                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('mapPin', '', 14)}</span>
-                    <span style="color: var(--white);">${escapeHtml(cand.location || 'Bangladesh')}</span>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-muted);">Hotel Industry Exp:</span>
+                    <strong style="color: #ff9d42; font-weight: 800;">${cand.experience_years_hotel != null ? cand.experience_years_hotel : (cand.experience_years || 0)} Years</strong>
                   </div>
                 </div>
-
-                ${cand.preferences ? `
-                  <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
-                    <h4 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px;">Preferences</h4>
-                    ${cand.preferences.expected_salary ? `
-                      <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 4px;">
-                        Expected: <strong style="color: #34d399;">${escapeHtml(cand.preferences.expected_salary)}</strong>
-                      </div>
-                    ` : ''}
-                    ${cand.preferences.willing_to_relocate ? `
-                      <div style="font-size: 0.78rem; color: var(--text-dim);">
-                        Relocation: <strong style="color: var(--white);">Willing to Relocate</strong>
-                      </div>
-                    ` : ''}
-                  </div>
-                ` : ''}
               </div>
 
               <!-- Quick Actions -->
@@ -8532,46 +8523,7 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <div class="dynamic-list-container" id="exp-dynamic-container">
-                  ${signupState.experience.length === 0 ? `
-                    <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
-                      No previous hospitality experience listed yet. Click below to add experience (or leave empty if you are a fresher).
-                    </div>
-                  ` : signupState.experience.map((exp, idx) => `
-                    <div class="dynamic-entry-card">
-                      <div class="dynamic-entry-header">
-                        <span class="dynamic-entry-title">Experience #${idx + 1}</span>
-                        ${signupState.experience.length > 1 ? `
-                          <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
-                        ` : ''}
-                      </div>
-
-                      <div class="auth-field-grid">
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
-                          <input type="text" class="auth-input exp-comp" placeholder="Enter hotel, resort, or organization name" 
-                            value="${exp.company || ''}" required>
-                        </div>
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
-                          <input type="text" class="auth-input exp-role" placeholder="Enter your job title or designation" 
-                            value="${exp.role || ''}" required>
-                        </div>
-                      </div>
-
-                      <div class="auth-field-grid">
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">Years of Service / Period</label>
-                          <input type="text" class="auth-input exp-period" placeholder="Service period (2022 - 2024)" 
-                            value="${exp.period || ''}">
-                        </div>
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
-                          <input type="text" class="auth-input exp-skills" placeholder="Key responsibilities or systems used" 
-                            value="${exp.skills_acquired || ''}">
-                        </div>
-                      </div>
-                    </div>
-                  `).join('')}
+                  ${renderExperienceCardsHTML()}
                 </div>
 
                 <button type="button" class="dynamic-add-btn" onclick="addExperienceEntry()">
@@ -9724,64 +9676,224 @@ function removeEducationEntry(idx) {
 }
 window.removeEducationEntry = removeEducationEntry;
 
-// Experience dynamic in-place DOM render
-function renderExperienceCardsDOM() {
-  const container = document.getElementById('exp-dynamic-container');
-  if (!container) return;
+// Experience calculations and dynamic in-place DOM render
+function getDepartmentTotalExperience(dept, isHosp) {
+  if (!signupState.experience || !Array.isArray(signupState.experience)) return '0';
+  let total = 0;
+  const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
+  signupState.experience.forEach(e => {
+    if (isHosp && e.is_hospitality !== false) {
+      const eDept = e.department || defaultDept;
+      if (eDept === dept) {
+        const y = parseFloat(e.worked_years) || 0;
+        total += y;
+      }
+    }
+  });
+  return (Math.round(total * 10) / 10).toString();
+}
+window.getDepartmentTotalExperience = getDepartmentTotalExperience;
+
+function getTotalHospitalityExperience() {
+  if (!signupState.experience || !Array.isArray(signupState.experience)) return '0';
+  let total = 0;
+  signupState.experience.forEach(e => {
+    if (e.is_hospitality !== false) {
+      const y = parseFloat(e.worked_years) || 0;
+      total += y;
+    }
+  });
+  return (Math.round(total * 10) / 10).toString();
+}
+window.getTotalHospitalityExperience = getTotalHospitalityExperience;
+
+function updateExperienceLiveDisplays() {
+  const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
+  const totalHotelEl = document.getElementById('total-hotel-exp-stat');
+  if (totalHotelEl) totalHotelEl.textContent = getTotalHospitalityExperience();
+  const primaryDeptEl = document.getElementById('primary-dept-exp-stat');
+  if (primaryDeptEl) primaryDeptEl.textContent = getDepartmentTotalExperience(defaultDept, true);
+
+  if (signupState.experience && Array.isArray(signupState.experience)) {
+    signupState.experience.forEach((exp, idx) => {
+      const statEl = document.getElementById(`exp-dept-live-stat-${idx}`);
+      if (statEl) {
+        const numSpan = statEl.querySelector('.dept-total-num');
+        const isHosp = exp.is_hospitality !== false;
+        const curDept = exp.department || defaultDept;
+        if (numSpan) numSpan.textContent = getDepartmentTotalExperience(curDept, isHosp);
+      }
+    });
+  }
+}
+window.updateExperienceLiveDisplays = updateExperienceLiveDisplays;
+
+function renderExperienceCardsHTML() {
   if (!signupState.experience || signupState.experience.length === 0) {
-    container.innerHTML = `
+    return `
       <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
         No previous hospitality experience listed yet. Click below to add experience (or leave empty if you are a fresher).
       </div>
     `;
-    return;
   }
-  container.innerHTML = signupState.experience.map((exp, idx) => `
-    <div class="dynamic-entry-card">
-      <div class="dynamic-entry-header">
-        <span class="dynamic-entry-title">Experience #${idx + 1}</span>
-        ${signupState.experience.length > 1 ? `
-          <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
-        ` : ''}
-      </div>
 
-      <div class="auth-field-grid">
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
-          <input type="text" class="auth-input exp-comp" placeholder="Enter hotel, resort, or organization name" 
-            value="${escapeHtml(exp.company || '')}">
-        </div>
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
-          <input type="text" class="auth-input exp-role" placeholder="Enter your job title or designation" 
-            value="${escapeHtml(exp.role || '')}">
-        </div>
-      </div>
+  const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
+  const totalHotelExp = getTotalHospitalityExperience();
+  const primaryDeptExp = getDepartmentTotalExperience(defaultDept, true);
 
-      <div class="auth-field-grid">
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">Years of Service / Period</label>
-          <input type="text" class="auth-input exp-period" placeholder="Service period (2022 - 2024)" 
-            value="${escapeHtml(exp.period || '')}">
-        </div>
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
-          <input type="text" class="auth-input exp-skills" placeholder="Key responsibilities or systems used" 
-            value="${escapeHtml(exp.skills_acquired || '')}">
-        </div>
+  return `
+    <div class="exp-totals-summary-bar" id="exp-totals-summary-bar">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--orange-primary);">${svgIcon('award', '', 15)}</span>
+        <span style="color: var(--white); font-weight: 700;">Hotel Industry Exp: <strong id="total-hotel-exp-stat" style="color: #ff9d42;">${totalHotelExp}</strong> yrs</span>
+      </div>
+      <div style="font-size: 0.78rem; color: var(--text-dim);">
+        In <strong style="color: var(--white);">${escapeHtml(defaultDept)}</strong>: <strong id="primary-dept-exp-stat" style="color: #34d399;">${primaryDeptExp}</strong> yrs
       </div>
     </div>
-  `).join('');
+    ${signupState.experience.map((exp, idx) => {
+      const isHosp = exp.is_hospitality !== false;
+      const currentDept = exp.department || defaultDept;
+      const deptTotal = getDepartmentTotalExperience(currentDept, isHosp);
+
+      return `
+        <div class="dynamic-entry-card" data-exp-index="${idx}">
+          <div class="dynamic-entry-header">
+            <span class="dynamic-entry-title">Experience #${idx + 1}</span>
+            ${signupState.experience.length > 1 ? `
+              <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
+            ` : ''}
+          </div>
+
+          <div class="auth-field-grid">
+            <div class="auth-field">
+              <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
+              <input type="text" class="auth-input exp-comp" placeholder="Enter hotel, resort, or organization name" 
+                value="${escapeHtml(exp.company || '')}">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
+              <input type="text" class="auth-input exp-role" placeholder="Enter your job title or designation" 
+                value="${escapeHtml(exp.role || '')}">
+            </div>
+          </div>
+
+          <!-- Hospitality Experience Toggle Button -->
+          <div class="auth-field" style="margin-top: 8px; margin-bottom: 8px;">
+            <label class="auth-label" style="font-size: 0.76rem; display: flex; justify-content: space-between; align-items: center;">
+              <span>Hospitality Experience or not</span>
+              <span style="font-size: 0.72rem; color: ${isHosp ? '#ff9d42' : 'var(--text-dim)'}; font-weight: 600;">
+                ${isHosp ? '✓ Hospitality Sector' : 'Other Industry'}
+              </span>
+            </label>
+            <div class="exp-toggle-group">
+              <button type="button" 
+                      class="exp-toggle-btn ${isHosp ? 'active' : ''}" 
+                      data-hospitality="true"
+                      onclick="setExperienceHospitality(${idx}, true)">
+                ${svgIcon('check', '', 12)} Hospitality Experience
+              </button>
+              <button type="button" 
+                      class="exp-toggle-btn ${!isHosp ? 'active' : ''}" 
+                      data-hospitality="false"
+                      onclick="setExperienceHospitality(${idx}, false)">
+                Non-Hospitality / Other
+              </button>
+            </div>
+          </div>
+
+          <div class="auth-field-grid">
+            ${isHosp ? `
+              <div class="auth-field exp-dept-field" id="exp-dept-wrapper-${idx}">
+                <label class="auth-label" style="font-size: 0.76rem;">Hospitality Department</label>
+                <select class="auth-input exp-dept" onchange="onExperienceDeptChange(${idx}, this.value)">
+                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+                </select>
+              </div>
+            ` : ''}
+
+            <div class="auth-field" style="${!isHosp ? 'grid-column: 1 / -1;' : ''}">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="auth-label" style="font-size: 0.76rem; margin: 0;">Worked for (years)</label>
+                ${isHosp ? `
+                  <span class="exp-dept-live-stat" id="exp-dept-live-stat-${idx}" style="font-size: 0.72rem; color: #ff9d42; font-weight: 700;">
+                    Total in dept: <span class="dept-total-num">${deptTotal}</span> yrs
+                  </span>
+                ` : ''}
+              </div>
+              <input type="text" 
+                     inputmode="decimal" 
+                     class="auth-input exp-years" 
+                     placeholder="e.g. 2.5 (numbers only)" 
+                     value="${escapeHtml(exp.worked_years || '')}"
+                     oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\\..*)\\./g, '$1'); onExperienceYearsInput(${idx}, this.value);">
+            </div>
+          </div>
+
+          <div class="auth-field" style="margin-top: 8px;">
+            <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
+            <input type="text" class="auth-input exp-skills" placeholder="Key responsibilities, systems used, or achievements" 
+              value="${escapeHtml(exp.skills_acquired || '')}">
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+window.renderExperienceCardsHTML = renderExperienceCardsHTML;
+
+function renderExperienceCardsDOM() {
+  const container = document.getElementById('exp-dynamic-container');
+  if (!container) return;
+  container.innerHTML = renderExperienceCardsHTML();
+  updateExperienceLiveDisplays();
 }
 window.renderExperienceCardsDOM = renderExperienceCardsDOM;
+
+function setExperienceHospitality(idx, isHosp) {
+  captureCurrentSignupInputs();
+  if (!signupState.experience) signupState.experience = [];
+  if (signupState.experience[idx]) {
+    signupState.experience[idx].is_hospitality = isHosp;
+    if (isHosp && !signupState.experience[idx].department) {
+      signupState.experience[idx].department = signupState.job_preferences?.department || 'Front Office & Guest Services';
+    }
+    renderExperienceCardsDOM();
+    saveSignupProgress();
+  }
+}
+window.setExperienceHospitality = setExperienceHospitality;
+
+function onExperienceDeptChange(idx, val) {
+  if (!signupState.experience) signupState.experience = [];
+  if (signupState.experience[idx]) {
+    signupState.experience[idx].department = val;
+    updateExperienceLiveDisplays();
+    saveSignupProgress();
+  }
+}
+window.onExperienceDeptChange = onExperienceDeptChange;
+
+function onExperienceYearsInput(idx, val) {
+  if (!signupState.experience) signupState.experience = [];
+  if (signupState.experience[idx]) {
+    signupState.experience[idx].worked_years = val;
+    updateExperienceLiveDisplays();
+    saveSignupProgress();
+  }
+}
+window.onExperienceYearsInput = onExperienceYearsInput;
 
 function addExperienceEntry() {
   captureCurrentSignupInputs();
   if (!signupState.experience) signupState.experience = [];
+  const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
   signupState.experience.push({
     company: '',
     role: '',
-    period: '',
+    is_hospitality: true,
+    department: defaultDept,
+    worked_years: '',
     skills_acquired: ''
   });
   renderExperienceCardsDOM();
@@ -10869,9 +10981,20 @@ async function nextSignupStage(targetStage) {
     expCards.forEach(card => {
       const comp = (card.querySelector('.exp-comp')?.value || '').trim();
       const role = (card.querySelector('.exp-role')?.value || '').trim();
-      const period = (card.querySelector('.exp-period')?.value || '').trim();
+      const isHosp = card.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
+      const dept = isHosp ? (card.querySelector('.exp-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services') : '';
+      const workedYears = (card.querySelector('.exp-years')?.value || '').trim();
       const skills = (card.querySelector('.exp-skills')?.value || '').trim();
-      if (comp) updatedExp.push({ company: comp, role, period, skills_acquired: skills });
+      if (comp || role || workedYears) {
+        updatedExp.push({
+          company: comp,
+          role,
+          is_hospitality: isHosp,
+          department: dept,
+          worked_years: workedYears,
+          skills_acquired: skills
+        });
+      }
     });
     if (updatedExp.length > 0) signupState.experience = updatedExp;
   }

@@ -313,19 +313,30 @@ class TestNiceJobsAPI(unittest.TestCase):
         self.assertIn("email", first_candidate)
         self.assertIn("open_to_work", first_candidate)
         self.assertEqual(first_candidate["open_to_work"], 1)
+        self.assertIn("salary_preference", first_candidate)
+        self.assertIn("experience_years_hotel", first_candidate)
+        self.assertIn("experience_years_department", first_candidate)
+        self.assertIsNone(first_candidate.get("email"))
+        self.assertIsNone(first_candidate.get("phone"))
 
-        # 2. Search by query filter
+        # 2. Search by query filter: designation or job title
         q_response = self.client.get("/api/candidates?open_to_work=true&q=Sous")
         self.assertEqual(q_response.status_code, 200)
         q_candidates = q_response.json()
         self.assertIsInstance(q_candidates, list)
+        self.assertGreater(len(q_candidates), 0)
         for c in q_candidates:
-            # Query match should be in name, headline, current_position, skills, or preferences
             matches = any("sous" in str(v).lower() for v in [
-                c.get("name"), c.get("headline"), c.get("current_position"), 
-                c.get("skills"), c.get("preferences")
+                c.get("headline"), c.get("current_position"), 
+                c.get("designation"), c.get("preferences")
             ])
             self.assertTrue(matches)
+
+        # 3. Verify hotels CANNOT search candidate by personal name
+        name_search_res = self.client.get("/api/candidates?open_to_work=true&q=Rahim")
+        self.assertEqual(name_search_res.status_code, 200)
+        name_candidates = name_search_res.json()
+        self.assertEqual(len(name_candidates), 0)
 
 if __name__ == "__main__":
     unittest.main()

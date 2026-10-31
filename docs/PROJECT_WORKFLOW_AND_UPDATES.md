@@ -419,5 +419,24 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Added `clearSignupState()` which wipes `sessionStorage.getItem('nicejobs_signup_state')` and resets `signupState` to fresh default values using `getFreshSignupState('candidate')`.
   - Added hooks in `parseRoute()` (when `prevScreen === 'signup' && resolvedScreen !== 'signup'`), in `navigateTo()` (when navigating away from signup), in `startLoginFlow()`, and in `DOMContentLoaded` (when not loading on `#signup`).
   - While remaining inside the signup flow, data is preserved across steps, live-synced in real-time without reloads. Whenever a user navigates away to another page (Home, Jobs, Hotels, Login, etc.), their previously inputted data is completely cleared.
+### Update 60: Candidate Experience Hospitality Toggle, Numeric Worked for (years), and Anonymous Hotel Candidate Search
 
-
+- **Hotel Candidate Discovery Anonymity & Designation-Only Search**:
+  - In `app.py` (`GET /api/candidates`):
+    - Completely removed `u.name LIKE ?` from the query search filter (`q`). Hotels can now search candidates strictly and exclusively by designation and job title (`u.designation`, `p.headline`, `p.current_position`, `p.preferences`). Searching by personal candidate name returns 0 results.
+    - Implemented candidate privacy masking: `name` is anonymized to `"Candidate"`, personal contact info (`email`, `phone`, `avatar_url`, `dob`, `nid_passport`, `cv_url`) is stripped/set to `None`.
+    - Computed and returned separate metrics: `experience_years_hotel` (total years across hospitality roles) and `experience_years_department` (total years within the candidate's specific department), along with `salary_preference`.
+  - In `static/js/app.js`:
+    - Updated search bar placeholder in `#ats` to `"Search candidates by designation or job title..."`.
+    - Redesigned candidate talent cards in `renderTalentCandidatesGrid`: Displays designation as primary title with department badge, `Salary Preference`, `Years in Dept`, `Hotel Industry Exp`, and `Message Candidate` button without leaking any personal names, avatars, or contact details.
+    - Anonymized `openCandidateTalentDossierModal`: Replaced personal contact and identity cards with professional anonymous metrics (salary preference, department experience, hotel industry experience, and message action).
+- **Candidate Signup Experience Multi-Entry Enhancements**:
+  - Added an interactive segmented toggle button to each experience card: `[✓ Hospitality Experience]` vs `[Non-Hospitality / Other]`.
+  - When "Hospitality Experience" is toggled ON (`true`), a selector appears allowing candidates to choose from the 16 standard hotel departments (`HOTEL_ALL_DEPARTMENTS`).
+  - When toggled OFF (`false`), the department dropdown is cleanly removed from the DOM.
+  - Changed the period input to `Worked for (years)` taking strictly numeric values (using `inputmode="decimal"` and dynamic regex filtering `this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')`).
+  - Implemented live department and hotel industry experience calculations (`getDepartmentTotalExperience`, `getTotalHospitalityExperience`, `updateExperienceLiveDisplays`). As candidates type their years of service or modify entries, the total work in that department dynamically recalculates and displays under the field and in the summary banner.
+- **Verification**:
+  - Full Python unit test suite passed (`python3 -m unittest discover tests`).
+  - Python syntax validation passed (`python3 -m py_compile app.py database.py`).
+  - Headless Chromium CDP browser automation verified both candidate signup experience toggling/calculation and anonymous hotel talent search.
