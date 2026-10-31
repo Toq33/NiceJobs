@@ -7647,3 +7647,33 @@ body.screen-inbox .main-wrapper {
     gap: 16px;
   }
 }
+
+/* Negotiable Salary Toggle Pill */
+.btn-salary-neg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.btn-salary-neg-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.btn-salary-neg-pill.active {
+  background: rgba(255, 107, 0, 0.2);
+  color: #ff7a18;
+  border-color: rgba(255, 107, 0, 0.5);
+  box-shadow: 0 0 12px rgba(255, 107, 0, 0.25);
+}

@@ -8131,8 +8131,20 @@ function renderSignupPage(viewport) {
                     </select>
                   </div>
                   <div>
-                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Expected Salary</label>
-                    <input type="text" id="cand-pref-salary" class="auth-input" placeholder="Enter expected monthly salary in ৳" value="${signupState.job_preferences?.expected_salary || ''}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                      <label style="font-size: 0.76rem; color: var(--text-dim); margin-bottom: 0;">Expected Salary</label>
+                      <button type="button" id="cand-salary-negotiable-btn" 
+                              class="btn-salary-neg-pill ${(signupState.job_preferences?.expected_salary === 'Negotiable') ? 'active' : ''}" 
+                              onclick="toggleCandidateSalaryNegotiable(this, 'cand-pref-salary')">
+                        Negotiable
+                      </button>
+                    </div>
+                    <input type="text" id="cand-pref-salary" class="auth-input" 
+                           placeholder="e.g. ৳50,000" 
+                           value="${escapeHtml(signupState.job_preferences?.expected_salary || '')}"
+                           oninput="handleExpectedSalaryInput(this, 'cand-salary-negotiable-btn')"
+                           onkeydown="handleExpectedSalaryKeydown(event)"
+                           ${(signupState.job_preferences?.expected_salary === 'Negotiable') ? 'readonly style="color: #ff7a18; font-weight: 700; background: rgba(255, 107, 0, 0.08); border-color: rgba(255, 107, 0, 0.4);"' : ''}>
                   </div>
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Location</label>
@@ -9304,6 +9316,78 @@ function handleCandidateDepartmentChange(dept) {
   }
 }
 
+function handleExpectedSalaryInput(el, negBtnId) {
+  if (!el) return;
+  // Strictly allow only numbers, commas, and currency symbols (৳, $, €, £, etc.)
+  const filtered = el.value.replace(/[^0-9,৳$€£]/g, '');
+  if (el.value !== filtered) {
+    el.value = filtered;
+  }
+  if (negBtnId) {
+    const negBtn = typeof negBtnId === 'string' ? document.getElementById(negBtnId) : negBtnId;
+    if (negBtn && el.value.trim() && el.value.trim().toLowerCase() !== 'negotiable') {
+      negBtn.classList.remove('active');
+      el.removeAttribute('readonly');
+      el.style.color = '';
+      el.style.fontWeight = '';
+      el.style.background = '';
+      el.style.borderColor = '';
+    }
+  }
+  if (typeof signupState !== 'undefined' && signupState.job_preferences) {
+    signupState.job_preferences.expected_salary = el.value.trim();
+  }
+}
+window.handleExpectedSalaryInput = handleExpectedSalaryInput;
+
+function handleExpectedSalaryKeydown(event) {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End'];
+  if (allowedKeys.includes(event.key)) return;
+  // Single character regex: only numbers, comma, and currency symbols
+  const allowedCharRegex = /^[0-9,৳$€£]$/;
+  if (!allowedCharRegex.test(event.key)) {
+    event.preventDefault();
+  }
+}
+window.handleExpectedSalaryKeydown = handleExpectedSalaryKeydown;
+
+function toggleCandidateSalaryNegotiable(btn, inputId) {
+  const input = typeof inputId === 'string' ? document.getElementById(inputId) : inputId;
+  const toggleBtn = btn || (typeof inputId === 'string' ? document.getElementById('cand-salary-negotiable-btn') : null);
+  if (!input) return;
+
+  const isCurrentlyActive = toggleBtn ? toggleBtn.classList.contains('active') : input.value === 'Negotiable';
+
+  if (isCurrentlyActive) {
+    if (toggleBtn) toggleBtn.classList.remove('active');
+    input.removeAttribute('readonly');
+    input.value = '';
+    input.style.color = '';
+    input.style.fontWeight = '';
+    input.style.background = '';
+    input.style.borderColor = '';
+    input.placeholder = 'e.g. ৳50,000';
+    if (typeof signupState !== 'undefined' && signupState.job_preferences) {
+      signupState.job_preferences.expected_salary = '';
+    }
+    input.focus();
+  } else {
+    if (toggleBtn) toggleBtn.classList.add('active');
+    input.value = 'Negotiable';
+    input.setAttribute('readonly', 'true');
+    input.style.color = '#ff7a18';
+    input.style.fontWeight = '700';
+    input.style.background = 'rgba(255, 107, 0, 0.08)';
+    input.style.borderColor = 'rgba(255, 107, 0, 0.4)';
+    if (typeof signupState !== 'undefined' && signupState.job_preferences) {
+      signupState.job_preferences.expected_salary = 'Negotiable';
+    }
+  }
+}
+window.toggleCandidateSalaryNegotiable = toggleCandidateSalaryNegotiable;
+
+
 function handleCvFileSelected(event) {
   const file = event.target?.files?.[0];
   if (!file) return;
@@ -10368,8 +10452,9 @@ async function nextSignupStage(targetStage) {
     // Collect job preferences
     const prefDept = document.getElementById('cand-pref-dept')?.value || document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
     const prefRole = (document.getElementById('cand-pref-role')?.value || document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || (getJobTitlesForDepartment(prefDept)[0] || 'Front Desk Agent');
-    const prefShift = document.getElementById('cand-pref-shift')?.value || document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
-    const prefSalary = (document.getElementById('cand-pref-salary')?.value || document.getElementById('pref-salary')?.value || '').trim() || signupState.job_preferences?.expected_salary || 'Negotiable';
+    const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
+    const prefSalaryRaw = (document.getElementById('cand-pref-salary')?.value || document.getElementById('pref-salary')?.value || '').trim();
+    const prefSalary = isNegActive ? 'Negotiable' : (prefSalaryRaw || signupState.job_preferences?.expected_salary || 'Negotiable');
     const prefLoc = (document.getElementById('cand-pref-location')?.value || document.getElementById('pref-loc')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Dhaka';
 
     signupState.job_preferences = {
@@ -11410,8 +11495,18 @@ function switchAuthTab(tab) {
                 <input type="text" name="pref_locations" placeholder="Dhaka, Cox's Bazar, Sylhet" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Expected Salary (BDT/Month)</label>
-                <input type="text" name="expected_salary" placeholder="" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 0;">Expected Salary (BDT/Month)</label>
+                  <button type="button" id="modal-cand-salary-neg-btn" 
+                          class="btn-salary-neg-pill" 
+                          onclick="toggleCandidateSalaryNegotiable(this, document.getElementById('modal-cand-expected-salary'))">
+                    Negotiable
+                  </button>
+                </div>
+                <input type="text" name="expected_salary" id="modal-cand-expected-salary" placeholder="e.g. ৳50,000" value="" 
+                       oninput="handleExpectedSalaryInput(this, 'modal-cand-salary-neg-btn')"
+                       onkeydown="handleExpectedSalaryKeydown(event)"
+                       style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -14218,8 +14313,20 @@ function openEditJobPreferencesModal() {
         <form onsubmit="handleSavePreferencesModal(event)">
           <div class="modal-body">
             <div style="margin-bottom: 14px;">
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Expected Monthly Salary</label>
-              <input type="text" id="edit-pref-salary" value="${prefs.expected_salary || '৳55,000'}" placeholder="Amount or Negotiable" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 0;">Expected Monthly Salary</label>
+                <button type="button" id="edit-salary-neg-btn" 
+                        class="btn-salary-neg-pill ${(prefs.expected_salary === 'Negotiable') ? 'active' : ''}" 
+                        onclick="toggleCandidateSalaryNegotiable(this, 'edit-pref-salary')">
+                  Negotiable
+                </button>
+              </div>
+              <input type="text" id="edit-pref-salary" 
+                     value="${prefs.expected_salary || '৳55,000'}" 
+                     placeholder="e.g. ৳55,000" 
+                     oninput="handleExpectedSalaryInput(this, 'edit-salary-neg-btn')"
+                     onkeydown="handleExpectedSalaryKeydown(event)"
+                     ${(prefs.expected_salary === 'Negotiable') ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 9px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.88rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;"'}>
             </div>
 
             <!-- Target Locations Schema Select -->
@@ -14294,7 +14401,9 @@ function openEditJobPreferencesModal() {
 
 async function handleSavePreferencesModal(e) {
   e.preventDefault();
-  const salary = (document.getElementById('edit-pref-salary')?.value || '').trim();
+  const isNegActive = document.getElementById('edit-salary-neg-btn')?.classList.contains('active');
+  const salaryRaw = (document.getElementById('edit-pref-salary')?.value || '').trim();
+  const salary = isNegActive ? 'Negotiable' : (salaryRaw || 'Negotiable');
   const locs = window.editPrefLocState ? window.editPrefLocState.selected : ((document.getElementById('edit-pref-loc')?.value || '').split(',').map(s => s.trim()).filter(Boolean));
   const notice = document.getElementById('edit-pref-notice')?.value || 'Immediate';
 
