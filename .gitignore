@@ -32,6 +32,9 @@ scratch/
 *.env
 *.env.*
 !.env.example
+admin_credentials.*
+ADMIN_CREDENTIALS.*
+*admin_credentials*
 
 # Database backups
 *.backup*
