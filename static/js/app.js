@@ -958,15 +958,183 @@ function getFreshSignupState(role = 'candidate') {
 
 const signupState = getFreshSignupState('candidate');
 
+function captureCurrentSignupInputs() {
+  if (typeof signupState === 'undefined') return;
+
+  // Candidate Step 1: Basic Identity
+  const fn = document.getElementById('cand-first-name');
+  if (fn) signupState.first_name = fn.value;
+  const mn = document.getElementById('cand-middle-name');
+  if (mn) signupState.middle_name = mn.value;
+  const ln = document.getElementById('cand-last-name');
+  if (ln) signupState.last_name = ln.value;
+  const fullName = [signupState.first_name, signupState.middle_name, signupState.last_name].filter(Boolean).join(' ');
+  if (fullName) signupState.name = fullName;
+
+  const dob = document.getElementById('cand-dob');
+  if (dob) signupState.dob = dob.value;
+  const nid = document.getElementById('cand-nid');
+  if (nid) signupState.nid_passport = nid.value;
+  const phone = document.getElementById('cand-phone');
+  if (phone) signupState.phone = phone.value.replace(/[^0-9]/g, '').slice(0, 11);
+  const phoneSec = document.getElementById('cand-phone-secondary');
+  if (phoneSec) signupState.phone_secondary = phoneSec.value.replace(/[^0-9]/g, '').slice(0, 11);
+  const email = document.getElementById('cand-email');
+  if (email) signupState.email = email.value.trim();
+
+  // Candidate Step 2: Background & Preferences
+  const bio = document.getElementById('cand-bio');
+  if (bio) signupState.bio = bio.value;
+
+  if (!signupState.job_preferences) signupState.job_preferences = {};
+  const prefDept = document.getElementById('cand-pref-dept');
+  if (prefDept) signupState.job_preferences.department = prefDept.value;
+  const prefRole = document.getElementById('cand-pref-role');
+  if (prefRole) {
+    signupState.job_preferences.desired_role = prefRole.value;
+    signupState.job_preferences.designation = prefRole.value;
+    signupState.designation = prefRole.value;
+  }
+  const prefShift = document.getElementById('cand-pref-shift');
+  if (prefShift) signupState.job_preferences.shift = prefShift.value;
+
+  const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
+  const prefSalary = document.getElementById('cand-pref-salary');
+  if (prefSalary) {
+    signupState.job_preferences.expected_salary = isNegActive ? 'Negotiable' : prefSalary.value.trim();
+  }
+  const prefLoc = document.getElementById('cand-pref-location');
+  if (prefLoc) signupState.job_preferences.preferred_location = prefLoc.value;
+
+  // Dynamic Education cards
+  const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
+  if (eduCards.length > 0) {
+    signupState.education = Array.from(eduCards).map(card => ({
+      institution: card.querySelector('.edu-inst')?.value || '',
+      degree: card.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)',
+      gpa: card.querySelector('.edu-gpa')?.value || ''
+    }));
+  }
+
+  // Dynamic Experience cards
+  const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
+  if (expCards.length > 0) {
+    signupState.experience = Array.from(expCards).map(card => ({
+      company: card.querySelector('.exp-comp')?.value || '',
+      role: card.querySelector('.exp-role')?.value || '',
+      period: card.querySelector('.exp-period')?.value || '',
+      skills_acquired: card.querySelector('.exp-skills')?.value || ''
+    }));
+  }
+
+  // Step 3 Passwords
+  const pwd = document.getElementById('cand-pwd');
+  if (pwd) signupState.password = pwd.value;
+  const confirmPwd = document.getElementById('cand-confirm-pwd');
+  if (confirmPwd) signupState.confirm_password = confirmPwd.value;
+
+  // Business Setup inputs
+  const bHName = document.getElementById('biz-hotel-name');
+  if (bHName) signupState.hotel_name = bHName.value;
+  const bPType = document.getElementById('biz-property-type');
+  if (bPType) signupState.property_type = bPType.value;
+  const bEmail = document.getElementById('biz-email');
+  if (bEmail) signupState.business_email = bEmail.value;
+  const bPhone = document.getElementById('biz-phone');
+  if (bPhone) signupState.business_phone = bPhone.value;
+  const bAddress = document.getElementById('biz-address');
+  if (bAddress) signupState.address = bAddress.value;
+  const bCity = document.getElementById('biz-city');
+  if (bCity) signupState.city = bCity.value;
+  const bRepFn = document.getElementById('biz-rep-first-name');
+  if (bRepFn) signupState.rep_first_name = bRepFn.value;
+  const bRepMn = document.getElementById('biz-rep-middle-name');
+  if (bRepMn) signupState.rep_middle_name = bRepMn.value;
+  const bRepLn = document.getElementById('biz-rep-last-name');
+  if (bRepLn) signupState.rep_last_name = bRepLn.value;
+  const bRepPhone = document.getElementById('biz-rep-phone');
+  if (bRepPhone) signupState.rep_phone = bRepPhone.value;
+  const bRepEmail = document.getElementById('biz-rep-email');
+  if (bRepEmail) signupState.rep_email = bRepEmail.value;
+  const bRepDesig = document.getElementById('biz-rep-designation');
+  if (bRepDesig) signupState.rep_designation = bRepDesig.value;
+  const bRepDept = document.getElementById('biz-rep-department');
+  if (bRepDept) signupState.rep_department = bRepDept.value;
+}
+window.captureCurrentSignupInputs = captureCurrentSignupInputs;
+
+function handleCandidatePartSubmit(event, targetStage) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  try {
+    nextSignupStage(targetStage);
+  } catch (err) {
+    console.error('Error in candidate stage navigation:', err);
+  }
+  return false;
+}
+window.handleCandidatePartSubmit = handleCandidatePartSubmit;
+
 function saveSignupProgress() {
   try {
-    sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(signupState));
+    captureCurrentSignupInputs();
+    // Exclude heavy binary base64 properties from sessionStorage to avoid QuotaExceededError
+    const safeCopy = { ...signupState, raw_pfp: null, raw_rep_pfp: null, raw_join_pfp: null, cv_data: null };
+    sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(safeCopy));
   } catch (e) {
     try {
-      const copy = { ...signupState, raw_pfp: null, raw_rep_pfp: null, raw_join_pfp: null };
-      sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(copy));
+      const minimal = {
+        role: signupState.role,
+        stage: signupState.stage,
+        biz_route: signupState.biz_route,
+        biz_step: signupState.biz_step,
+        first_name: signupState.first_name,
+        middle_name: signupState.middle_name,
+        last_name: signupState.last_name,
+        name: signupState.name,
+        email: signupState.email,
+        phone: signupState.phone,
+        phone_secondary: signupState.phone_secondary,
+        dob: signupState.dob,
+        nid_passport: signupState.nid_passport,
+        bio: signupState.bio,
+        job_preferences: signupState.job_preferences,
+        skills: signupState.skills,
+        languages: signupState.languages,
+        education: signupState.education,
+        experience: signupState.experience
+      };
+      sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(minimal));
     } catch (e2) {}
   }
+}
+
+// Global Capture-Phase Submit Blocker & Real-Time Input Sync
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  // 1. Capture phase: unconditionally intercept ANY auth/signup form submit
+  // so browser native reload GET /#signup can NEVER happen
+  document.addEventListener('submit', function(e) {
+    if (e.target && (e.target.id?.startsWith('form-cand-') || e.target.id?.startsWith('form-biz-') || e.target.closest('.auth-card form'))) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  // 2. Real-time keystroke and change sync into signupState & sessionStorage
+  const handleLiveSignupInput = function(e) {
+    if (e.target && e.target.closest('#form-cand-part1, #form-cand-part2, #form-cand-part3, #form-cand-part4, #form-biz-new-part1, #form-biz-new-part2, #form-biz-new-part3, #form-biz-new-part4, #form-biz-join-part1, #form-biz-join-part2')) {
+      captureCurrentSignupInputs();
+      try {
+        const safeCopy = { ...signupState, raw_pfp: null, raw_rep_pfp: null, raw_join_pfp: null, cv_data: null };
+        sessionStorage.setItem('nicejobs_signup_state', JSON.stringify(safeCopy));
+      } catch (err) {}
+    }
+  };
+
+  document.addEventListener('input', handleLiveSignupInput, true);
+  document.addEventListener('change', handleLiveSignupInput, true);
 }
 
 function restoreSignupProgress() {
@@ -7938,7 +8106,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Basic profile and verified contact info</p>
             </div>
 
-            <form id="form-cand-part1" onsubmit="event.preventDefault(); nextSignupStage(2);">
+            <form id="form-cand-part1" novalidate onsubmit="return handleCandidatePartSubmit(event, 2);">
               <!-- Row 1: First Name, Middle Name, Last Name -->
               <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
                 <div class="auth-field">
@@ -8043,7 +8211,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Photo, Bio, CV, Preferences, Skills &amp; Experience</p>
             </div>
 
-            <form id="form-cand-part2" onsubmit="event.preventDefault(); nextSignupStage(3);">
+            <form id="form-cand-part2" novalidate onsubmit="return handleCandidatePartSubmit(event, 3);">
               <!-- Profile Picture Upload (Moved to Part 2 before Bio with Zoom/Drag setting) -->
               <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                 <div class="pfp-avatar-preview-box">
@@ -8216,7 +8384,7 @@ function renderSignupPage(viewport) {
                     placeholder="Search or enter a skill, then press Enter..." 
                     value="${signupState.skillsSearchQuery || ''}" 
                     oninput="filterSkillsSchema(this.value)"
-                    onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomSkill(this.value);}">
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();addCustomSkill(this.value);return false;}">
 
                   <div id="skills-custom-add-container">
                     ${(() => {
@@ -8247,12 +8415,12 @@ function renderSignupPage(viewport) {
 
                       return [
                         ...selectedStack.map(s => `
-                          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+                          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}', event)" title="Click to unselect">
                             ✓ ${s}
                           </span>
                         `),
                         ...unselectedPool.map(s => `
-                          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+                          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}', event)" title="Click to select">
                             + ${s}
                           </span>
                         `)
@@ -8270,7 +8438,7 @@ function renderSignupPage(viewport) {
                     placeholder="Search or enter a language, then press Enter..." 
                     value="${signupState.languagesSearchQuery || ''}" 
                     oninput="filterLanguagesSchema(this.value)"
-                    onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLanguage(this.value);}">
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();addCustomLanguage(this.value);return false;}">
 
                   <div id="languages-custom-add-container">
                     ${(() => {
@@ -8309,12 +8477,12 @@ function renderSignupPage(viewport) {
 
                       return [
                         ...selectedStack.map(l => `
-                          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+                          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to unselect">
                             ✓ ${l.name} (${l.level})
                           </span>
                         `),
                         ...unselectedPool.map(l => `
-                          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+                          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to select">
                             + ${l.name} (${l.level})
                           </span>
                         `)
@@ -8397,7 +8565,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Set and confirm your candidate password</p>
             </div>
 
-            <form id="form-cand-part3" onsubmit="event.preventDefault(); nextSignupStage(4);">
+            <form id="form-cand-part3" novalidate onsubmit="return handleCandidatePartSubmit(event, 4);">
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Password</label>
@@ -8445,7 +8613,7 @@ function renderSignupPage(viewport) {
               </div>
             </div>
 
-            <form id="form-cand-part4" onsubmit="handleCandidateFinalSignup(event)">
+            <form id="form-cand-part4" novalidate onsubmit="return handleCandidateFinalSignup(event);">
               <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                 <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
                   placeholder="Enter 6-digit code from email" value="" autofocus required>
@@ -9388,6 +9556,41 @@ function toggleCandidateSalaryNegotiable(btn, inputId) {
 window.toggleCandidateSalaryNegotiable = toggleCandidateSalaryNegotiable;
 
 
+function updateCvDropzoneDOM() {
+  const dropzone = document.getElementById('cand-cv-dropzone');
+  if (!dropzone) return;
+  const inner = dropzone.querySelector('.cv-dropzone-inner');
+  if (inner) {
+    inner.innerHTML = `
+      <div style="color: var(--orange-primary);">${svgIcon('upload', '', 28)}</div>
+      <strong style="color: var(--white); font-size: 0.92rem; margin-top: 6px;">${escapeHtml(signupState.cv_name || 'Upload your primary Hospitality CV')}</strong>
+      <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+        Drag &amp; drop your CV here, or <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">PDF, DOCX, DOC up to 10MB</div>
+    `;
+  }
+  let badge = dropzone.parentElement.querySelector('.cv-uploaded-badge');
+  if (signupState.cv_name) {
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.className = 'cv-uploaded-badge';
+      badge.style.marginTop = '8px';
+      badge.style.display = 'flex';
+      badge.style.alignItems = 'center';
+      badge.style.justifyContent = 'space-between';
+      dropzone.parentElement.appendChild(badge);
+    }
+    badge.innerHTML = `
+      <span>✓ CV Attached: <strong>${escapeHtml(signupState.cv_name)}</strong></span>
+      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}', signupState.cv_data || signupState.cv_url)">Preview CV</button>
+    `;
+  } else if (badge) {
+    badge.remove();
+  }
+}
+window.updateCvDropzoneDOM = updateCvDropzoneDOM;
+
 function handleCvFileSelected(event) {
   const file = event.target?.files?.[0];
   if (!file) return;
@@ -9404,46 +9607,164 @@ function handleCvFileSelected(event) {
 
   const reader = new FileReader();
   reader.onload = function(e) {
+    captureCurrentSignupInputs();
     signupState.cv_name = file.name;
     signupState.cv_data = e.target.result;
     signupState.cv_url = e.target.result;
     saveSignupProgress();
-    renderSignupPage(document.getElementById('app-viewport'));
+    updateCvDropzoneDOM();
     showToast(`CV attached: ${file.name} (${Math.round(file.size / 1024)} KB)`, 'success');
   };
   reader.readAsDataURL(file);
 }
 
-// Education dynamic add/remove
+// Education dynamic in-place DOM render
+function renderEducationCardsDOM() {
+  const container = document.getElementById('edu-dynamic-container');
+  if (!container) return;
+  if (!signupState.education || signupState.education.length === 0) {
+    container.innerHTML = `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No degrees or certificates added yet. Click below to add.
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = signupState.education.map((edu, idx) => `
+    <div class="dynamic-entry-card">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Education #${idx + 1}</span>
+        ${signupState.education.length > 1 ? `
+          <button type="button" class="dynamic-remove-btn" onclick="removeEducationEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
+        ` : ''}
+      </div>
+      <div class="auth-field">
+        <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
+        <input type="text" class="auth-input edu-inst" placeholder="Enter school, college, or training institute name" 
+          value="${escapeHtml(edu.institution || '')}">
+      </div>
+      <div class="auth-field-grid">
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
+          <select class="auth-input edu-deg">
+            ${BANGLADESH_DEGREES.map(deg => `
+              <option value="${deg}" ${edu.degree === deg ? 'selected' : ''}>${deg}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">GPA / Result</label>
+          <input type="text" class="auth-input edu-gpa" placeholder="Enter GPA, division, or grade" 
+            value="${escapeHtml(edu.gpa || '')}">
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderEducationCardsDOM = renderEducationCardsDOM;
+
 function addEducationEntry() {
+  captureCurrentSignupInputs();
+  if (!signupState.education) signupState.education = [];
   signupState.education.push({
     institution: '',
     degree: 'Bachelor of Hotel Management (BHM)',
     gpa: ''
   });
-  renderSignupPage(document.getElementById('app-viewport'));
+  renderEducationCardsDOM();
+  saveSignupProgress();
 }
+window.addEducationEntry = addEducationEntry;
 
 function removeEducationEntry(idx) {
+  captureCurrentSignupInputs();
+  if (!signupState.education) signupState.education = [];
   signupState.education.splice(idx, 1);
-  renderSignupPage(document.getElementById('app-viewport'));
+  if (signupState.education.length === 0) {
+    signupState.education.push({
+      institution: '',
+      degree: 'Bachelor of Hotel Management (BHM)',
+      gpa: ''
+    });
+  }
+  renderEducationCardsDOM();
+  saveSignupProgress();
 }
+window.removeEducationEntry = removeEducationEntry;
 
-// Experience dynamic add/remove
+// Experience dynamic in-place DOM render
+function renderExperienceCardsDOM() {
+  const container = document.getElementById('exp-dynamic-container');
+  if (!container) return;
+  if (!signupState.experience || signupState.experience.length === 0) {
+    container.innerHTML = `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No previous hospitality experience listed yet. Click below to add experience (or leave empty if you are a fresher).
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = signupState.experience.map((exp, idx) => `
+    <div class="dynamic-entry-card">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Experience #${idx + 1}</span>
+        ${signupState.experience.length > 1 ? `
+          <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
+        ` : ''}
+      </div>
+
+      <div class="auth-field-grid">
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
+          <input type="text" class="auth-input exp-comp" placeholder="Enter hotel, resort, or organization name" 
+            value="${escapeHtml(exp.company || '')}">
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
+          <input type="text" class="auth-input exp-role" placeholder="Enter your job title or designation" 
+            value="${escapeHtml(exp.role || '')}">
+        </div>
+      </div>
+
+      <div class="auth-field-grid">
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">Years of Service / Period</label>
+          <input type="text" class="auth-input exp-period" placeholder="Service period (2022 - 2024)" 
+            value="${escapeHtml(exp.period || '')}">
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" style="font-size: 0.76rem;">Skills Acquired</label>
+          <input type="text" class="auth-input exp-skills" placeholder="Key responsibilities or systems used" 
+            value="${escapeHtml(exp.skills_acquired || '')}">
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderExperienceCardsDOM = renderExperienceCardsDOM;
+
 function addExperienceEntry() {
+  captureCurrentSignupInputs();
+  if (!signupState.experience) signupState.experience = [];
   signupState.experience.push({
     company: '',
     role: '',
     period: '',
     skills_acquired: ''
   });
-  renderSignupPage(document.getElementById('app-viewport'));
+  renderExperienceCardsDOM();
+  saveSignupProgress();
 }
+window.addExperienceEntry = addExperienceEntry;
 
 function removeExperienceEntry(idx) {
+  captureCurrentSignupInputs();
+  if (!signupState.experience) signupState.experience = [];
   signupState.experience.splice(idx, 1);
-  renderSignupPage(document.getElementById('app-viewport'));
+  renderExperienceCardsDOM();
+  saveSignupProgress();
 }
+window.removeExperienceEntry = removeExperienceEntry;
 
 // =============================================================
 // Schema System FLIP Animation Engine (Universal Pill Mover)
@@ -9460,77 +9781,83 @@ function animateSchemaPillsPool(poolElement, renderCallback) {
   // Preserve scroll position so the pool doesn't jump
   const savedScrollTop = poolElement.scrollTop;
 
-  // 1. FIRST: Capture bounding client rects of all existing pills
-  const firstRects = new Map();
-  const oldChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
-  oldChildren.forEach(el => {
-    const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
-    if (key) {
-      firstRects.set(key, el.getBoundingClientRect());
-    }
-  });
-
-  // 2. DOM update: Execute callback to reorder / re-render pills
-  if (typeof renderCallback === 'function') {
-    renderCallback();
-  }
-
-  // Restore scroll position immediately
-  poolElement.scrollTop = savedScrollTop;
-
-  // 3. LAST: Capture new bounding client rects
-  const newChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
-  const animatingPills = [];
-
-  newChildren.forEach(el => {
-    const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
-    if (!key) return;
-
-    const firstRect = firstRects.get(key);
-    if (firstRect) {
-      const lastRect = el.getBoundingClientRect();
-      const dx = firstRect.left - lastRect.left;
-      const dy = firstRect.top - lastRect.top;
-
-      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-        // 4. INVERT: Snap pill to its starting position instantly
-        el.style.transform = `translate(${dx}px, ${dy}px)`;
-        el.style.transition = 'none';
-        el.style.zIndex = el.classList.contains('selected') ? '8' : '5';
-        animatingPills.push(el);
+  try {
+    // 1. FIRST: Capture bounding client rects of all existing pills
+    const firstRects = new Map();
+    const oldChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
+    oldChildren.forEach(el => {
+      const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
+      if (key) {
+        firstRects.set(key, el.getBoundingClientRect());
       }
-    } else {
-      // New custom chip: scale in smoothly
-      el.style.transform = 'scale(0.8)';
-      el.style.opacity = '0';
-      el.style.transition = 'none';
-      animatingPills.push(el);
-    }
-  });
-
-  if (animatingPills.length === 0) return;
-
-  // Force synchronous layout reflow so the browser registers inverted positions
-  void poolElement.offsetHeight;
-
-  // 5. PLAY: Animate smoothly to resting position (0, 0)
-  requestAnimationFrame(() => {
-    animatingPills.forEach(el => {
-      el.style.transition = 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms ease, background-color 240ms ease, border-color 240ms ease, box-shadow 240ms ease';
-      el.style.transform = 'translate(0, 0) scale(1)';
-      el.style.opacity = '1';
     });
 
-    // Cleanup inline transition and transform styles after animation finishes
-    setTimeout(() => {
+    // 2. DOM update: Execute callback to reorder / re-render pills
+    if (typeof renderCallback === 'function') {
+      renderCallback();
+    }
+
+    // Restore scroll position immediately
+    poolElement.scrollTop = savedScrollTop;
+
+    // 3. LAST: Capture new bounding client rects
+    const newChildren = Array.from(poolElement.querySelectorAll('.schema-pill-item'));
+    const animatingPills = [];
+
+    newChildren.forEach(el => {
+      const key = el.dataset.pillKey || (el.textContent || '').replace(/^[✓+]\s*/, '').trim();
+      if (!key) return;
+
+      const firstRect = firstRects.get(key);
+      if (firstRect) {
+        const lastRect = el.getBoundingClientRect();
+        const dx = firstRect.left - lastRect.left;
+        const dy = firstRect.top - lastRect.top;
+
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          // 4. INVERT: Snap pill to its starting position instantly
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.style.transition = 'none';
+          el.style.zIndex = el.classList.contains('selected') ? '8' : '5';
+          animatingPills.push(el);
+        }
+      } else {
+        // New custom chip: scale in smoothly
+        el.style.transform = 'scale(0.8)';
+        el.style.opacity = '0';
+        el.style.transition = 'none';
+        animatingPills.push(el);
+      }
+    });
+
+    if (animatingPills.length === 0) return;
+
+    // Force synchronous layout reflow so the browser registers inverted positions
+    void poolElement.offsetHeight;
+
+    // 5. PLAY: Animate smoothly to resting position (0, 0)
+    requestAnimationFrame(() => {
       animatingPills.forEach(el => {
-        el.style.transition = '';
-        el.style.transform = '';
-        el.style.opacity = '';
-        el.style.zIndex = '';
+        el.style.transition = 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms ease, background-color 240ms ease, border-color 240ms ease, box-shadow 240ms ease';
+        el.style.transform = 'translate(0, 0) scale(1)';
+        el.style.opacity = '1';
       });
-    }, 420);
-  });
+
+      // Cleanup inline transition and transform styles after animation finishes
+      setTimeout(() => {
+        animatingPills.forEach(el => {
+          el.style.transition = '';
+          el.style.transform = '';
+          el.style.opacity = '';
+          el.style.zIndex = '';
+        });
+      }, 420);
+    });
+  } catch (animErr) {
+    console.warn('Animation engine handled exception:', animErr);
+    if (typeof renderCallback === 'function') renderCallback();
+    poolElement.scrollTop = savedScrollTop;
+  }
 }
 
 function filterSkillsSchema(q) {
@@ -9538,7 +9865,11 @@ function filterSkillsSchema(q) {
   updateSkillsDOM();
 }
 
-function toggleSkillSelection(skill) {
+function toggleSkillSelection(skill, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
   if (!signupState.skills) signupState.skills = [];
   const idx = signupState.skills.indexOf(skill);
   if (idx >= 0) {
@@ -9570,8 +9901,8 @@ function addCustomSkill(skill) {
   }
 }
 
-function removeSkill(skill) {
-  toggleSkillSelection(skill);
+function removeSkill(skill, event) {
+  toggleSkillSelection(skill, event);
 }
 
 function updateSkillsDOM() {
@@ -9600,12 +9931,12 @@ function updateSkillsDOM() {
     animateSchemaPillsPool(pillsPool, () => {
       pillsPool.innerHTML = [
         ...selectedStack.map(s => `
-          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to unselect">
+          <span class="schema-pill-item selected" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}', event)" title="Click to unselect">
             ✓ ${s}
           </span>
         `),
         ...unselectedPool.map(s => `
-          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}')" title="Click to select">
+          <span class="schema-pill-item" data-pill-key="${s}" onclick="toggleSkillSelection('${s.replace(/'/g, "\\'")}', event)" title="Click to select">
             + ${s}
           </span>
         `)
@@ -9647,12 +9978,12 @@ function updateLanguagesDOM() {
     animateSchemaPillsPool(pillsPool, () => {
       pillsPool.innerHTML = [
         ...selectedStack.map(l => `
-          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to unselect">
+          <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to unselect">
             ✓ ${l.name} (${l.level})
           </span>
         `),
         ...unselectedPool.map(l => `
-          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}')" title="Click to select">
+          <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to select">
             + ${l.name} (${l.level})
           </span>
         `)
@@ -9666,7 +9997,11 @@ function filterLanguagesSchema(q) {
   updateLanguagesDOM();
 }
 
-function toggleLanguage(name, level) {
+function toggleLanguage(name, level, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
   if (!signupState.languages) signupState.languages = [];
   const existingIdx = signupState.languages.findIndex(l => l.name === name && l.level === level);
   if (existingIdx >= 0) {
@@ -9707,7 +10042,11 @@ function addCustomLanguage(lang) {
   }
 }
 
-function removeLanguage(name) {
+function removeLanguage(name, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
   if (!signupState.languages) return;
   const existingIdx = signupState.languages.findIndex(l => l.name === name);
   if (existingIdx >= 0) {
@@ -10370,6 +10709,9 @@ function addCustomBizType(type) {
 // -------------------------------------------------------------
 
 async function nextSignupStage(targetStage) {
+  captureCurrentSignupInputs();
+  saveSignupProgress();
+
   const current = signupState.stage || 1;
 
   if (current === 1) {
@@ -10384,25 +10726,30 @@ async function nextSignupStage(targetStage) {
 
     if (!firstName) {
       showToast('Please enter your First Name', 'danger');
+      document.getElementById('cand-first-name')?.focus();
       return;
     }
     if (!lastName) {
       showToast('Please enter your Last Name', 'danger');
+      document.getElementById('cand-last-name')?.focus();
       return;
     }
 
     const cleanPhone = phoneRaw.replace(/[^0-9]/g, '');
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('01')) {
       showToast('Phone number must be exactly 11 digits starting with 01 (no more, no less)', 'danger');
+      document.getElementById('cand-phone')?.focus();
       return;
     }
     const cleanPhoneSec = phoneSecRaw.replace(/[^0-9]/g, '');
     if (cleanPhoneSec && (cleanPhoneSec.length !== 11 || !cleanPhoneSec.startsWith('01'))) {
       showToast('Secondary phone number must be exactly 11 digits starting with 01 if provided', 'danger');
+      document.getElementById('cand-phone-secondary')?.focus();
       return;
     }
     if (!email || !email.includes('@')) {
       showToast('Please enter a valid email address', 'danger');
+      document.getElementById('cand-email')?.focus();
       return;
     }
 
@@ -10446,12 +10793,18 @@ async function nextSignupStage(targetStage) {
   }
 
   if (current === 2) {
-    const bio = document.getElementById('cand-bio')?.value || '';
+    const bio = (document.getElementById('cand-bio')?.value || '').trim();
+    if (!bio) {
+      showToast('Please enter a brief professional bio', 'warning');
+      document.getElementById('cand-bio')?.focus();
+      return;
+    }
     signupState.bio = bio;
 
     // Collect job preferences
     const prefDept = document.getElementById('cand-pref-dept')?.value || document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
     const prefRole = (document.getElementById('cand-pref-role')?.value || document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || (getJobTitlesForDepartment(prefDept)[0] || 'Front Desk Agent');
+    const prefShift = document.getElementById('cand-pref-shift')?.value || document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
     const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
     const prefSalaryRaw = (document.getElementById('cand-pref-salary')?.value || document.getElementById('pref-salary')?.value || '').trim();
     const prefSalary = isNegActive ? 'Negotiable' : (prefSalaryRaw || signupState.job_preferences?.expected_salary || 'Negotiable');
@@ -10471,9 +10824,9 @@ async function nextSignupStage(targetStage) {
     const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
     const updatedEdu = [];
     eduCards.forEach(card => {
-      const inst = card.querySelector('.edu-inst')?.value || '';
-      const deg = card.querySelector('.edu-deg')?.value || '';
-      const gpa = card.querySelector('.edu-gpa')?.value || '';
+      const inst = (card.querySelector('.edu-inst')?.value || '').trim();
+      const deg = card.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)';
+      const gpa = (card.querySelector('.edu-gpa')?.value || '').trim();
       if (inst) updatedEdu.push({ institution: inst, degree: deg, gpa });
     });
     if (updatedEdu.length > 0) signupState.education = updatedEdu;
@@ -10482,10 +10835,10 @@ async function nextSignupStage(targetStage) {
     const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
     const updatedExp = [];
     expCards.forEach(card => {
-      const comp = card.querySelector('.exp-comp')?.value || '';
-      const role = card.querySelector('.exp-role')?.value || '';
-      const period = card.querySelector('.exp-period')?.value || '';
-      const skills = card.querySelector('.exp-skills')?.value || '';
+      const comp = (card.querySelector('.exp-comp')?.value || '').trim();
+      const role = (card.querySelector('.exp-role')?.value || '').trim();
+      const period = (card.querySelector('.exp-period')?.value || '').trim();
+      const skills = (card.querySelector('.exp-skills')?.value || '').trim();
       if (comp) updatedExp.push({ company: comp, role, period, skills_acquired: skills });
     });
     if (updatedExp.length > 0) signupState.experience = updatedExp;
@@ -10497,10 +10850,12 @@ async function nextSignupStage(targetStage) {
 
     if (!pwd || pwd.length < 6) {
       showToast('Password must be at least 6 characters.', 'danger');
+      document.getElementById('cand-pwd')?.focus();
       return;
     }
     if (pwd !== confirmPwd) {
       showToast('Passwords do not match. Please verify your password.', 'danger');
+      document.getElementById('cand-confirm-pwd')?.focus();
       return;
     }
 
@@ -10535,6 +10890,9 @@ async function nextSignupStage(targetStage) {
 }
 
 function prevSignupStage() {
+  captureCurrentSignupInputs();
+  saveSignupProgress();
+
   if (signupState.stage === 'terms') {
     signupState.stage = 4;
     saveSignupProgress();
