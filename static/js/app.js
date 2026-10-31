@@ -1111,16 +1111,14 @@ function saveSignupProgress() {
   }
 }
 
-// Global Capture-Phase Submit Blocker & Real-Time Input Sync
+// Global Submit Blocker & Real-Time Input Sync
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  // 1. Capture phase: unconditionally intercept ANY auth/signup form submit
-  // so browser native reload GET /#signup can NEVER happen
+  // 1. Intercept auth/signup form submit in bubble phase to prevent browser native GET /#signup reload
   document.addEventListener('submit', function(e) {
     if (e.target && (e.target.id?.startsWith('form-cand-') || e.target.id?.startsWith('form-biz-') || e.target.closest('.auth-card form'))) {
       e.preventDefault();
-      e.stopPropagation();
     }
-  }, true);
+  });
 
   // 2. Real-time keystroke and change sync into signupState & sessionStorage
   const handleLiveSignupInput = function(e) {
@@ -1136,6 +1134,19 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   document.addEventListener('input', handleLiveSignupInput, true);
   document.addEventListener('change', handleLiveSignupInput, true);
 }
+
+function clearSignupState() {
+  try {
+    sessionStorage.removeItem('nicejobs_signup_state');
+  } catch (e) {}
+  if (typeof signupState !== 'undefined') {
+    const role = signupState.role || 'candidate';
+    const fresh = getFreshSignupState(role);
+    Object.keys(signupState).forEach(k => delete signupState[k]);
+    Object.assign(signupState, fresh);
+  }
+}
+window.clearSignupState = clearSignupState;
 
 function restoreSignupProgress() {
   try {
@@ -1160,6 +1171,7 @@ function restoreSignupProgress() {
     }
   } catch (e) {}
 }
+window.restoreSignupProgress = restoreSignupProgress;
 
 const authFlowState = loginState; // Backwards compatibility
 
@@ -1168,7 +1180,12 @@ const authFlowState = loginState; // Backwards compatibility
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  restoreSignupProgress();
+  const initialScreen = (window.location.hash.replace('#', '') || 'home').split('?')[0];
+  if (initialScreen === 'signup') {
+    restoreSignupProgress();
+  } else {
+    clearSignupState();
+  }
   const savedAdminSession = sessionStorage.getItem('nicejobs_admin_session');
   if (savedAdminSession) {
     try {
@@ -1218,6 +1235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function parseRoute() {
+  const prevScreen = state.currentScreen;
   const rawHash = window.location.hash.replace('#', '') || 'home';
   const [screen, paramStr] = rawHash.split('?');
   const inboxAliases = ['inbox', 'messages', 'message', 'messeges', 'messege', 'messagebox', 'messegebox'];
@@ -1227,6 +1245,11 @@ function parseRoute() {
   }
   state.currentScreen = resolvedScreen;
   state.screenParams = paramStr ? new URLSearchParams(paramStr) : new URLSearchParams();
+
+  // If user navigates away from signup, remove all previously inputted signup data
+  if (prevScreen === 'signup' && resolvedScreen !== 'signup') {
+    clearSignupState();
+  }
 
   if (state.currentScreen === 'inbox') {
     if (!state.currentUser || state.currentRole === 'guest') {
@@ -1309,6 +1332,9 @@ function closeMobileMenu() {
 
 async function navigateTo(screen, params = null) {
   closeMobileMenu();
+  if (state.currentScreen === 'signup' && screen !== 'signup') {
+    clearSignupState();
+  }
   let hash = screen;
   if (params) {
     const searchParams = new URLSearchParams(params).toString();
@@ -7618,6 +7644,7 @@ async function handleCreateBlogSubmit() {
 // ==========================================================================
 
 function startLoginFlow(role = 'candidate') {
+  clearSignupState();
   loginState.role = role;
   loginState.businessStep = 1;
   loginState.errorMessage = null;
@@ -8106,7 +8133,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Basic profile and verified contact info</p>
             </div>
 
-            <form id="form-cand-part1" novalidate onsubmit="return handleCandidatePartSubmit(event, 2);">
+            <form id="form-cand-part1" novalidate onsubmit="event.preventDefault(); nextSignupStage(2); return false;">
               <!-- Row 1: First Name, Middle Name, Last Name -->
               <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
                 <div class="auth-field">
@@ -8191,7 +8218,7 @@ function renderSignupPage(viewport) {
                 </div>
               </div>
 
-              <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
+              <button type="button" class="auth-btn-primary" style="margin-top: 10px;" id="btn-cand-p1-continue" onclick="nextSignupStage(2)">
                 Continue →
               </button>
             </form>
@@ -8211,7 +8238,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Photo, Bio, CV, Preferences, Skills &amp; Experience</p>
             </div>
 
-            <form id="form-cand-part2" novalidate onsubmit="return handleCandidatePartSubmit(event, 3);">
+            <form id="form-cand-part2" novalidate onsubmit="event.preventDefault(); nextSignupStage(3); return false;">
               <!-- Profile Picture Upload (Moved to Part 2 before Bio with Zoom/Drag setting) -->
               <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                 <div class="pfp-avatar-preview-box">
@@ -8551,7 +8578,7 @@ function renderSignupPage(viewport) {
                 <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
                   ← Back
                 </button>
-                <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p2-continue" onclick="nextSignupStage(3)">
                   Continue →
                 </button>
               </div>
@@ -8565,7 +8592,7 @@ function renderSignupPage(viewport) {
               <p class="auth-subtitle">Set and confirm your candidate password</p>
             </div>
 
-            <form id="form-cand-part3" novalidate onsubmit="return handleCandidatePartSubmit(event, 4);">
+            <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); nextSignupStage(4); return false;">
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Password</label>
@@ -8594,7 +8621,7 @@ function renderSignupPage(viewport) {
                 <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
                   ← Back
                 </button>
-                <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p3-continue" onclick="nextSignupStage(4)">
                   Continue →
                 </button>
               </div>
@@ -8613,7 +8640,7 @@ function renderSignupPage(viewport) {
               </div>
             </div>
 
-            <form id="form-cand-part4" novalidate onsubmit="return handleCandidateFinalSignup(event);">
+            <form id="form-cand-part4" novalidate onsubmit="event.preventDefault(); handleCandidateFinalSignup(event); return false;">
               <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
                 <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
                   placeholder="Enter 6-digit code from email" value="" autofocus required>
@@ -8623,7 +8650,7 @@ function renderSignupPage(viewport) {
                 <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
                   ← Back
                 </button>
-                <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-otp-submit" onclick="handleCandidateFinalSignup(event)">
                   Verify Code &amp; Review Terms →
                 </button>
               </div>
@@ -10936,7 +10963,7 @@ async function resendCandidateOtp() {
 
 // Candidate OTP Verification -> Move to Terms
 async function handleCandidateFinalSignup(event) {
-  event.preventDefault();
+  if (event && event.preventDefault) event.preventDefault();
   const input = document.getElementById('cand-otp-code');
   const code = (input ? input.value : '').trim();
 
@@ -10946,7 +10973,7 @@ async function handleCandidateFinalSignup(event) {
   }
 
   // Verify OTP with the server before advancing to Terms
-  const btn = event.target.querySelector('button[type="submit"]') || document.getElementById('btn-cand-otp-submit');
+  const btn = (event && event.target && event.target.tagName === 'BUTTON' ? event.target : (event && event.target && event.target.querySelector ? event.target.querySelector('button[type="submit"], #btn-cand-otp-submit') : null)) || document.getElementById('btn-cand-otp-submit');
   const origBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
@@ -11058,7 +11085,7 @@ async function finalizeCandidateRegistration() {
       sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
       localStorage.setItem('nicejobs_active_session', sessPayload);
       localStorage.setItem('nicejobs_candidate_session', sessPayload);
-      sessionStorage.removeItem('nicejobs_signup_state');
+      clearSignupState();
     } catch (e) {}
 
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
@@ -11634,6 +11661,20 @@ async function finalizeJoinBusinessRegistration() {
   }
 }
 
+// Window attachments for signup navigation
+window.nextSignupStage = nextSignupStage;
+window.prevSignupStage = prevSignupStage;
+window.handleCandidateFinalSignup = handleCandidateFinalSignup;
+window.declineCandidateTerms = declineCandidateTerms;
+window.acceptCandidateTerms = acceptCandidateTerms;
+window.finalizeCandidateRegistration = finalizeCandidateRegistration;
+window.nextBizStage = nextBizStage;
+window.prevBizStage = prevBizStage;
+window.nextJoinStage = nextJoinStage;
+window.prevJoinStage = prevJoinStage;
+window.clearSignupState = clearSignupState;
+window.saveSignupProgress = saveSignupProgress;
+window.restoreSignupProgress = restoreSignupProgress;
 
 // Compatibility redirect helpers
 function startAuthFlow(role = 'candidate', mode = 'login') {

@@ -409,8 +409,15 @@ When continuing work on the NiceJobs repository in any new conversation:
 11. **Preserve Structured Job Post Schema & 16 Hotel Departments**: In `#modal-create-job`, always maintain the salary toggle (`Range` vs `Negotiable`), educational multi-select schema with field of study trigger for higher degrees, 80+ hotel skills schema with live search and custom skill appending, experience selector, and the 16 standard hotel departments (`HOTEL_ALL_DEPARTMENTS`). Do not add back freeform requirements textarea or perks checkboxes to the job posting modal.
 12. **Preserve Interactive Open to Work Toggle**: Preserve the toggle button and status panel in `#profile` with persistent SQLite database updates via `PUT /api/profile`.
 13. **Preserve "Log In" / "Sign Up" Terminology and File Upload Profile Picture**: Always use "Log In" (instead of "Sign In") and "Sign Up" (instead of "Get Started") throughout navigation, modals, and buttons. In Candidate Sign Up, strictly use the professional photo upload input (`handlePfpFileSelected`), never re-introducing the preset avatar selector grid.
+### Update 59: Candidate Signup Continue Button Fix & Auto-Clearing Data on Exit
 
-
-
+- **Continue Button Unresponsiveness Fix**:
+  - Identified that `document.addEventListener('submit', ..., true)` in capture phase called `e.stopPropagation()`, intercepting form submit events before they reached the `<form>` elements and blocking all inline `onsubmit` handlers from firing.
+  - Converted the submit listener to standard bubble phase (`useCapture: false`) without `stopPropagation()`, and assigned explicit `type="button"` with `onclick="nextSignupStage(...)"` to the Continue buttons on Steps 1, 2, 3, and 4.
+  - Exported `nextSignupStage`, `prevSignupStage`, `handleCandidateFinalSignup`, and other lifecycle functions to `window` for reliable inline trigger resolution.
+- **Auto-Clearing Form Data When Leaving Signup**:
+  - Added `clearSignupState()` which wipes `sessionStorage.getItem('nicejobs_signup_state')` and resets `signupState` to fresh default values using `getFreshSignupState('candidate')`.
+  - Added hooks in `parseRoute()` (when `prevScreen === 'signup' && resolvedScreen !== 'signup'`), in `navigateTo()` (when navigating away from signup), in `startLoginFlow()`, and in `DOMContentLoaded` (when not loading on `#signup`).
+  - While remaining inside the signup flow, data is preserved across steps, live-synced in real-time without reloads. Whenever a user navigates away to another page (Home, Jobs, Hotels, Login, etc.), their previously inputted data is completely cleared.
 
 
