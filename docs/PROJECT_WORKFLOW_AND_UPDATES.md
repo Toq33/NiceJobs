@@ -462,3 +462,13 @@ When continuing work on the NiceJobs repository in any new conversation:
     - Invalid websites without domain extensions are blocked.
     - Valid websites starting with `www.`, `https://`, `http://`, or bare domain names with `.com` and similar TLDs are accepted and saved.
     - UI/UX rendered without any explaining hints or descriptive subtext.
+
+### Update 62: Removal of Login Banner Below Continue Button in Sign Up
+
+- **UI Streamlining in Sign Up**:
+  - Removed the redundant bottom prompt banner (`.signup-login-prompt-banner` with *"Already have an account? Log In to Your Account →"* / *"Log In to Recruiter Desk →"*) located directly below the `Continue →` button in both Candidate Sign Up (Stage 1) and Business Sign Up (Stage 1).
+  - Maintained the top card navigation action pill (`Already have an account? Log In`), ensuring clean layout and streamlined visual flow to the Continue action.
+- **Verification**:
+  - Exact static parity verified between `index.html` and `static/index.html`.
+  - Python compilation and all 12 backend unit tests passed.
+  - Headless Chromium CDP browser automation confirmed clean card layout without the banner below `Continue →`.

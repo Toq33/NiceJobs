@@ -8229,13 +8229,6 @@ function renderSignupPage(viewport) {
                 Continue →
               </button>
             </form>
-
-            <div class="signup-login-prompt-banner">
-              <span>Already have an account?</span>
-              <button type="button" class="btn-signup-login-action" onclick="startLoginFlow('candidate')">
-                Log In to Your Account →
-              </button>
-            </div>
           ` : ''}
 
           <!-- PFP upload, Bio, Drag&Drop CV, Job Preferences, Education (+), Skills, Language, Previous Experience (+) -->
@@ -8814,13 +8807,6 @@ function renderSignupPage(viewport) {
                   Continue →
                 </button>
               </form>
-
-              <div class="signup-login-prompt-banner">
-                <span>Already have an account?</span>
-                <button type="button" class="btn-signup-login-action" onclick="startLoginFlow('business')">
-                  Log In to Recruiter Desk →
-                </button>
-              </div>
             ` : ''}
 
             <!-- Business Features / Amenities Schema + Search -->
