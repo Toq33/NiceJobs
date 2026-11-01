@@ -909,7 +909,7 @@ function getFreshSignupState(role = 'candidate') {
     brand_name: '',
     legal_name: '',
     logo_url: DEFAULT_HOTEL_LOGO,
-    property_type: '5-Star International Luxury Hotel',
+    property_type: 'Hotel',
     bizTypeSearchQuery: '',
     customBizTypesPool: [],
     plot_number: '',
@@ -957,6 +957,7 @@ function getFreshSignupState(role = 'candidate') {
 }
 
 const signupState = getFreshSignupState('candidate');
+window.signupState = signupState;
 
 function captureCurrentSignupInputs() {
   if (typeof signupState === 'undefined') return;
@@ -1041,10 +1042,20 @@ function captureCurrentSignupInputs() {
   if (confirmPwd) signupState.confirm_password = confirmPwd.value;
 
   // Business Setup inputs
+  const bBrand = document.getElementById('biz-new-brand');
+  if (bBrand) signupState.brand_name = bBrand.value;
+  const bLegal = document.getElementById('biz-new-legal');
+  if (bLegal) signupState.legal_name = bLegal.value;
   const bHName = document.getElementById('biz-hotel-name');
   if (bHName) signupState.hotel_name = bHName.value;
-  const bPType = document.getElementById('biz-property-type');
+  const bPType = document.getElementById('biz-new-type') || document.getElementById('biz-property-type');
   if (bPType) signupState.property_type = bPType.value;
+  const bWeb = document.getElementById('biz-new-website') || document.getElementById('biz-website');
+  if (bWeb) signupState.website = bWeb.value;
+  const bOffEmail = document.getElementById('biz-new-email');
+  if (bOffEmail) signupState.official_email = bOffEmail.value;
+  const bOffTel = document.getElementById('biz-new-telephone');
+  if (bOffTel) signupState.official_telephone = bOffTel.value;
   const bEmail = document.getElementById('biz-email');
   if (bEmail) signupState.business_email = bEmail.value;
   const bPhone = document.getElementById('biz-phone');
@@ -6263,7 +6274,7 @@ async function renderAdminScreen(viewport) {
                     </td>
                     <td>
                       <div style="font-weight: 700; color: var(--white); font-size: 0.8rem;">${b.email}</div>
-                      <div style="font-size: 0.74rem; color: var(--orange-primary);"><a href="${b.website || '#'}" target="_blank" style="color: inherit;">${b.website || 'No website'}</a></div>
+                      <div style="font-size: 0.74rem; color: var(--orange-primary);"><a href="${b.website ? (b.website.startsWith('http') ? b.website : 'https://' + b.website) : '#'}" target="_blank" style="color: inherit;">${b.website || 'No website'}</a></div>
                     </td>
                     <td>
                       <div style="font-weight: 700; color: #fdba74;">${svgIcon('award', '', 13)} ${b.admin_name || 'Designated Admin'}</div>
@@ -8703,15 +8714,14 @@ function renderSignupPage(viewport) {
                 <p class="auth-subtitle">Property details, legal registration &amp; exact location</p>
               </div>
 
-              <form id="form-biz-new-part1" onsubmit="event.preventDefault(); nextBizStage(2);">
+              <form id="form-biz-new-part1" novalidate onsubmit="event.preventDefault(); nextBizStage(2);">
                 <!-- Business Logo Upload System -->
                 <div class="logo-upload-wrap" style="display: flex; align-items: center; gap: 18px; padding: 14px 18px; background: rgba(255, 255, 255, 0.025); border: 1px dashed var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 20px;">
                   <div class="logo-avatar-preview-box" style="width: 68px; height: 68px; min-width: 68px; border-radius: 12px; background: #ffffff; border: 2px solid var(--orange-primary); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);">
                     <img src="${signupState.logo_url || DEFAULT_HOTEL_LOGO}" alt="Property Logo Preview" id="biz-logo-img" style="width: 100%; height: 100%; object-fit: contain; padding: 4px;">
                   </div>
                   <div style="flex: 1;">
-                    <label class="auth-label" style="margin-bottom: 4px; font-weight: 700; color: var(--white);">Establishment Logo</label>
-                    <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload official hotel or property brand logo (PNG, JPG, WebP, SVG up to 5MB)</p>
+                    <label class="auth-label" style="margin-bottom: 8px; font-weight: 700; color: var(--white);">Establishment Logo</label>
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                       <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('biz-logo-file-input').click()">
                         ${svgIcon('upload', '', 14)} Upload Logo
@@ -8728,9 +8738,9 @@ function renderSignupPage(viewport) {
 
                 <div class="auth-field-grid">
                   <div class="auth-field">
-                    <label class="auth-label">Business Name (Brand Name)</label>
+                    <label class="auth-label">Business Name</label>
                     <input type="text" id="biz-new-brand" class="auth-input" required 
-                      placeholder="Enter property or brand name" 
+                      placeholder="Enter business name" 
                       value="${signupState.brand_name || ''}" autofocus>
                   </div>
 
@@ -8742,46 +8752,30 @@ function renderSignupPage(viewport) {
                   </div>
                 </div>
 
-                <!-- Business Type (all hotel/resort types schema + search inside) -->
+                <!-- Business Type Dropdown (Hotel, Resort, Service Apartment) -->
                 <div class="auth-field">
                   <label class="auth-label">Business Type</label>
-                  <div class="schema-box-wrapper" style="padding: 10px; margin-bottom: 4px;">
-                    <input type="text" 
-                      class="schema-search-input" 
-                      id="biz-type-search" 
-                      placeholder="Search or select property type..." 
-                      value="${signupState.bizTypeSearchQuery || ''}" 
-                      oninput="filterHotelTypes(this.value)">
-                    <select id="biz-new-type" class="auth-input" style="margin-top: 8px;" onchange="signupState.property_type = this.value">
-                      ${HOTEL_TYPES_SCHEMA.concat(signupState.customBizTypesPool).filter(t => {
-                        if (!signupState.bizTypeSearchQuery) return true;
-                        return t.toLowerCase().includes(signupState.bizTypeSearchQuery.toLowerCase());
-                      }).map(t => `
-                        <option value="${t}" ${signupState.property_type === t ? 'selected' : ''}>${t}</option>
-                      `).join('')}
-                    </select>
-                    ${signupState.bizTypeSearchQuery && !HOTEL_TYPES_SCHEMA.concat(signupState.customBizTypesPool).some(t => t.toLowerCase() === signupState.bizTypeSearchQuery.toLowerCase()) ? `
-                      <div class="schema-add-chip" style="margin-top: 8px;" onclick="addCustomBizType('${signupState.bizTypeSearchQuery}')">
-                        + Add "${signupState.bizTypeSearchQuery}" as a custom business type &amp; save
-                      </div>
-                    ` : ''}
-                  </div>
+                  <select id="biz-new-type" class="auth-input" onchange="signupState.property_type = this.value">
+                    <option value="Hotel" ${(signupState.property_type || 'Hotel') === 'Hotel' ? 'selected' : ''}>Hotel</option>
+                    <option value="Resort" ${signupState.property_type === 'Resort' ? 'selected' : ''}>Resort</option>
+                    <option value="Service Apartment" ${signupState.property_type === 'Service Apartment' ? 'selected' : ''}>Service Apartment</option>
+                  </select>
                 </div>
 
-                <!-- Exact Location Segmented: Plot, Road, Thana/Upazila, District (64 Districts) -->
+                <!-- Location Segmented: Plot, Road, Thana/Upazila, District -->
                 <div class="auth-field">
-                  <label class="auth-label">Exact Location (Segmented Address)</label>
+                  <label class="auth-label">Location</label>
                   <div class="location-segments-grid">
                     <div>
-                      <input type="text" id="biz-new-plot" class="auth-input" placeholder="Enter plot or holding number" 
+                      <input type="text" id="biz-new-plot" class="auth-input" placeholder="Plot / Holding" 
                         value="${signupState.plot_number || ''}">
                     </div>
                     <div>
-                      <input type="text" id="biz-new-road" class="auth-input" placeholder="Enter road number, street, or sector" 
+                      <input type="text" id="biz-new-road" class="auth-input" placeholder="Road / Street" 
                         value="${signupState.road_number || ''}">
                     </div>
                     <div>
-                      <input type="text" id="biz-new-thana" class="auth-input" placeholder="Enter thana or upazila name" 
+                      <input type="text" id="biz-new-thana" class="auth-input" placeholder="Thana / Upazila" 
                         value="${signupState.thana_upazila || ''}">
                     </div>
                     <div>
@@ -8797,24 +8791,23 @@ function renderSignupPage(viewport) {
                 <div class="auth-field-grid">
                   <div class="auth-field">
                     <label class="auth-label">Official Website</label>
-                    <input type="url" id="biz-new-website" class="auth-input" 
-                      placeholder="Enter official website URL (https://...)" 
+                    <input type="text" id="biz-new-website" class="auth-input" 
+                      placeholder="Enter official website" 
                       value="${signupState.website || ''}">
                   </div>
                   <div class="auth-field">
                     <label class="auth-label">Official Mail of Business</label>
                     <input type="email" id="biz-new-email" class="auth-input" required 
-                      placeholder="Enter official hotel contact email" 
+                      placeholder="Enter official contact email" 
                       value="${signupState.official_email || ''}">
                   </div>
                 </div>
 
                 <div class="auth-field" style="margin-top: 14px;">
-                  <label class="auth-label">Official Telephone Number <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Landline / Reception Hotline)</span></label>
+                  <label class="auth-label">Official Telephone Number</label>
                   <input type="tel" id="biz-new-telephone" class="auth-input" 
-                    placeholder="Enter landline or reception desk hotline" 
+                    placeholder="Enter official telephone number" 
                     value="${signupState.official_telephone || ''}">
-                  <span class="auth-hint">Official landline, PABX reception desk, or corporate hotline.</span>
                 </div>
 
                 <button type="submit" class="auth-btn-primary" style="margin-top: 10px;">
@@ -8915,8 +8908,7 @@ function renderSignupPage(viewport) {
                     <img src="${signupState.rep_pfp || DEFAULT_AVATAR_PREVIEW}" alt="Representative Photo Preview" class="pfp-preview-img" id="biz-rep-pfp-img">
                   </div>
                   <div style="flex: 1;">
-                    <label class="auth-label" style="margin-bottom: 4px; font-weight: 700;">Representative Photo</label>
-                    <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">Upload professional photo of the person on behalf of the business (Only compressed if &ge; 1MB)</p>
+                    <label class="auth-label" style="margin-bottom: 8px; font-weight: 700;">Representative Photo</label>
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                       <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('biz-rep-pfp-file-input').click()">
                         ${svgIcon('upload', '', 14)} Upload Picture
@@ -8937,7 +8929,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Full Name</label>
                   <input type="text" id="biz-rep-name" class="auth-input" required 
-                    placeholder="Enter representative full name" 
+                    placeholder="Enter full name" 
                     value="${signupState.rep_name || ''}" autofocus>
                 </div>
 
@@ -8949,7 +8941,7 @@ function renderSignupPage(viewport) {
                     <input type="tel" 
                       id="biz-rep-phone" 
                       class="phone-number-field" 
-                      placeholder="01XXXXXXXXX (11 digits)" 
+                      placeholder="01XXXXXXXXX" 
                       maxlength="11" 
                       minlength="11" 
                       pattern="01[0-9]{9}" 
@@ -8958,16 +8950,14 @@ function renderSignupPage(viewport) {
                       oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);"
                       value="${signupState.rep_cell || ''}">
                   </div>
-                  <span class="auth-field-hint">11-digit mobile number starting with 01</span>
                 </div>
 
                 <div class="auth-field-grid">
                   <div class="auth-field">
-                    <label class="auth-label">Email of Person on Behalf <span style="font-size: 0.76rem; color: var(--text-dim); font-weight: normal;">(Representative Work Email)</span></label>
+                    <label class="auth-label">Work Email</label>
                     <input type="email" id="biz-rep-email" class="auth-input" required 
-                      placeholder="Enter representative work email address" 
+                      placeholder="Enter work email address" 
                       value="${signupState.rep_email || ''}">
-                    <span class="auth-field-hint">Official login and contact email for the authorized person managing the property.</span>
                   </div>
                   <div class="auth-field">
                     <label class="auth-label">Date of Birth (DOB)</label>
@@ -8979,7 +8969,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Designation / Role in Business</label>
                   <input type="text" id="biz-rep-desig" class="auth-input" required 
-                    placeholder="Enter official job designation (Your Designation)" 
+                    placeholder="Enter designation" 
                     value="${signupState.rep_designation || ''}">
                 </div>
 
@@ -9414,6 +9404,7 @@ function renderSignupPage(viewport) {
     </div>
   `;
 }
+window.renderSignupPage = renderSignupPage;
 
 // -------------------------------------------------------------
 // HELPER SUBROUTINES FOR SCHEMAS, ADDERS & AVATARS
@@ -11239,22 +11230,32 @@ async function nextBizStage(targetStep) {
   if (current === 1) {
     const brand = (document.getElementById('biz-new-brand')?.value || '').trim();
     const legal = (document.getElementById('biz-new-legal')?.value || '').trim();
-    const pType = document.getElementById('biz-new-type')?.value;
-    const plot = document.getElementById('biz-new-plot')?.value || '';
-    const road = document.getElementById('biz-new-road')?.value || '';
-    const thana = document.getElementById('biz-new-thana')?.value || '';
+    const pType = document.getElementById('biz-new-type')?.value || 'Hotel';
+    const plot = (document.getElementById('biz-new-plot')?.value || '').trim();
+    const road = (document.getElementById('biz-new-road')?.value || '').trim();
+    const thana = (document.getElementById('biz-new-thana')?.value || '').trim();
     const district = document.getElementById('biz-new-district')?.value || 'Dhaka';
-    const website = document.getElementById('biz-new-website')?.value || '';
+    const website = (document.getElementById('biz-new-website')?.value || '').trim();
     const email = (document.getElementById('biz-new-email')?.value || '').trim();
     const telephone = (document.getElementById('biz-new-telephone')?.value || '').trim();
 
     if (!brand) {
-      showToast('Please enter the business brand name.', 'danger');
+      showToast('Please enter the business name.', 'danger');
       return;
     }
     if (!email || !email.includes('@')) {
       showToast('Please enter the official business email.', 'danger');
       return;
+    }
+
+    if (website) {
+      // Must end with .com or similar domain extensions (.net, .org, .bd, .com.bd, .info, .hotel, etc.)
+      const websiteRegex = /^(https?:\/\/)?(www\.)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/.*)?$/i;
+      if (!websiteRegex.test(website)) {
+        showToast('Please enter a valid website address.', 'danger');
+        document.getElementById('biz-new-website')?.focus();
+        return;
+      }
     }
 
     // Check if official business email or telephone is already used by another account
@@ -11407,6 +11408,8 @@ function prevBizStage() {
     renderSignupPage(document.getElementById('app-viewport'));
   }
 }
+window.nextBizStage = nextBizStage;
+window.prevBizStage = prevBizStage;
 
 function autoFillBizNewOtp() {
   // Demo auto-fill removed for production security
@@ -12160,8 +12163,8 @@ function switchAuthTab(tab) {
                 </select>
               </div>
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Website URL</label>
-                <input type="url" name="website" placeholder="https://..." value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px;">Official Website</label>
+                <input type="text" name="website" placeholder="Official Website" value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
             <div>
@@ -15717,7 +15720,7 @@ async function openEditBusinessProfileModal(bizId) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Website</label>
-                <input type="url" name="website" value="${escapeHtml(biz.website || '')}" placeholder="https://..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                <input type="text" name="website" value="${escapeHtml(biz.website || '')}" placeholder="Official Website" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Official Email</label>

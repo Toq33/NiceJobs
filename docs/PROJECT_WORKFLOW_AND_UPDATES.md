@@ -436,7 +436,29 @@ When continuing work on the NiceJobs repository in any new conversation:
   - When toggled OFF (`false`), the department dropdown is cleanly removed from the DOM.
   - Changed the period input to `Worked for (years)` taking strictly numeric values (using `inputmode="decimal"` and dynamic regex filtering `this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')`).
   - Implemented live department and hotel industry experience calculations (`getDepartmentTotalExperience`, `getTotalHospitalityExperience`, `updateExperienceLiveDisplays`). As candidates type their years of service or modify entries, the total work in that department dynamically recalculates and displays under the field and in the summary banner.
+### Update 61: Business Sign Up Restricted Business Type Dropdown, Flexible Website Format, and UI Cleanliness
+
+- **Restricted Business Type Dropdown**:
+  - Replaced the previous search-and-add chip pool with a single-select dropdown (`<select id="biz-new-type">`) offering exclusively three choices:
+    1. `Hotel`
+    2. `Resort`
+    3. `Service Apartment`
+  - Exactly one option can be selected at a time, defaulting to `Hotel`.
+  - Seamlessly bound to `signupState.property_type` and persisted across business onboarding stages and database records.
+- **Flexible Official Website Handling & Domain Validation**:
+  - Updated website input element from `type="url"` to `type="text"` with clean placeholder (`Enter official website`), preventing browser HTML5 validation rejections.
+  - Supported flexible formats: starting with `https://`, `http://`, `www.`, or directly with the domain name (e.g. `hotel.com`, `radisson.com.bd`), and ending with `.com` or similar domain extensions (`.net`, `.org`, `.info`, `.io`, `.co`, `.bd`, `.com.bd`, `.hotel`, etc., with optional trailing path).
+  - Validates format on form submission: invalid strings without domain extensions are rejected with a clean notification toast, while valid URLs are preserved and stored.
+  - Anywhere business websites are rendered as links (e.g., `#hotels`), relative link resolution is prevented by ensuring the URL resolves with `https://`.
+- **Clean UI / UX Without Explaining Text**:
+  - Removed all explanatory subtexts, hints, and parenthetical instructions from the Business Sign Up screens (e.g. removed `.auth-hint`, `.auth-field-hint`, explanatory paragraphs under logo/photo upload, and descriptive helper text in labels).
+  - Maintained clean, self-explanatory labels (`Business Name`, `Business Type`, `Location`, `Official Website`, `Official Mail of Business`, `Official Telephone Number`, `Work Email`, `Designation / Role in Business`).
 - **Verification**:
-  - Full Python unit test suite passed (`python3 -m unittest discover tests`).
-  - Python syntax validation passed (`python3 -m py_compile app.py database.py`).
-  - Headless Chromium CDP browser automation verified both candidate signup experience toggling/calculation and anonymous hotel talent search.
+  - Exact static parity verified between `index.html` and `static/index.html`.
+  - Python compilation and full backend test suite verified (`python3 -m unittest discover tests`).
+  - Headless Chromium CDP browser automation verified:
+    - Business Type dropdown containing only `Hotel`, `Resort`, and `Service Apartment`.
+    - Official website input type is `text`.
+    - Invalid websites without domain extensions are blocked.
+    - Valid websites starting with `www.`, `https://`, `http://`, or bare domain names with `.com` and similar TLDs are accepted and saved.
+    - UI/UX rendered without any explaining hints or descriptive subtext.
