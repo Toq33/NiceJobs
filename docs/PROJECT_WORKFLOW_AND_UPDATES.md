@@ -472,3 +472,72 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Exact static parity verified between `index.html` and `static/index.html`.
   - Python compilation and all 12 backend unit tests passed.
   - Headless Chromium CDP browser automation confirmed clean card layout without the banner below `Continue →`.
+
+### Update 63: Bangladesh District-Based Job Location Search & Proximity Engine
+
+- **Centralized 64 Districts Location Library (`locations.py` & `static/js/app.js`)**:
+  - Created a single source of truth covering all 64 districts of Bangladesh across all 8 administrative divisions (Dhaka: 13, Chattogram: 11, Sylhet: 4, Rajshahi: 8, Khulna: 10, Barishal: 6, Rangpur: 8, Mymensingh: 4).
+  - Every district is defined with:
+    - Unique ID (e.g. `dhaka`, `coxs_bazar`, `moulvibazar`, `gazipur`).
+    - Standard English Name (e.g. `Dhaka`, `Cox's Bazar`, `Moulvibazar`, `Gazipur`).
+    - Administrative Division (e.g. `Dhaka`, `Chattogram`, `Sylhet`).
+    - Verified geographic coordinates (latitude and longitude of district headquarters / representative center).
+    - Historical and common geographic aliases (e.g., `Chittagong` -> `Chattogram`, `Sreemangal` -> `Moulvibazar`, `Joydebpur` -> `Gazipur`).
+  - Added text resolution utilities (`resolve_district_from_text`, `match_job_district`) able to detect and resolve compound location tags (e.g., `Sreemangal, Sylhet` -> `Moulvibazar`, `Gulshan, Dhaka` -> `Dhaka`).
+
+- **Haversine Proximity Recommendation Engine**:
+  - Implemented the Haversine great-circle distance algorithm both on the backend (`locations.py`) and frontend (`static/js/app.js`).
+  - Proximity calculations dynamically organize all remaining districts relative to selected district(s):
+    1. Selected district(s) (exact match, distance 0.0 km, `is_selected: true`).
+    2. Nearest districts in ascending geographic distance.
+    3. Next-nearest districts until all 64 districts are covered.
+  - Multi-District Support: when multiple preferred districts are selected (e.g. `Dhaka` and `Sylhet`), minimum distance to any selected district is calculated and sorted accordingly (e.g. `Moulvibazar` calculates distance relative to `Sylhet` at ~65.6 km rather than `Dhaka` at ~157.4 km).
+
+- **Modern Dark Glassmorphism District Proximity Selector UI**:
+  - Created reusable UI component (`renderDistrictProximityPicker`) supporting:
+    - Removable chips for selected districts with custom SVG icons and remove buttons.
+    - Dedicated "Anywhere in Bangladesh" quick toggle button and badge chip.
+    - Proximity-based grouping tiers:
+      - *Nearest & Adjacent Districts (< 60 km)* with distance badges (e.g. `Gazipur (21.4 km)`, `Narayanganj (22.6 km)`, `Munshiganj (32.1 km)`).
+      - *Regional Proximity (60 – 150 km)* with distance badges.
+      - *Extended & Nationwide (> 150 km)*.
+    - Expand / Collapse toggle: displays top nearest districts with a sleek glass button (`Show all 64 districts by proximity (X more)` / `Collapse nearby recommendations`).
+    - Live search input filtering districts instantly by name, division, or aliases.
+    - Support for selecting multiple districts or clearing all selections.
+    - Responsive layout for desktop and mobile devices.
+
+- **Candidate & Business Onboarding Integration**:
+  - **Candidate Sign Up (Stage 2 - Preferred Location)**:
+    - Replaced the previous 5-item select dropdown with the interactive 64-District Proximity Picker.
+    - Supports multiple preferred districts or "Anywhere in Bangladesh", persisted to `signupState.job_preferences.preferred_location` and `preferred_locations`.
+  - **Business Sign Up (Stage 1 - Location)**:
+    - Integrated the centralized 64 district library with division names (`<select id="biz-new-district">`), bound to `handleBizDistrictChange`.
+
+- **Job Search & API Integration**:
+  - Added REST API endpoints:
+    - `GET /api/locations/districts`: returns all 64 districts (supports optional `division` filter).
+    - `GET /api/locations/proximity`: returns all 64 districts ranked by distance from preferred district(s).
+  - Enhanced `GET /api/jobs`:
+    - Prioritizes jobs in the selected district(s) first (`is_exact_location: true`, `distance_km: 0.0`).
+    - Follows with jobs in neighboring districts in ascending distance order.
+    - Supports `strict_location=true` for exact-district-only matching.
+    - Supports `location="Anywhere in Bangladesh"` to return all jobs without filtering.
+  - Job Cards on Frontend:
+    - Displays interactive distance badges when location search is active (e.g. `Preferred Match` or `157.4 km away`).
+
+- **Automated Verification & Test Coverage**:
+  - Added 10 new unit and integration tests in `tests/test_location_search.py` covering:
+    - Completeness and validity of all 64 districts dataset and coordinates.
+    - Administrative division coverage across Bangladesh.
+    - District lookup, case-insensitivity, and alias normalization.
+    - Haversine distance accuracy.
+    - Proximity ranking for single and multiple preferred districts.
+    - `/api/locations/districts` and `/api/locations/proximity` endpoints.
+    - Proximity-ranked job search, strict filtering, and "Anywhere in Bangladesh".
+  - Full test suite passed: 22 tests in `python3 -m unittest discover tests`.
+  - Headless Chromium CDP browser automation verified:
+    - Candidate signup stage 2 renders the District Proximity Picker.
+    - Proximity tiers and distance badges render accurately.
+    - Multi-district selection and "Anywhere in Bangladesh" toggling function flawlessly.
+    - Business signup stage 1 contains all 64 districts with division tags.
+    - Job card distance badges render on home search.

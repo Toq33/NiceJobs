@@ -524,14 +524,19 @@ function getJobTitlesForDepartment(dept) {
 }
 
 const SEARCH_LOCATIONS = [
-  { value: '', label: 'All Locations', shortLabel: 'All Locations' },
-  { value: 'Dhaka', label: 'Dhaka', shortLabel: 'Dhaka' },
-  { value: 'Chattogram', label: 'Chattogram', shortLabel: 'Chattogram' },
-  { value: "Cox's Bazar", label: "Cox's Bazar", shortLabel: "Cox's Bazar" },
-  { value: 'Sylhet', label: 'Sylhet', shortLabel: 'Sylhet' },
-  { value: 'Rajshahi', label: 'Rajshahi', shortLabel: 'Rajshahi' },
-  { value: 'Khulna', label: 'Khulna', shortLabel: 'Khulna' },
-  { value: 'Barishal', label: 'Barishal', shortLabel: 'Barishal' }
+  { value: '', label: 'All Locations (Anywhere in BD)', shortLabel: 'All Locations' },
+  { value: 'Dhaka', label: 'Dhaka (Dhaka Division)', shortLabel: 'Dhaka' },
+  { value: 'Chattogram', label: 'Chattogram (Chattogram Division)', shortLabel: 'Chattogram' },
+  { value: "Cox's Bazar", label: "Cox's Bazar (Chattogram Division)", shortLabel: "Cox's Bazar" },
+  { value: 'Sylhet', label: 'Sylhet (Sylhet Division)', shortLabel: 'Sylhet' },
+  { value: 'Moulvibazar', label: 'Moulvibazar (Sreemangal)', shortLabel: 'Moulvibazar' },
+  { value: 'Gazipur', label: 'Gazipur (Dhaka Division)', shortLabel: 'Gazipur' },
+  { value: 'Narayanganj', label: 'Narayanganj (Dhaka Division)', shortLabel: 'Narayanganj' },
+  { value: 'Rajshahi', label: 'Rajshahi (Rajshahi Division)', shortLabel: 'Rajshahi' },
+  { value: 'Khulna', label: 'Khulna (Khulna Division)', shortLabel: 'Khulna' },
+  { value: 'Barishal', label: 'Barishal (Barishal Division)', shortLabel: 'Barishal' },
+  { value: 'Rangpur', label: 'Rangpur (Rangpur Division)', shortLabel: 'Rangpur' },
+  { value: 'Mymensingh', label: 'Mymensingh (Mymensingh Division)', shortLabel: 'Mymensingh' }
 ];
 
 const SEARCH_DESIGNATIONS = [
@@ -621,9 +626,16 @@ const SEARCH_DESIGNATIONS = [
 ];
 
 function getSearchLocationLabel(val, isCandidate = true) {
-  const match = SEARCH_LOCATIONS.find(l => l.value === val);
-  if (!match) return isCandidate ? 'All Locations' : 'Location';
-  return isCandidate ? match.label : match.shortLabel;
+  if (!val || ['all', 'anywhere', 'anywhere in bangladesh', 'anywhere in bd'].includes(val.toLowerCase())) {
+    return isCandidate ? 'All Locations (Anywhere in BD)' : 'All BD';
+  }
+  const match = SEARCH_LOCATIONS.find(l => l.value.toLowerCase() === val.toLowerCase());
+  if (match) return isCandidate ? match.label : match.shortLabel;
+  if (typeof findDistrict === 'function') {
+    const d = findDistrict(val);
+    if (d) return isCandidate ? `${d.name} (${d.division})` : d.name;
+  }
+  return val;
 }
 
 function getSearchDepartmentLabel(val) {
@@ -819,21 +831,1050 @@ const HOTEL_TYPES_SCHEMA = [
   "Ski & Alpine Winter Lodge"
 ];
 
-const BANGLADESH_DISTRICTS = [
-  "Bagerhat", "Bandarban", "Barguna", "Barishal", "Bhola", "Bogura",
-  "Brahmanbaria", "Chandpur", "Chapainawabganj", "Chattogram (Chittagong)",
-  "Chuadanga", "Cox's Bazar", "Cumilla (Comilla)", "Dhaka", "Dinajpur",
-  "Faridpur", "Feni", "Gaibandha", "Gazipur", "Gopalganj",
-  "Habiganj", "Jamalpur", "Jashore (Jessore)", "Jhalokathi", "Jhenaidah",
-  "Joypurhat", "Khagrachhari", "Khulna", "Kishoreganj", "Kurigram",
-  "Kushtia", "Lakshmipur", "Lalmonirhat", "Madaripur", "Magura",
-  "Manikganj", "Meherpur", "Moulvibazar (Sreemangal)", "Munshiganj", "Mymensingh",
-  "Naogaon", "Narail", "Narayanganj", "Narsingdi", "Natore",
-  "Netrokona", "Nilphamari", "Noakhali", "Pabna", "Panchagarh (Tetulia)",
-  "Patuakhali (Kuakata)", "Pirojpur", "Rajbari", "Rajshahi", "Rangamati",
-  "Rangpur", "Satkhira (Sundarbans)", "Shariatpur", "Sherpur", "Sirajganj",
-  "Sunamganj (Tanguar Haor)", "Sylhet", "Tangail", "Thakurgaon"
+// ==========================================================================
+// BANGLADESH 64 DISTRICTS CENTRALIZED LOCATION LIBRARY & PROXIMITY ENGINE
+// ==========================================================================
+const BANGLADESH_DISTRICTS_DATA = [
+  {
+    "id": "dhaka",
+    "name": "Dhaka",
+    "division": "Dhaka",
+    "lat": 23.8103,
+    "lng": 90.4125,
+    "aliases": [
+      "Dacca"
+    ]
+  },
+  {
+    "id": "gazipur",
+    "name": "Gazipur",
+    "division": "Dhaka",
+    "lat": 24.0023,
+    "lng": 90.4264,
+    "aliases": [
+      "Joydebpur"
+    ]
+  },
+  {
+    "id": "narayanganj",
+    "name": "Narayanganj",
+    "division": "Dhaka",
+    "lat": 23.6238,
+    "lng": 90.5,
+    "aliases": []
+  },
+  {
+    "id": "narsingdi",
+    "name": "Narsingdi",
+    "division": "Dhaka",
+    "lat": 23.9193,
+    "lng": 90.7176,
+    "aliases": []
+  },
+  {
+    "id": "manikganj",
+    "name": "Manikganj",
+    "division": "Dhaka",
+    "lat": 23.8617,
+    "lng": 90.0003,
+    "aliases": []
+  },
+  {
+    "id": "munshiganj",
+    "name": "Munshiganj",
+    "division": "Dhaka",
+    "lat": 23.5422,
+    "lng": 90.5305,
+    "aliases": [
+      "Bikrampur"
+    ]
+  },
+  {
+    "id": "tangail",
+    "name": "Tangail",
+    "division": "Dhaka",
+    "lat": 24.2513,
+    "lng": 89.9167,
+    "aliases": []
+  },
+  {
+    "id": "kishoreganj",
+    "name": "Kishoreganj",
+    "division": "Dhaka",
+    "lat": 24.4449,
+    "lng": 90.7766,
+    "aliases": []
+  },
+  {
+    "id": "faridpur",
+    "name": "Faridpur",
+    "division": "Dhaka",
+    "lat": 23.6071,
+    "lng": 89.8429,
+    "aliases": []
+  },
+  {
+    "id": "gopalganj",
+    "name": "Gopalganj",
+    "division": "Dhaka",
+    "lat": 23.0051,
+    "lng": 89.8266,
+    "aliases": []
+  },
+  {
+    "id": "madaripur",
+    "name": "Madaripur",
+    "division": "Dhaka",
+    "lat": 23.1641,
+    "lng": 90.1897,
+    "aliases": []
+  },
+  {
+    "id": "rajbari",
+    "name": "Rajbari",
+    "division": "Dhaka",
+    "lat": 23.7574,
+    "lng": 89.6445,
+    "aliases": []
+  },
+  {
+    "id": "shariatpur",
+    "name": "Shariatpur",
+    "division": "Dhaka",
+    "lat": 23.2423,
+    "lng": 90.3547,
+    "aliases": []
+  },
+  {
+    "id": "chattogram",
+    "name": "Chattogram",
+    "division": "Chattogram",
+    "lat": 22.3569,
+    "lng": 91.7832,
+    "aliases": [
+      "Chittagong",
+      "Ctg"
+    ]
+  },
+  {
+    "id": "coxs_bazar",
+    "name": "Cox's Bazar",
+    "division": "Chattogram",
+    "lat": 21.4272,
+    "lng": 92.0058,
+    "aliases": [
+      "Coxs Bazar",
+      "Coxsbazar"
+    ]
+  },
+  {
+    "id": "cumilla",
+    "name": "Cumilla",
+    "division": "Chattogram",
+    "lat": 23.4607,
+    "lng": 91.1809,
+    "aliases": [
+      "Comilla"
+    ]
+  },
+  {
+    "id": "brahmanbaria",
+    "name": "Brahmanbaria",
+    "division": "Chattogram",
+    "lat": 23.9571,
+    "lng": 91.1115,
+    "aliases": [
+      "B.Baria"
+    ]
+  },
+  {
+    "id": "chandpur",
+    "name": "Chandpur",
+    "division": "Chattogram",
+    "lat": 23.2333,
+    "lng": 90.6667,
+    "aliases": []
+  },
+  {
+    "id": "feni",
+    "name": "Feni",
+    "division": "Chattogram",
+    "lat": 23.0186,
+    "lng": 91.3966,
+    "aliases": []
+  },
+  {
+    "id": "lakshmipur",
+    "name": "Lakshmipur",
+    "division": "Chattogram",
+    "lat": 22.9425,
+    "lng": 90.8412,
+    "aliases": [
+      "Laxmipur"
+    ]
+  },
+  {
+    "id": "noakhali",
+    "name": "Noakhali",
+    "division": "Chattogram",
+    "lat": 22.8696,
+    "lng": 91.0995,
+    "aliases": []
+  },
+  {
+    "id": "bandarban",
+    "name": "Bandarban",
+    "division": "Chattogram",
+    "lat": 22.1953,
+    "lng": 92.2184,
+    "aliases": []
+  },
+  {
+    "id": "khagrachhari",
+    "name": "Khagrachhari",
+    "division": "Chattogram",
+    "lat": 23.1193,
+    "lng": 91.9847,
+    "aliases": [
+      "Khagrachari"
+    ]
+  },
+  {
+    "id": "rangamati",
+    "name": "Rangamati",
+    "division": "Chattogram",
+    "lat": 22.6533,
+    "lng": 92.1753,
+    "aliases": []
+  },
+  {
+    "id": "sylhet",
+    "name": "Sylhet",
+    "division": "Sylhet",
+    "lat": 24.8949,
+    "lng": 91.8687,
+    "aliases": []
+  },
+  {
+    "id": "moulvibazar",
+    "name": "Moulvibazar",
+    "division": "Sylhet",
+    "lat": 24.4829,
+    "lng": 91.7774,
+    "aliases": [
+      "Maulvibazar",
+      "Sreemangal"
+    ]
+  },
+  {
+    "id": "habiganj",
+    "name": "Habiganj",
+    "division": "Sylhet",
+    "lat": 24.375,
+    "lng": 91.4167,
+    "aliases": []
+  },
+  {
+    "id": "sunamganj",
+    "name": "Sunamganj",
+    "division": "Sylhet",
+    "lat": 25.0658,
+    "lng": 91.4073,
+    "aliases": [
+      "Tanguar Haor"
+    ]
+  },
+  {
+    "id": "rajshahi",
+    "name": "Rajshahi",
+    "division": "Rajshahi",
+    "lat": 24.3636,
+    "lng": 88.6241,
+    "aliases": []
+  },
+  {
+    "id": "bogura",
+    "name": "Bogura",
+    "division": "Rajshahi",
+    "lat": 24.8465,
+    "lng": 89.3777,
+    "aliases": [
+      "Bogra"
+    ]
+  },
+  {
+    "id": "joypurhat",
+    "name": "Joypurhat",
+    "division": "Rajshahi",
+    "lat": 25.0968,
+    "lng": 89.0227,
+    "aliases": []
+  },
+  {
+    "id": "naogaon",
+    "name": "Naogaon",
+    "division": "Rajshahi",
+    "lat": 24.8236,
+    "lng": 88.932,
+    "aliases": []
+  },
+  {
+    "id": "natore",
+    "name": "Natore",
+    "division": "Rajshahi",
+    "lat": 24.4206,
+    "lng": 89.0003,
+    "aliases": []
+  },
+  {
+    "id": "chapainawabganj",
+    "name": "Chapainawabganj",
+    "division": "Rajshahi",
+    "lat": 24.5965,
+    "lng": 88.2775,
+    "aliases": [
+      "Nawabganj",
+      "Chapai"
+    ]
+  },
+  {
+    "id": "pabna",
+    "name": "Pabna",
+    "division": "Rajshahi",
+    "lat": 24.0064,
+    "lng": 89.2372,
+    "aliases": []
+  },
+  {
+    "id": "sirajganj",
+    "name": "Sirajganj",
+    "division": "Rajshahi",
+    "lat": 24.4534,
+    "lng": 89.7008,
+    "aliases": []
+  },
+  {
+    "id": "khulna",
+    "name": "Khulna",
+    "division": "Khulna",
+    "lat": 22.8456,
+    "lng": 89.5403,
+    "aliases": []
+  },
+  {
+    "id": "bagerhat",
+    "name": "Bagerhat",
+    "division": "Khulna",
+    "lat": 22.6516,
+    "lng": 89.7859,
+    "aliases": [
+      "Sundarbans"
+    ]
+  },
+  {
+    "id": "jashore",
+    "name": "Jashore",
+    "division": "Khulna",
+    "lat": 23.1664,
+    "lng": 89.2081,
+    "aliases": [
+      "Jessore"
+    ]
+  },
+  {
+    "id": "satkhira",
+    "name": "Satkhira",
+    "division": "Khulna",
+    "lat": 22.7185,
+    "lng": 89.0705,
+    "aliases": []
+  },
+  {
+    "id": "jhenaidah",
+    "name": "Jhenaidah",
+    "division": "Khulna",
+    "lat": 23.545,
+    "lng": 89.1526,
+    "aliases": []
+  },
+  {
+    "id": "magura",
+    "name": "Magura",
+    "division": "Khulna",
+    "lat": 23.4873,
+    "lng": 89.4198,
+    "aliases": []
+  },
+  {
+    "id": "narail",
+    "name": "Narail",
+    "division": "Khulna",
+    "lat": 23.1725,
+    "lng": 89.512,
+    "aliases": []
+  },
+  {
+    "id": "kushtia",
+    "name": "Kushtia",
+    "division": "Khulna",
+    "lat": 23.9013,
+    "lng": 89.1204,
+    "aliases": []
+  },
+  {
+    "id": "chuadanga",
+    "name": "Chuadanga",
+    "division": "Khulna",
+    "lat": 23.6402,
+    "lng": 88.8418,
+    "aliases": []
+  },
+  {
+    "id": "meherpur",
+    "name": "Meherpur",
+    "division": "Khulna",
+    "lat": 23.7622,
+    "lng": 88.6318,
+    "aliases": []
+  },
+  {
+    "id": "barishal",
+    "name": "Barishal",
+    "division": "Barishal",
+    "lat": 22.701,
+    "lng": 90.3535,
+    "aliases": [
+      "Barisal"
+    ]
+  },
+  {
+    "id": "barguna",
+    "name": "Barguna",
+    "division": "Barishal",
+    "lat": 22.0953,
+    "lng": 90.1121,
+    "aliases": []
+  },
+  {
+    "id": "bhola",
+    "name": "Bhola",
+    "division": "Barishal",
+    "lat": 22.6859,
+    "lng": 90.6481,
+    "aliases": []
+  },
+  {
+    "id": "jhalokathi",
+    "name": "Jhalokathi",
+    "division": "Barishal",
+    "lat": 22.6406,
+    "lng": 90.1987,
+    "aliases": [
+      "Jhalakati"
+    ]
+  },
+  {
+    "id": "patuakhali",
+    "name": "Patuakhali",
+    "division": "Barishal",
+    "lat": 22.3596,
+    "lng": 90.3299,
+    "aliases": [
+      "Kuakata"
+    ]
+  },
+  {
+    "id": "pirojpur",
+    "name": "Pirojpur",
+    "division": "Barishal",
+    "lat": 22.5841,
+    "lng": 89.972,
+    "aliases": []
+  },
+  {
+    "id": "rangpur",
+    "name": "Rangpur",
+    "division": "Rangpur",
+    "lat": 25.7439,
+    "lng": 89.2752,
+    "aliases": []
+  },
+  {
+    "id": "dinajpur",
+    "name": "Dinajpur",
+    "division": "Rangpur",
+    "lat": 25.6217,
+    "lng": 88.6355,
+    "aliases": []
+  },
+  {
+    "id": "gaibandha",
+    "name": "Gaibandha",
+    "division": "Rangpur",
+    "lat": 25.3288,
+    "lng": 89.5281,
+    "aliases": []
+  },
+  {
+    "id": "kurigram",
+    "name": "Kurigram",
+    "division": "Rangpur",
+    "lat": 25.8054,
+    "lng": 89.6362,
+    "aliases": []
+  },
+  {
+    "id": "lalmonirhat",
+    "name": "Lalmonirhat",
+    "division": "Rangpur",
+    "lat": 25.9923,
+    "lng": 89.2847,
+    "aliases": []
+  },
+  {
+    "id": "nilphamari",
+    "name": "Nilphamari",
+    "division": "Rangpur",
+    "lat": 25.9318,
+    "lng": 88.856,
+    "aliases": [
+      "Saidpur"
+    ]
+  },
+  {
+    "id": "panchagarh",
+    "name": "Panchagarh",
+    "division": "Rangpur",
+    "lat": 26.3411,
+    "lng": 88.5542,
+    "aliases": [
+      "Tetulia"
+    ]
+  },
+  {
+    "id": "thakurgaon",
+    "name": "Thakurgaon",
+    "division": "Rangpur",
+    "lat": 26.0337,
+    "lng": 88.4617,
+    "aliases": []
+  },
+  {
+    "id": "mymensingh",
+    "name": "Mymensingh",
+    "division": "Mymensingh",
+    "lat": 24.7471,
+    "lng": 90.4203,
+    "aliases": []
+  },
+  {
+    "id": "jamalpur",
+    "name": "Jamalpur",
+    "division": "Mymensingh",
+    "lat": 24.9375,
+    "lng": 89.9378,
+    "aliases": []
+  },
+  {
+    "id": "netrokona",
+    "name": "Netrokona",
+    "division": "Mymensingh",
+    "lat": 24.8709,
+    "lng": 90.7279,
+    "aliases": []
+  },
+  {
+    "id": "sherpur",
+    "name": "Sherpur",
+    "division": "Mymensingh",
+    "lat": 25.0205,
+    "lng": 90.0153,
+    "aliases": []
+  }
 ];
+
+const BANGLADESH_DISTRICTS = BANGLADESH_DISTRICTS_DATA.map(d => d.name);
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371.0; // Earth's mean radius in km
+  const toRad = deg => (deg * Math.PI) / 180.0;
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const deltaPhi = toRad(lat2 - lat1);
+  const deltaLambda = toRad(lon2 - lon1);
+
+  const a = Math.sin(deltaPhi / 2.0) * Math.sin(deltaPhi / 2.0) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2.0) * Math.sin(deltaLambda / 2.0);
+  const c = 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+function findDistrict(nameOrId) {
+  if (!nameOrId) return null;
+  const q = String(nameOrId).trim().toLowerCase();
+  // 1. Match by ID or exact Name
+  for (const d of BANGLADESH_DISTRICTS_DATA) {
+    if (d.id.toLowerCase() === q || d.name.toLowerCase() === q) return d;
+  }
+  // 2. Match aliases
+  for (const d of BANGLADESH_DISTRICTS_DATA) {
+    for (const a of (d.aliases || [])) {
+      if (a.toLowerCase() === q) return d;
+    }
+  }
+  // 3. Normalized / Substring
+  const cleanQ = q.replace(/[^a-z0-9]/g, '');
+  for (const d of BANGLADESH_DISTRICTS_DATA) {
+    const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanName === cleanQ || cleanName.includes(cleanQ) || cleanQ.includes(cleanName)) {
+      return d;
+    }
+  }
+  return null;
+}
+
+function getDistrictsByProximity(preferredInputs, maxDistanceKm = null) {
+  if (!Array.isArray(preferredInputs)) {
+    preferredInputs = preferredInputs ? [preferredInputs] : [];
+  }
+  const selectedDistricts = [];
+  const selectedIds = new Set();
+
+  for (const inp of preferredInputs) {
+    if (!inp) continue;
+    const str = String(inp).trim();
+    if (['anywhere in bangladesh', 'anywhere in bd', 'all', 'anywhere'].includes(str.toLowerCase())) {
+      continue;
+    }
+    const d = findDistrict(str);
+    if (d && !selectedIds.has(d.id)) {
+      selectedDistricts.push(d);
+      selectedIds.add(d.id);
+    }
+  }
+
+  if (selectedDistricts.length === 0) {
+    return BANGLADESH_DISTRICTS_DATA.map(d => ({
+      ...d,
+      distance_km: 0.0,
+      is_selected: false
+    }));
+  }
+
+  const results = [];
+  for (const d of BANGLADESH_DISTRICTS_DATA) {
+    const isSelected = selectedIds.has(d.id);
+    let minDist = 0.0;
+    if (!isSelected) {
+      minDist = Math.min(...selectedDistricts.map(sel => haversineDistance(d.lat, d.lng, sel.lat, sel.lng)));
+    }
+
+    if (maxDistanceKm !== null && minDist > maxDistanceKm && !isSelected) {
+      continue;
+    }
+
+    results.push({
+      id: d.id,
+      name: d.name,
+      division: d.division,
+      lat: d.lat,
+      lng: d.lng,
+      aliases: d.aliases || [],
+      distance_km: Math.round(minDist * 10) / 10,
+      is_selected: isSelected
+    });
+  }
+
+  // Sort: Selected districts first (distance=0, is_selected=true), then ascending distance
+  results.sort((a, b) => {
+    if (a.is_selected !== b.is_selected) return a.is_selected ? -1 : 1;
+    if (a.distance_km !== b.distance_km) return a.distance_km - b.distance_km;
+    return a.name.localeCompare(b.name);
+  });
+
+  return results;
+}
+
+// ==========================================================================
+// DISTRICT PROXIMITY PICKER UI COMPONENT
+// ==========================================================================
+window._districtPickerStates = window._districtPickerStates || {};
+
+function getPickerState(pickerId, defaultSelected = ['Dhaka']) {
+  if (!window._districtPickerStates[pickerId]) {
+    window._districtPickerStates[pickerId] = {
+      selected: Array.isArray(defaultSelected) ? [...defaultSelected] : [defaultSelected].filter(Boolean),
+      isExpanded: false,
+      searchTerm: ''
+    };
+  }
+  return window._districtPickerStates[pickerId];
+}
+
+function renderDistrictProximityPicker(options = {}) {
+  const {
+    pickerId = 'district-picker',
+    selected = ['Dhaka'],
+    context = 'candidate_signup',
+    allowMultiple = true,
+    allowAnywhere = true
+  } = options;
+
+  const pState = getPickerState(pickerId, selected);
+  const isAnywhere = pState.selected.some(s => 
+    ['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
+  );
+
+  const selectedList = isAnywhere ? ['Anywhere in Bangladesh'] : pState.selected;
+  const proximityData = isAnywhere 
+    ? BANGLADESH_DISTRICTS_DATA.map(d => ({ ...d, distance_km: 0.0, is_selected: false }))
+    : getDistrictsByProximity(pState.selected);
+
+  // Filter recommendations if search term is active
+  let displayDistricts = proximityData;
+  if (pState.searchTerm) {
+    const st = pState.searchTerm.toLowerCase();
+    displayDistricts = displayDistricts.filter(d => 
+      d.name.toLowerCase().includes(st) || 
+      d.division.toLowerCase().includes(st) || 
+      (d.aliases || []).some(a => a.toLowerCase().includes(st))
+    );
+  }
+
+  // Group into tiers
+  const exactMatches = displayDistricts.filter(d => d.is_selected);
+  const unselected = displayDistricts.filter(d => !d.is_selected);
+
+  let adjacent = [];
+  let regional = [];
+  let nationwide = [];
+
+  if (isAnywhere) {
+    adjacent = unselected;
+  } else {
+    adjacent = unselected.filter(d => d.distance_km < 60);
+    regional = unselected.filter(d => d.distance_km >= 60 && d.distance_km < 150);
+    nationwide = unselected.filter(d => d.distance_km >= 150);
+  }
+
+  const totalCount = unselected.length;
+  const initialCap = 14;
+  const isCapped = !pState.isExpanded && !pState.searchTerm && unselected.length > initialCap;
+  
+  let visibleAdjacent = adjacent;
+  let visibleRegional = regional;
+  let visibleNationwide = nationwide;
+
+  if (isCapped) {
+    if (adjacent.length >= initialCap) {
+      visibleAdjacent = adjacent.slice(0, initialCap);
+      visibleRegional = [];
+      visibleNationwide = [];
+    } else if (adjacent.length + regional.length >= initialCap) {
+      visibleAdjacent = adjacent;
+      visibleRegional = regional.slice(0, initialCap - adjacent.length);
+      visibleNationwide = [];
+    } else {
+      visibleAdjacent = adjacent;
+      visibleRegional = regional;
+      visibleNationwide = nationwide.slice(0, initialCap - adjacent.length - regional.length);
+    }
+  }
+
+  const shownCount = visibleAdjacent.length + visibleRegional.length + visibleNationwide.length;
+  const remainingCount = totalCount - shownCount;
+
+  return `
+    <div class="district-selector-box" id="${pickerId}" data-context="${context}" data-allow-multiple="${allowMultiple}" data-allow-anywhere="${allowAnywhere}">
+      <!-- Search input for live filtering -->
+      <div class="district-search-bar">
+        ${svgIcon('search', '', 15)}
+        <input type="text" placeholder="Search any of 64 districts (e.g. Dhaka, Cox's Bazar)..." 
+          value="${escapeHtml(pState.searchTerm || '')}" 
+          oninput="handleDistrictSearchInput('${pickerId}', this.value)">
+        ${pState.searchTerm ? `
+          <button type="button" class="btn-clear-districts" onclick="handleDistrictSearchInput('${pickerId}', '')" style="color: var(--text-dim); text-decoration: none;">
+            ${svgIcon('x', '', 14)}
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Quick Actions Bar -->
+      <div class="district-quick-actions">
+        ${allowAnywhere ? `
+          <button type="button" class="btn-anywhere-toggle ${isAnywhere ? 'active' : ''}" onclick="handleDistrictAnywhereToggle('${pickerId}', '${context}')">
+            ${svgIcon('globe', '', 13)} Anywhere in Bangladesh
+          </button>
+        ` : '<div></div>'}
+
+        ${selectedList.length > 0 ? `
+          <button type="button" class="btn-clear-districts" onclick="handleDistrictClearAll('${pickerId}', '${context}')">
+            Clear all
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Selected District Chips Container -->
+      <div class="district-chips-container">
+        ${selectedList.length === 0 ? `
+          <span style="font-size: 0.78rem; color: var(--text-dim);">No district selected. Pick from suggestions below.</span>
+        ` : selectedList.map(name => `
+          <span class="district-chip ${name === 'Anywhere in Bangladesh' ? 'is-anywhere' : ''}">
+            ${svgIcon(name === 'Anywhere in Bangladesh' ? 'globe' : 'mapPin', '', 12)}
+            <span>${name}</span>
+            <button type="button" class="district-chip-remove" onclick="handleDistrictRemove('${pickerId}', '${name.replace(/'/g, "\\'")}', '${context}')" title="Remove ${name}">
+              ${svgIcon('x', '', 11)}
+            </button>
+          </span>
+        `).join('')}
+      </div>
+
+      <!-- Proximity Recommendations Panel -->
+      <div class="district-proximity-panel">
+        ${pState.searchTerm ? `
+          <div style="font-size: 0.72rem; color: var(--text-dim); margin-bottom: 8px;">
+            Search Results (${displayDistricts.length} matching):
+          </div>
+          <div class="proximity-districts-grid">
+            ${displayDistricts.length === 0 ? `
+              <div style="font-size: 0.78rem; color: var(--text-dim); padding: 8px 0;">No matching districts found in Bangladesh.</div>
+            ` : displayDistricts.map(d => `
+              <button type="button" class="proximity-district-btn ${d.is_selected ? 'is-selected' : ''}" 
+                onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')">
+                <span>${d.name}</span>
+                <span class="proximity-dist-tag">(${d.division})</span>
+                ${!isAnywhere && !d.is_selected ? `<span class="proximity-dist-tag" style="color: #ff9d42; font-weight: 600;">${d.distance_km} km</span>` : ''}
+              </button>
+            `).join('')}
+          </div>
+        ` : isAnywhere ? `
+          <div style="font-size: 0.74rem; color: var(--text-dim); margin-bottom: 8px;">
+            ${svgIcon('checkCircle', '', 12)} You have chosen to be available for job opportunities anywhere in Bangladesh.
+          </div>
+          <div class="proximity-tier-title" style="margin-bottom: 6px;">Browse All 64 Districts:</div>
+          <div class="proximity-districts-grid">
+            ${displayDistricts.map(d => `
+              <button type="button" class="proximity-district-btn" 
+                onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')">
+                <span>${d.name}</span>
+                <span class="proximity-dist-tag">${d.division}</span>
+              </button>
+            `).join('')}
+          </div>
+        ` : `
+          <!-- Tier 1: Adjacent / Immediate Proximity (< 60 km) -->
+          ${visibleAdjacent.length > 0 ? `
+            <div class="proximity-tier-group">
+              <div class="proximity-tier-header">
+                <span class="proximity-tier-title">
+                  ${svgIcon('navigation', '', 12)} Nearest &amp; Adjacent Districts (&lt; 60 km)
+                </span>
+                <span class="proximity-tier-badge">${adjacent.length} nearby</span>
+              </div>
+              <div class="proximity-districts-grid">
+                ${visibleAdjacent.map(d => `
+                  <button type="button" class="proximity-district-btn" 
+                    onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')"
+                    title="Click to add ${d.name} to preferred locations (${d.distance_km} km from your selection)">
+                    <span>${d.name}</span>
+                    <span class="proximity-dist-tag" style="color: #ff9d42; font-weight: 600;">${d.distance_km} km</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Tier 2: Regional Proximity (60 - 150 km) -->
+          ${visibleRegional.length > 0 ? `
+            <div class="proximity-tier-group" style="margin-top: 10px;">
+              <div class="proximity-tier-header">
+                <span class="proximity-tier-title">
+                  ${svgIcon('map', '', 12)} Regional Proximity (60 – 150 km)
+                </span>
+                <span class="proximity-tier-badge">${regional.length} regional</span>
+              </div>
+              <div class="proximity-districts-grid">
+                ${visibleRegional.map(d => `
+                  <button type="button" class="proximity-district-btn" 
+                    onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')"
+                    title="Click to add ${d.name} (${d.distance_km} km)">
+                    <span>${d.name}</span>
+                    <span class="proximity-dist-tag">${d.distance_km} km</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Tier 3: Nationwide (> 150 km) -->
+          ${visibleNationwide.length > 0 ? `
+            <div class="proximity-tier-group" style="margin-top: 10px;">
+              <div class="proximity-tier-header">
+                <span class="proximity-tier-title">
+                  ${svgIcon('compass', '', 12)} Extended &amp; Nationwide (&gt; 150 km)
+                </span>
+                <span class="proximity-tier-badge">${nationwide.length} districts</span>
+              </div>
+              <div class="proximity-districts-grid">
+                ${visibleNationwide.map(d => `
+                  <button type="button" class="proximity-district-btn" 
+                    onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')"
+                    title="Click to add ${d.name} (${d.distance_km} km)">
+                    <span>${d.name}</span>
+                    <span class="proximity-dist-tag">${d.distance_km} km</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Expand / Collapse Toggle Button -->
+          ${isCapped ? `
+            <button type="button" class="district-expand-btn" onclick="handleDistrictExpandToggle('${pickerId}')">
+              ${svgIcon('chevronDown', '', 13)} Show all 64 districts by proximity (${remainingCount} more)
+            </button>
+          ` : pState.isExpanded ? `
+            <button type="button" class="district-expand-btn" onclick="handleDistrictExpandToggle('${pickerId}')">
+              ${svgIcon('chevronUp', '', 13)} Collapse nearby recommendations
+            </button>
+          ` : ''}
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function handleDistrictToggle(pickerId, distName, context) {
+  const pState = getPickerState(pickerId);
+  pState.selected = pState.selected.filter(s => 
+    !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
+  );
+  
+  const existingIdx = pState.selected.findIndex(s => s.toLowerCase() === distName.toLowerCase());
+  if (existingIdx >= 0) {
+    pState.selected.splice(existingIdx, 1);
+  } else {
+    pState.selected.push(distName);
+  }
+  
+  if (pState.selected.length === 0) {
+    pState.selected = ['Dhaka'];
+  }
+  updatePickerContext(pickerId, context);
+}
+
+function handleDistrictRemove(pickerId, distName, context) {
+  const pState = getPickerState(pickerId);
+  pState.selected = pState.selected.filter(s => s.toLowerCase() !== distName.toLowerCase());
+  if (pState.selected.length === 0) {
+    pState.selected = ['Anywhere in Bangladesh'];
+  }
+  updatePickerContext(pickerId, context);
+}
+
+function handleDistrictAnywhereToggle(pickerId, context) {
+  const pState = getPickerState(pickerId);
+  const isAnywhere = pState.selected.some(s => 
+    ['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
+  );
+  if (isAnywhere) {
+    pState.selected = ['Dhaka'];
+  } else {
+    pState.selected = ['Anywhere in Bangladesh'];
+  }
+  updatePickerContext(pickerId, context);
+}
+
+function handleDistrictClearAll(pickerId, context) {
+  const pState = getPickerState(pickerId);
+  pState.selected = [];
+  updatePickerContext(pickerId, context);
+}
+
+function handleDistrictSearchInput(pickerId, term) {
+  const pState = getPickerState(pickerId);
+  pState.searchTerm = term.trim();
+  refreshPickerUI(pickerId);
+}
+
+function handleDistrictExpandToggle(pickerId) {
+  const pState = getPickerState(pickerId);
+  pState.isExpanded = !pState.isExpanded;
+  refreshPickerUI(pickerId);
+}
+
+function handleBizDistrictChange(val) {
+  signupState.district = val;
+  signupState.city = val;
+}
+
+function updatePickerContext(pickerId, context) {
+  const pState = getPickerState(pickerId);
+  const formattedVal = pState.selected.join(', ');
+  
+  const hiddenInput = document.getElementById(pickerId.replace('-picker', '')) || 
+                      document.getElementById('cand-pref-location');
+  if (hiddenInput) {
+    hiddenInput.value = formattedVal;
+  }
+
+  if (context === 'candidate_signup') {
+    if (!signupState.job_preferences) signupState.job_preferences = {};
+    signupState.job_preferences.preferred_location = formattedVal;
+    signupState.job_preferences.preferred_locations = [...pState.selected];
+  } else if (context === 'job_search') {
+    state.search.location = formattedVal;
+    const heroInput = document.getElementById('select-search-loc');
+    if (heroInput) heroInput.value = formattedVal;
+    if (typeof fetchJobs === 'function') {
+      fetchJobs();
+    }
+  }
+
+  refreshPickerUI(pickerId);
+}
+
+function refreshPickerUI(pickerId) {
+  const container = document.getElementById(pickerId);
+  if (!container) return;
+  const context = container.dataset.context || 'candidate_signup';
+  const allowMultiple = container.dataset.allowMultiple !== 'false';
+  const allowAnywhere = container.dataset.allowAnywhere !== 'false';
+  
+  const parent = container.parentElement;
+  if (!parent) return;
+
+  const currentScroll = container.querySelector('.district-proximity-panel')?.scrollTop || 0;
+  
+  parent.innerHTML = renderDistrictProximityPicker({
+    pickerId,
+    selected: getPickerState(pickerId).selected,
+    context,
+    allowMultiple,
+    allowAnywhere
+  });
+
+  const newContainer = document.getElementById(pickerId);
+  if (newContainer && currentScroll > 0) {
+    const panel = newContainer.querySelector('.district-proximity-panel');
+    if (panel) panel.scrollTop = currentScroll;
+  }
+}
+
+window.handleDistrictToggle = handleDistrictToggle;
+window.handleDistrictRemove = handleDistrictRemove;
+window.handleDistrictAnywhereToggle = handleDistrictAnywhereToggle;
+window.handleDistrictClearAll = handleDistrictClearAll;
+window.handleDistrictSearchInput = handleDistrictSearchInput;
+window.handleDistrictExpandToggle = handleDistrictExpandToggle;
+window.handleBizDistrictChange = handleBizDistrictChange;
+window.renderDistrictProximityPicker = renderDistrictProximityPicker;
+window.getDistrictsByProximity = getDistrictsByProximity;
+window.findDistrict = findDistrict;
+window.haversineDistance = haversineDistance;
+window.BANGLADESH_DISTRICTS_DATA = BANGLADESH_DISTRICTS_DATA;
+
 
 const PRESET_AVATARS = [
   "/static/images/candidate_rahim.jpg",
@@ -2825,12 +3866,22 @@ async function renderHomeScreen(viewport) {
   } else if (sortBy === 'latest') {
     jobs.sort((a, b) => (b.id > a.id ? 1 : -1));
   } else {
-    // Default featured: featured first, then urgent
-    jobs.sort((a, b) => {
-      if (b.is_featured !== a.is_featured) return (b.is_featured || 0) - (a.is_featured || 0);
-      if (b.is_urgent !== a.is_urgent) return (b.is_urgent || 0) - (a.is_urgent || 0);
-      return 0;
-    });
+    // Default featured: if location search is active, respect proximity ranking
+    if (state.search.location && !['', 'all', 'anywhere', 'anywhere in bangladesh', 'anywhere in bd'].includes(state.search.location.toLowerCase())) {
+      jobs.sort((a, b) => {
+        if (a.is_exact_location !== b.is_exact_location) return a.is_exact_location ? -1 : 1;
+        if ((a.distance_km ?? 9999) !== (b.distance_km ?? 9999)) return (a.distance_km ?? 9999) - (b.distance_km ?? 9999);
+        if (b.is_featured !== a.is_featured) return (b.is_featured || 0) - (a.is_featured || 0);
+        if (b.is_urgent !== a.is_urgent) return (b.is_urgent || 0) - (a.is_urgent || 0);
+        return 0;
+      });
+    } else {
+      jobs.sort((a, b) => {
+        if (b.is_featured !== a.is_featured) return (b.is_featured || 0) - (a.is_featured || 0);
+        if (b.is_urgent !== a.is_urgent) return (b.is_urgent || 0) - (a.is_urgent || 0);
+        return 0;
+      });
+    }
   }
 
   const isGuest = state.currentRole === 'guest' || !state.currentUser;
@@ -3120,6 +4171,9 @@ function renderJobCardHTML(job) {
       <div class="job-meta-row" style="margin: 10px 0 12px 0;">
         <div class="meta-item">
           ${svgIcon('mapPin', '', 14)} <strong>${job.property_location || job.city || 'Dhaka'}</strong>
+          ${(job.distance_km !== undefined && job.distance_km !== null && state.search.location && !['', 'all', 'anywhere', 'anywhere in bangladesh', 'anywhere in bd'].includes(state.search.location.toLowerCase())) ? (
+            job.is_exact_location ? `<span class="job-distance-pill is-exact">${svgIcon('checkCircle', '', 11)} Preferred Match</span>` : `<span class="job-distance-pill">${svgIcon('navigation', '', 11)} ${job.distance_km} km away</span>`
+          ) : ''}
         </div>
         <div class="meta-item">
           ${svgIcon('briefcase', '', 14)} ${job.department}
@@ -8078,6 +9132,8 @@ function quickDemoLogin(role) {
 // -------------------------------------------------------------
 
 function renderSignupPage(viewport) {
+  viewport = viewport || document.getElementById('app-viewport');
+  if (!viewport) return;
   const isCandidate = signupState.role === 'candidate';
 
   viewport.innerHTML = `
@@ -8315,7 +9371,7 @@ function renderSignupPage(viewport) {
                     </select>
                   </div>
                 </div>
-                <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 12px;">
                   <div>
                     <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Shift</label>
                     <select id="cand-pref-shift" class="auth-input">
@@ -8341,16 +9397,24 @@ function renderSignupPage(viewport) {
                            onkeydown="handleExpectedSalaryKeydown(event)"
                            ${(signupState.job_preferences?.expected_salary === 'Negotiable') ? 'readonly style="color: #ff7a18; font-weight: 700; background: rgba(255, 107, 0, 0.08); border-color: rgba(255, 107, 0, 0.4);"' : ''}>
                   </div>
-                  <div>
-                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Preferred Location</label>
-                    <select id="cand-pref-location" class="auth-input">
-                      <option value="Dhaka" ${(signupState.job_preferences?.preferred_location || 'Dhaka') === 'Dhaka' ? 'selected' : ''}>Dhaka</option>
-                      <option value="Cox's Bazar" ${signupState.job_preferences?.preferred_location === "Cox's Bazar" ? 'selected' : ''}>Cox's Bazar</option>
-                      <option value="Sylhet" ${signupState.job_preferences?.preferred_location === 'Sylhet' ? 'selected' : ''}>Sylhet</option>
-                      <option value="Chittagong" ${signupState.job_preferences?.preferred_location === 'Chittagong' ? 'selected' : ''}>Chittagong</option>
-                      <option value="Anywhere in BD" ${signupState.job_preferences?.preferred_location === 'Anywhere in BD' ? 'selected' : ''}>Anywhere in BD</option>
-                    </select>
+                </div>
+
+                <!-- PREFERRED LOCATION: Bangladesh 64 Districts Proximity Location System -->
+                <div class="auth-field" style="margin-top: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="auth-label" style="margin: 0;">Preferred Location</label>
+                    <span style="font-size: 0.74rem; color: var(--text-dim);">Pick 1 or more districts, or Anywhere in BD</span>
                   </div>
+                  <div id="cand-location-picker-wrapper">
+                    ${renderDistrictProximityPicker({
+                      pickerId: 'cand-pref-location-picker',
+                      selected: signupState.job_preferences?.preferred_locations || (signupState.job_preferences?.preferred_location ? signupState.job_preferences.preferred_location.split(',').map(s => s.trim()).filter(Boolean) : ['Dhaka']),
+                      context: 'candidate_signup',
+                      allowMultiple: true,
+                      allowAnywhere: true
+                    })}
+                  </div>
+                  <input type="hidden" id="cand-pref-location" value="${escapeHtml(signupState.job_preferences?.preferred_location || 'Dhaka')}">
                 </div>
               </div>
 
@@ -8772,9 +9836,9 @@ function renderSignupPage(viewport) {
                         value="${signupState.thana_upazila || ''}">
                     </div>
                     <div>
-                      <select id="biz-new-district" class="auth-input" onchange="signupState.district = this.value">
-                        ${BANGLADESH_DISTRICTS.map(d => `
-                          <option value="${d}" ${signupState.district === d ? 'selected' : ''}>${d} District</option>
+                      <select id="biz-new-district" class="auth-input" onchange="handleBizDistrictChange(this.value)">
+                        ${BANGLADESH_DISTRICTS_DATA.map(d => `
+                          <option value="${d.name}" ${(signupState.district || 'Dhaka') === d.name ? 'selected' : ''}>${d.name} (${d.division} Division)</option>
                         `).join('')}
                       </select>
                     </div>

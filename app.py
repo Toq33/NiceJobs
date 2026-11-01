@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import database
+import locations
 import bcrypt
 
 app = FastAPI(title="NiceJobs API", version="1.0.0")
@@ -1122,6 +1123,27 @@ def is_demo_hidden() -> bool:
     except Exception:
         return True
 
+@app.get("/api/locations/districts")
+def get_locations_districts(division: Optional[str] = None):
+    districts = locations.get_all_districts()
+    if division:
+        div_clean = division.strip().lower()
+        districts = [d for d in districts if d["division"].lower() == div_clean]
+    return districts
+
+@app.get("/api/locations/proximity")
+def get_locations_proximity(
+    preferred: Optional[str] = Query(None, description="Comma-separated district names or IDs"),
+    max_distance: Optional[float] = Query(None, description="Max distance in km")
+):
+    if not preferred or preferred.strip().lower() in ("all", "anywhere", "anywhere in bangladesh", "anywhere in bd"):
+        return [
+            {**d, "distance_km": 0.0, "is_selected": False}
+            for d in locations.get_all_districts()
+        ]
+    inputs = [p.strip() for p in preferred.split(",") if p.strip()]
+    return locations.get_districts_by_proximity(inputs, max_distance_km=max_distance)
+
 @app.get("/api/jobs")
 def get_jobs(
     q: Optional[str] = None,
@@ -1134,10 +1156,13 @@ def get_jobs(
     duty_meals: Optional[bool] = None,
     urgent_only: Optional[bool] = None,
     business_id: Optional[str] = None,
-    status: Optional[str] = "active"
+    status: Optional[str] = "active",
+    include_nearby: Optional[bool] = True,
+    strict_location: Optional[bool] = False,
+    max_distance_km: Optional[float] = None
 ):
     demo_hidden = is_demo_hidden()
-    cache_key = f"jobs:{q}:{location}:{department}:{designation}:{employment_type}:{experience_level}:{accommodation}:{duty_meals}:{urgent_only}:{business_id}:{status}:{demo_hidden}"
+    cache_key = f"jobs:{q}:{location}:{department}:{designation}:{employment_type}:{experience_level}:{accommodation}:{duty_meals}:{urgent_only}:{business_id}:{status}:{include_nearby}:{strict_location}:{max_distance_km}:{demo_hidden}"
     cached = get_cached_api(cache_key)
     if cached is not None:
         return cached
@@ -1175,7 +1200,22 @@ def get_jobs(
         like_q = f"%{q}%"
         params.extend([like_q, like_q, like_q])
 
+    # Parse preferred location(s)
+    resolved_preferred = []
+    is_all_bd = False
     if location:
+        loc_str = location.strip()
+        if loc_str.lower() in ("all", "anywhere", "anywhere in bangladesh", "anywhere in bd"):
+            is_all_bd = True
+        else:
+            raw_tokens = [t.strip() for t in loc_str.split(",") if t.strip()]
+            for tok in raw_tokens:
+                d_match = locations.find_district(tok) or locations.resolve_district_from_text(tok)
+                if d_match and not any(p["id"] == d_match["id"] for p in resolved_preferred):
+                    resolved_preferred.append(d_match)
+
+    # If location is provided but could not be mapped to any 64 districts (non-district query):
+    if location and not is_all_bd and not resolved_preferred:
         loc_str = location.strip()
         if 'chattogram' in loc_str.lower() or 'chittagong' in loc_str.lower():
             query += " AND (b.city LIKE '%Chittagong%' OR b.city LIKE '%Chattogram%' OR j.property_location LIKE '%Chittagong%' OR j.property_location LIKE '%Chattogram%')"
@@ -1218,6 +1258,8 @@ def get_jobs(
     rows = cursor.fetchall()
 
     results = []
+    selected_ids = {p["id"] for p in resolved_preferred}
+
     for r in rows:
         d = dict(r)
         d["requirements"] = json.loads(d["requirements"]) if d.get("requirements") else []
@@ -1231,7 +1273,56 @@ def get_jobs(
             if d.get("duty_meals_provided"): raw_b.append("Free Duty Meals (3 Meals / Shift)")
             raw_b.append("Comprehensive Health & Medical Insurance")
         d["benefits"] = raw_b
+
+        # Resolve district for each job
+        j_dist = locations.match_job_district(d.get("city", ""), d.get("district", ""), d.get("property_location", ""))
+        if j_dist:
+            d["district_id"] = j_dist["id"]
+            d["district_name"] = j_dist["name"]
+            d["district_division"] = j_dist["division"]
+            d["district_lat"] = j_dist["lat"]
+            d["district_lng"] = j_dist["lng"]
+        else:
+            d["district_id"] = None
+            d["district_name"] = None
+            d["district_division"] = None
+            d["district_lat"] = None
+            d["district_lng"] = None
+
+        if resolved_preferred:
+            if j_dist and j_dist["id"] in selected_ids:
+                d["distance_km"] = 0.0
+                d["is_exact_location"] = True
+            elif j_dist:
+                d["distance_km"] = round(min(
+                    locations.haversine_distance(j_dist["lat"], j_dist["lng"], sel["lat"], sel["lng"])
+                    for sel in resolved_preferred
+                ), 1)
+                d["is_exact_location"] = False
+            else:
+                d["distance_km"] = 9999.0
+                d["is_exact_location"] = False
+
+            # Strict filtering: if strict_location is True or include_nearby is False, filter out non-exact matches
+            if (strict_location is True or include_nearby is False) and not d["is_exact_location"]:
+                continue
+
+            if max_distance_km is not None and d["distance_km"] > max_distance_km and not d["is_exact_location"]:
+                continue
+        else:
+            d["distance_km"] = 0.0
+            d["is_exact_location"] = True
+
         results.append(d)
+
+    # Sort results if preferred districts are selected
+    if resolved_preferred:
+        results.sort(key=lambda j: (
+            not j.get("is_exact_location", False),
+            j.get("distance_km", 999999.0),
+            not j.get("is_featured", 0),
+            not j.get("is_urgent", 0)
+        ))
 
     conn.close()
     set_cached_api(cache_key, results)
