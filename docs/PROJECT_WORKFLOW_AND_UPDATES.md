@@ -568,3 +568,36 @@ When continuing work on the NiceJobs repository in any new conversation:
     - All 5 category options rendered accurately with `5-Star Luxury` as default.
     - Selection change and state persistence verified across stage navigation.
     - Zero explanatory hint elements in DOM.
+
+### Update 65: Shared Email Support for Dual Candidate & Business Representative Accounts and Representative OTP
+
+- **Dual-Account Single-Email Architecture**:
+  - Enforced that any single email address can simultaneously hold:
+    1. Exactly one Candidate account (`role = 'jobseeker'`).
+    2. Exactly one Business Representative account (`role = 'recruiter'`).
+  - Scoped email and phone uniqueness verification (`/api/auth/check-candidate-availability` and `/api/auth/check-business-availability`) by role:
+    - Candidate availability checks ensure the email and mobile number are not already taken by another Candidate, allowing business representatives to freely open a Candidate account with their same email.
+    - Business availability checks ensure the representative email and phone are not already taken by another Recruiter, allowing candidates to freely register as an authorized business representative with their same email.
+- **Strict Data Isolation & Zero Shared State**:
+  - Candidate user records and Business Representative user records are saved as separate rows in `users` with distinct primary keys (`id`).
+  - Candidate career profiles, preferences, applications, and saved jobs are keyed strictly to candidate `users.id` in `employee_profiles`.
+  - Recruiter access, hotel management rights, and team permissions are keyed strictly to recruiter `users.id` in `business_memberships`.
+  - Zero profile data, activity, applications, or notes are shared between candidate and business accounts using the same email address.
+- **Role-Directed Authentication on Log In**:
+  - The login pipeline (`/api/auth/login`) honors the explicit role chosen on the login screen (`role: 'jobseeker'` vs `role: 'recruiter'`):
+    - When logging in via the **Candidate** tab, the system selects and authenticates the candidate user account.
+    - When logging in via the **Business** tab, the system selects and authenticates the business representative user account for the specified establishment.
+    - Independent passwords and OTP credentials are validated strictly against the selected account type.
+- **Representative Email OTP Dispatch on Business Sign Up**:
+  - In `static/js/app.js`: Updated Business Sign Up (Route A, Stage 5) to dispatch verification codes directly to the **Representative Email** (`signupState.rep_email`) rather than the official business mailbox.
+  - Updated the OTP screen header (*"Verify Representative Email"*), subtitle (*"Enter the 6-digit verification code sent to your personal work email"*), and destination pill (`Sent to ${signupState.rep_email}`).
+  - In `app.py`: Updated `register_business` OTP verification to match against `[rep_email, payload.representative_email, payload.phone, ...]`.
+- **Verification**:
+  - Added dedicated test suite `tests/test_shared_email_auth.py` covering:
+    - Same email registration for Candidate and Business Representative accounts.
+    - Correct availability check behaviors.
+    - Database verification confirming distinct user IDs, separate tables, and no shared data.
+    - Correct account resolution when logging in as Candidate vs Business with identical email.
+    - Credential isolation (candidate password rejected on business login and vice versa).
+  - All 23 tests in `python3 -m unittest discover tests` passed with zero errors.
+  - Parity between `index.html` and `static/index.html` maintained.

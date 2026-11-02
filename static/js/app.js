@@ -10094,10 +10094,10 @@ function renderSignupPage(viewport) {
             ${signupState.biz_step === 5 ? `
               <div class="auth-header" style="text-align: center;">
                 <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
-                <h2 class="auth-title">Verify Business Email</h2>
-                <p class="auth-subtitle">Enter the 6-digit verification code sent to your official email</p>
+                <h2 class="auth-title">Verify Representative Email</h2>
+                <p class="auth-subtitle">Enter the 6-digit verification code sent to your personal work email</p>
                 <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
-                  <span>Sent to <strong>${signupState.official_email}</strong></span>
+                  <span>Sent to <strong>${signupState.rep_email}</strong></span>
                   <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
                 </div>
               </div>
@@ -12428,13 +12428,13 @@ async function nextBizStage(targetStep) {
   }
 
   if (targetStep === 5) {
-    // Dispatch OTP for business
+    // Dispatch OTP to representative email for business signup
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: signupState.official_email,
+          email: signupState.rep_email,
           phone: signupState.rep_cell,
           purpose: 'business_signup'
         })
@@ -12443,7 +12443,7 @@ async function nextBizStage(targetStep) {
       if (!res.ok) {
         showToast(data.detail || 'Failed to dispatch verification code.', 'danger');
       } else {
-        showToast(`Verification code sent to ${signupState.official_email}. Valid for 5 minutes.`, 'success');
+        showToast(`Verification code sent to representative email (${signupState.rep_email}). Valid for 5 minutes.`, 'success');
       }
     } catch (err) {
       showToast('Error dispatching OTP: ' + err.message, 'danger');
@@ -12506,7 +12506,7 @@ async function handleNewBusinessOtpSubmit(event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: signupState.official_email,
+        email: signupState.rep_email,
         phone: signupState.rep_cell,
         otp_code: code,
         purpose: 'business_signup'
