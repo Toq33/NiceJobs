@@ -627,3 +627,16 @@ When continuing work on the NiceJobs repository in any new conversation:
     - Preserving candidate accounts that share an email address with deleted recruiter representatives.
   - All test suites (`tests/test_api_endpoints.py`, `tests/test_admin_delete_business.py`) executed and passed cleanly.
   - Verified static file parity and Python syntax compilation.
+
+### Update 67: Removal of Semi-Transparent Screen & Overlay from Guest Hero Visual
+
+- **Removed Tilted Semi-Transparent Screen**:
+  - In `static/js/app.js` and `static/css/styles.css`: Removed the rotated 4-degree frosted glass back card (`.perspective-back-frame`) that displayed behind the concierge bell card in the Guest home view hero section.
+  - Enforced `.perspective-back-frame { display: none !important; }` across all viewports to guarantee it cannot render under cached stylesheets or layout variations.
+- **Removed Murky Image Gradient Overlay**:
+  - Removed `.perspective-overlay` (`background: linear-gradient(...)`) overlaying the concierge bell picture in `static/js/app.js`, and set `.perspective-overlay { display: none !important; }` in `static/css/styles.css`.
+  - The bell image card now displays crisply and cleanly with no extra tilted borders, semi-transparent frames, or artificial dimming.
+- **Verification**:
+  - Verified unit tests (`tests/test_api_endpoints.py`) run clean with zero errors.
+  - Confirmed exact parity between `index.html` and `static/index.html`.
+

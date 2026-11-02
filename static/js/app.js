@@ -3961,12 +3961,10 @@ async function renderHomeScreen(viewport) {
         </div>
       </div>
 
-      <!-- Right 3D Perspective Visual Frame -->
+      <!-- Right Hero Visual Frame -->
       <div class="hero-perspective-wrap">
-        <div class="perspective-back-frame"></div>
         <div class="perspective-main-card">
           <img src="/static/images/bell_image.png" alt="Luxury Hospitality Concierge Bell">
-          <div class="perspective-overlay"></div>
         </div>
       </div>
     </section>
