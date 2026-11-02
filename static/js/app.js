@@ -7350,13 +7350,16 @@ async function renderAdminScreen(viewport) {
                       <div style="display: inline-flex; gap: 6px;">
                         ${b.verification_status !== 'verified' ? `
                           <button class="admin-btn-action btn-activate" onclick="handleAdminVerifyBusiness('${b.id}', 'verified')">
-                            Verify ✓
+                            Accept ✓
                           </button>
                         ` : `
                           <button class="admin-btn-action btn-suspend" onclick="handleAdminVerifyBusiness('${b.id}', 'pending')">
                             Revoke
                           </button>
                         `}
+                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteBusiness('${b.id}', '${(b.brand_name || 'Business').replace(/['"\\\\]/g, ' ')}')">
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -7681,6 +7684,24 @@ async function handleAdminVerifyBusiness(bizId, status) {
     showToast(err.message, 'danger');
   }
 }
+
+async function handleAdminDeleteBusiness(bizId, bizName) {
+  const confirmed = confirm(`Are you sure you want to completely delete "${bizName}"?\n\nThis will permanently delete all associated jobs, applications, messages, and business records.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/businesses/${encodeURIComponent(bizId)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.message || 'Failed to delete business establishment');
+    showToast(data.message || `Business "${bizName}" and all associated data have been permanently deleted.`, 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminDeleteBusiness = handleAdminDeleteBusiness;
 
 async function handleAdminApproveMember(memId) {
   try {

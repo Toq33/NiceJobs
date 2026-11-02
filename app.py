@@ -5400,15 +5400,79 @@ def get_admin_moderator_requests():
 def delete_business(business_id: str):
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM businesses WHERE id = ?", (business_id,))
-    cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (business_id,))
-    cursor.execute("DELETE FROM jobs WHERE business_id = ?", (business_id,))
+
+    # 1. Collect all jobs belonging to the business
+    cursor.execute("SELECT id FROM jobs WHERE business_id = ?", (business_id,))
+    job_ids = [r[0] for r in cursor.fetchall()]
+
+    # 2. Collect and delete all applications and application events for these jobs
+    if job_ids:
+        placeholders = ",".join(["?"] * len(job_ids))
+        cursor.execute(f"SELECT id FROM applications WHERE job_id IN ({placeholders})", job_ids)
+        app_ids = [r[0] for r in cursor.fetchall()]
+        if app_ids:
+            app_placeholders = ",".join(["?"] * len(app_ids))
+            cursor.execute(f"DELETE FROM application_events WHERE application_id IN ({app_placeholders})", app_ids)
+            cursor.execute(f"DELETE FROM applications WHERE id IN ({app_placeholders})", app_ids)
+
+        cursor.execute(f"DELETE FROM saved_jobs WHERE job_id IN ({placeholders})", job_ids)
+        cursor.execute(f"DELETE FROM moderation_reports WHERE item_type = 'job' AND item_id IN ({placeholders})", job_ids)
+
+    # 3. Collect and delete all conversations and messages involving this business or its jobs
+    cursor.execute("SELECT id FROM conversations WHERE business_id = ?", (business_id,))
+    conv_ids = set(r[0] for r in cursor.fetchall())
+    if job_ids:
+        placeholders = ",".join(["?"] * len(job_ids))
+        cursor.execute(f"SELECT id FROM conversations WHERE job_id IN ({placeholders})", job_ids)
+        for r in cursor.fetchall():
+            conv_ids.add(r[0])
+
+    if conv_ids:
+        c_placeholders = ",".join(["?"] * len(conv_ids))
+        cursor.execute(f"DELETE FROM messages WHERE conversation_id IN ({c_placeholders})", list(conv_ids))
+        cursor.execute(f"DELETE FROM conversations WHERE id IN ({c_placeholders})", list(conv_ids))
+
+    # 4. Delete followed businesses, business verifications, and moderation reports
+    cursor.execute("DELETE FROM followed_businesses WHERE business_id = ?", (business_id,))
     cursor.execute("DELETE FROM business_verifications WHERE business_id = ?", (business_id,))
+    cursor.execute("DELETE FROM moderation_reports WHERE item_type = 'business' AND item_id = ?", (business_id,))
+
+    # 5. Delete jobs
+    cursor.execute("DELETE FROM jobs WHERE business_id = ?", (business_id,))
+
+    # 6. Collect associated recruiter user IDs
+    cursor.execute("SELECT user_id FROM business_memberships WHERE business_id = ?", (business_id,))
+    associated_user_ids = set(r[0] for r in cursor.fetchall())
+    cursor.execute("SELECT admin_user_id FROM businesses WHERE id = ?", (business_id,))
+    brow = cursor.fetchone()
+    if brow and brow[0]:
+        associated_user_ids.add(brow[0])
+
+    # 7. Delete memberships
+    cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (business_id,))
+
+    # 8. Clean up recruiter accounts that have no other business memberships
+    for uid in associated_user_ids:
+        cursor.execute("SELECT COUNT(*) FROM business_memberships WHERE user_id = ?", (uid,))
+        remaining = cursor.fetchone()[0]
+        if remaining == 0:
+            cursor.execute("SELECT role FROM users WHERE id = ?", (uid,))
+            urow = cursor.fetchone()
+            if urow and urow[0] == "recruiter":
+                cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+    # 9. Delete the business itself
+    cursor.execute("DELETE FROM businesses WHERE id = ?", (business_id,))
+
     conn.commit()
     conn.close()
+
     invalidate_api_cache("jobs")
+    invalidate_api_cache("businesses")
+    invalidate_api_cache("admin")
     notify_realtime("business_deleted", {"business_id": business_id})
-    return {"success": True, "message": "Business establishment deleted successfully."}
+    return {"success": True, "message": "Business establishment and all associated data deleted successfully."}
 
 @app.get("/api/admin/demo-status")
 def get_demo_status():

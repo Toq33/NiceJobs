@@ -599,5 +599,31 @@ When continuing work on the NiceJobs repository in any new conversation:
     - Database verification confirming distinct user IDs, separate tables, and no shared data.
     - Correct account resolution when logging in as Candidate vs Business with identical email.
     - Credential isolation (candidate password rejected on business login and vice versa).
-  - All 23 tests in `python3 -m unittest discover tests` passed with zero errors.
-  - Parity between `index.html` and `static/index.html` maintained.
+### Update 66: Admin Business Complete Data Deletion & UI Action Button
+
+- **Admin Business Action UI (`static/js/app.js`)**:
+  - In Tab 3 (Businesses Table) of the Admin Console (`#admin`), added a dedicated **"Delete"** button (`.admin-btn-action.btn-delete`) beside the **Accept ✓** / **Revoke** action buttons.
+  - Styled with warning hover transitions (`rgba(239, 68, 68, 0.2)` background, `#fca5a5` text) matching the design system.
+  - Linked to `handleAdminDeleteBusiness(bizId, bizName)` with a browser confirmation dialog to prevent accidental deletion:
+    `Are you sure you want to completely delete "<Business Name>"? This will permanently delete all associated jobs, applications, messages, and business records.`
+  - Immediately re-renders the admin view and displays feedback via toast notifications on success.
+- **Cascading Comprehensive Business Data Deletion (`app.py`)**:
+  - Enhanced `@app.delete("/api/admin/businesses/{business_id}")` to perform exhaustive, transactional deletion across all dependent database entities:
+    1. Collects all jobs belonging to the business.
+    2. Collects and cascades deletion across all applications (`applications`) and audit timeline events (`application_events`) for those jobs.
+    3. Deletes all bookmarks from `saved_jobs` for those jobs.
+    4. Collects and deletes all messages (`messages`) and conversation threads (`conversations`) involving the business entity or its jobs.
+    5. Cleans up candidate follows in `followed_businesses`.
+    6. Removes official verification submissions in `business_verifications`.
+    7. Removes all flagged moderation reports in `moderation_reports` for both the business (`item_type = 'business'`) and its jobs (`item_type = 'job'`).
+    8. Deletes all job records from `jobs`.
+    9. Removes all organization memberships from `business_memberships`.
+    10. Identifies recruiter users associated with the business: if they hold no remaining business memberships and have `role = 'recruiter'`, securely purges their user account and notifications from `users` and `notifications` without affecting any Candidate accounts sharing the same email (`role = 'jobseeker'`).
+    11. Deletes the core establishment entity from `businesses`.
+    12. Invalidates cache prefixes (`jobs`, `businesses`, `admin`) and broadcasts real-time `business_deleted` WebSocket notifications.
+- **Verification**:
+  - Added test suite `tests/test_admin_delete_business.py` covering:
+    - Full end-to-end cascading deletion across all 10 related tables.
+    - Preserving candidate accounts that share an email address with deleted recruiter representatives.
+  - All test suites (`tests/test_api_endpoints.py`, `tests/test_admin_delete_business.py`) executed and passed cleanly.
+  - Verified static file parity and Python syntax compilation.
