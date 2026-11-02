@@ -386,6 +386,7 @@ def init_db():
         legal_name TEXT NOT NULL,
         brand_name TEXT NOT NULL,
         property_type TEXT NOT NULL, -- 'Luxury Hotel', 'Beach Resort', 'Boutique Hotel', 'Eco Resort'
+        business_category TEXT DEFAULT '5-Star Luxury',
         star_rating INTEGER DEFAULT 5,
         city TEXT NOT NULL,
         address TEXT NOT NULL,
@@ -630,6 +631,7 @@ def init_db():
         ("admin_user_id", "TEXT DEFAULT ''"),
         ("telephone", "TEXT DEFAULT ''"),
         ("official_telephone", "TEXT DEFAULT ''"),
+        ("business_category", "TEXT DEFAULT '5-Star Luxury'"),
         ("is_demo", "INTEGER DEFAULT 0")
     ]:
         try:

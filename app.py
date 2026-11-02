@@ -2454,7 +2454,8 @@ class BusinessRegisterPayload(BaseModel):
     # Route A: New Business Account (Parts 1-5)
     brand_name: str
     legal_name: str
-    property_type: str = "Luxury Hotel"
+    property_type: str = "Hotel"
+    business_category: Optional[str] = "5-Star Luxury"
     plot_number: Optional[str] = ""
     road_number: Optional[str] = ""
     thana_upazila: Optional[str] = ""
@@ -2571,21 +2572,33 @@ def register_business(payload: BusinessRegisterPayload):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, (user_id, payload.representative_name, rep_email, payload.phone, secure_pwd_hash, "recruiter", avatar, now, payload.dob or "", designation_val, "active", 1))
 
+        category_val = payload.business_category or "5-Star Luxury"
+        star_val = 5
+        if "4-star" in category_val.lower():
+            star_val = 4
+        elif "3-star" in category_val.lower():
+            star_val = 3
+        elif "budget" in category_val.lower():
+            star_val = 3
+        elif "boutique" in category_val.lower():
+            star_val = 4
+
         # Insert business
         cursor.execute("""
             INSERT INTO businesses (
-                id, legal_name, brand_name, property_type, star_rating, city, address, country,
+                id, legal_name, brand_name, property_type, business_category, star_rating, city, address, country,
                 website, email, logo_url, cover_image, description, verification_status,
                 verification_notes, departments, amenities, benefits, follower_count,
                 parent_group, property_size, plot_number, road_number, thana_upazila, district,
                 features, admin_user_id, telephone, official_telephone, is_demo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, (
             biz_id,
             payload.legal_name,
             payload.brand_name,
             payload.property_type,
-            5,
+            category_val,
+            star_val,
             city_val,
             composite_addr,
             "Bangladesh",

@@ -541,3 +541,30 @@ When continuing work on the NiceJobs repository in any new conversation:
     - Multi-district selection and "Anywhere in Bangladesh" toggling function flawlessly.
     - Business signup stage 1 contains all 64 districts with division tags.
     - Job card distance badges render on home search.
+
+### Update 64: Business Sign Up Business Category Selection & Tier Classification
+
+- **Business Category Dropdown in Business Sign Up (Stage 1)**:
+  - Added a dedicated single-select dropdown (`<select id="biz-new-category">`) positioned immediately after `Business Type` in Business Sign Up (Route A, Stage 1).
+  - Offers standard hospitality tier classifications:
+    1. `5-Star Luxury` (Default)
+    2. `4-Star Premium`
+    3. `3-Star Standard`
+    4. `Boutique / Heritage`
+    5. `Budget / Economy`
+  - Integrated with `signupState.business_category`, saved across step transitions in `nextBizStage()`, and captured in `captureCurrentSignupInputs()`.
+  - Maintained clean UX standards with no explanatory subtext or parenthetical hints, adhering strictly to clean label formatting.
+- **Backend & Dual-Engine Data Schema Integration**:
+  - In `app.py`: Added `business_category: Optional[str] = "5-Star Luxury"` to `BusinessRegisterPayload`.
+  - In `register_business`: Stored `business_category` into the `businesses` table and mapped `star_rating` accordingly (`5-Star` -> 5, `4-Star` / `Boutique` -> 4, `3-Star` / `Budget` -> 3).
+  - In `database.py`: Added `business_category TEXT DEFAULT '5-Star Luxury'` to `CREATE TABLE businesses` and to the safe `ALTER TABLE` column migrations.
+  - In `scripts/migrate_sqlite_to_supabase.py`: Updated PostgreSQL Supabase DDL schema with `business_category` for dual-engine parity.
+- **Verification**:
+  - Exact static parity verified between `index.html` and `static/index.html`.
+  - Python compilation checked (`app.py`, `database.py`, `scripts/migrate_sqlite_to_supabase.py`).
+  - Full test suite passed (22/22 tests via `python3 -m unittest discover tests`).
+  - Headless Chromium CDP browser automation confirmed:
+    - `biz-new-category` rendered immediately following `biz-new-type`.
+    - All 5 category options rendered accurately with `5-Star Luxury` as default.
+    - Selection change and state persistence verified across stage navigation.
+    - Zero explanatory hint elements in DOM.

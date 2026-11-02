@@ -1951,6 +1951,7 @@ function getFreshSignupState(role = 'candidate') {
     legal_name: '',
     logo_url: DEFAULT_HOTEL_LOGO,
     property_type: 'Hotel',
+    business_category: '5-Star Luxury',
     bizTypeSearchQuery: '',
     customBizTypesPool: [],
     plot_number: '',
@@ -2091,6 +2092,8 @@ function captureCurrentSignupInputs() {
   if (bHName) signupState.hotel_name = bHName.value;
   const bPType = document.getElementById('biz-new-type') || document.getElementById('biz-property-type');
   if (bPType) signupState.property_type = bPType.value;
+  const bPCat = document.getElementById('biz-new-category');
+  if (bPCat) signupState.business_category = bPCat.value;
   const bWeb = document.getElementById('biz-new-website') || document.getElementById('biz-website');
   if (bWeb) signupState.website = bWeb.value;
   const bOffEmail = document.getElementById('biz-new-email');
@@ -9819,6 +9822,18 @@ function renderSignupPage(viewport) {
                   </select>
                 </div>
 
+                <!-- Business Category Dropdown -->
+                <div class="auth-field">
+                  <label class="auth-label">Business Category</label>
+                  <select id="biz-new-category" class="auth-input" onchange="signupState.business_category = this.value">
+                    <option value="5-Star Luxury" ${(signupState.business_category || '5-Star Luxury') === '5-Star Luxury' ? 'selected' : ''}>5-Star Luxury</option>
+                    <option value="4-Star Premium" ${signupState.business_category === '4-Star Premium' ? 'selected' : ''}>4-Star Premium</option>
+                    <option value="3-Star Standard" ${signupState.business_category === '3-Star Standard' ? 'selected' : ''}>3-Star Standard</option>
+                    <option value="Boutique / Heritage" ${signupState.business_category === 'Boutique / Heritage' ? 'selected' : ''}>Boutique / Heritage</option>
+                    <option value="Budget / Economy" ${signupState.business_category === 'Budget / Economy' ? 'selected' : ''}>Budget / Economy</option>
+                  </select>
+                </div>
+
                 <!-- Location Segmented: Plot, Road, Thana/Upazila, District -->
                 <div class="auth-field">
                   <label class="auth-label">Location</label>
@@ -12281,6 +12296,7 @@ async function nextBizStage(targetStep) {
     const brand = (document.getElementById('biz-new-brand')?.value || '').trim();
     const legal = (document.getElementById('biz-new-legal')?.value || '').trim();
     const pType = document.getElementById('biz-new-type')?.value || 'Hotel';
+    const pCat = document.getElementById('biz-new-category')?.value || '5-Star Luxury';
     const plot = (document.getElementById('biz-new-plot')?.value || '').trim();
     const road = (document.getElementById('biz-new-road')?.value || '').trim();
     const thana = (document.getElementById('biz-new-thana')?.value || '').trim();
@@ -12335,6 +12351,7 @@ async function nextBizStage(targetStep) {
     signupState.brand_name = brand;
     signupState.legal_name = legal || (brand + ' Ltd.');
     signupState.property_type = pType;
+    signupState.business_category = pCat;
     signupState.plot_number = plot;
     signupState.road_number = road;
     signupState.thana_upazila = thana;
@@ -12537,6 +12554,7 @@ async function finalizeNewBusinessRegistration() {
       brand_name: signupState.brand_name,
       legal_name: signupState.legal_name,
       property_type: signupState.property_type,
+      business_category: signupState.business_category || '5-Star Luxury',
       plot_number: signupState.plot_number,
       road_number: signupState.road_number,
       thana_upazila: signupState.thana_upazila,

@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS businesses (
     legal_name TEXT NOT NULL,
     brand_name TEXT NOT NULL,
     property_type TEXT NOT NULL,
+    business_category TEXT DEFAULT '5-Star Luxury',
     star_rating INTEGER DEFAULT 5,
     city TEXT NOT NULL,
     address TEXT NOT NULL,
