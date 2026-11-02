@@ -640,3 +640,39 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Verified unit tests (`tests/test_api_endpoints.py`) run clean with zero errors.
   - Confirmed exact parity between `index.html` and `static/index.html`.
 
+### Update 68: Dedicated Database Management Control in Root Admin Console
+
+- **Comprehensive Admin Database Management UI (`static/js/app.js`)**:
+  - Added a dedicated 6th Tab (**"Database Management"**) to the Admin Console navigation bar (`#admin`).
+  - Added vector `database` icon to `svgIcon(name, customClass, size)`.
+  - **Live Engine & Health Status Banner**:
+    - Displays active database engine (e.g. `PostgreSQL (Supabase Pooler)` or `SQLite 3 (nicejobs.db)`).
+    - Real-time database file size indicator (for SQLite) or pool connection status.
+    - Live counts of total registered tables and aggregate record rows.
+  - **Maintenance Operations Suite**:
+    - **Optimize DB**: Executes `VACUUM` (SQLite) or `ANALYZE` (PostgreSQL) to reclaim space and optimize query plans.
+    - **Purge Orphaned & Expired Records**: Cleans expired OTPs older than 24h, unreferenced application events, and dangling messages.
+    - **Flush API Cache**: Instantly clears all backend memory cache partitions.
+    - **Toggle Demo Fixtures**: 1-click toggle between hiding and restoring demo mock data.
+    - **Reset Demo Records**: Reseeds pristine initial demo fixtures without affecting real accounts.
+  - **Interactive Tables Explorer**:
+    - Grid of all 16 database tables with dynamic record counts.
+    - **Inspect 🔍**: Automatically populates and runs a `SELECT * FROM [table] LIMIT 25;` query in the console.
+    - **JSON Export 📥**: Instantly downloads full JSON export of any individual table directly to the browser.
+  - **Safe Read-Only SQL Query Runner**:
+    - Live query textarea pre-populated with sample templates (`users`, `businesses`, `jobs`, `applications`).
+    - Enforces strict read-only execution: blocks destructive statements (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `TRUNCATE`, `CREATE`, etc.).
+    - Renders responsive monospace data table with execution time in milliseconds and record count.
+- **Backend Database Management Endpoints (`app.py`)**:
+  - `GET /api/admin/database/overview`: Returns engine name, tables list, row counts, and storage metrics.
+  - `POST /api/admin/database/vacuum`: Runs engine-appropriate database optimization.
+  - `POST /api/admin/database/clean-orphans`: Safely purges expired OTPs and unreferenced timeline events.
+  - `POST /api/admin/database/clear-cache`: Clears cache partitions and notifies real-time clients.
+  - `POST /api/admin/database/query`: Safe read-only SQL query evaluator with security guards and execution timer.
+  - `GET /api/admin/database/export-table/{table_name}`: Returns JSON payload for table export.
+- **Verification**:
+  - Added comprehensive test suite [`tests/test_admin_database_control.py`](file:///home/dexter/NiceJobs/tests/test_admin_database_control.py) covering overview, vacuum, orphan cleanup, cache flush, read-only query execution, security rejection of destructive commands, and table data export.
+  - All test suites (`tests/test_api_endpoints.py`, `tests/test_admin_database_control.py`) executed and passed cleanly.
+  - Verified static file parity and Python syntax compilation.
+
+

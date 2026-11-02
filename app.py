@@ -5520,6 +5520,217 @@ def reset_demo_database():
     invalidate_api_cache()
     return {"success": True, "message": "NiceJobs demo database has been re-initialized to initial fresh state."}
 
+# ==========================================================================
+# Admin Database Management Control Endpoints
+# ==========================================================================
+
+@app.get("/api/admin/database/overview")
+def get_admin_database_overview():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    is_pg = database.is_postgres()
+    engine_name = "PostgreSQL (Supabase Pooler)" if is_pg else "SQLite 3 (nicejobs.db)"
+
+    if is_pg:
+        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name")
+        tables = [r[0] for r in cursor.fetchall()]
+    else:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        tables = [r[0] for r in cursor.fetchall()]
+
+    table_stats = []
+    total_records = 0
+    for t in tables:
+        try:
+            cursor.execute(f"SELECT COUNT(*) FROM {t}")
+            cnt = cursor.fetchone()[0]
+            total_records += cnt
+            table_stats.append({"name": t, "count": cnt})
+        except Exception:
+            pass
+
+    table_stats.sort(key=lambda x: x["count"], reverse=True)
+
+    sqlite_size = None
+    if not is_pg and os.path.exists("nicejobs.db"):
+        try:
+            sqlite_size = os.path.getsize("nicejobs.db")
+        except Exception:
+            pass
+
+    conn.close()
+    return {
+        "success": True,
+        "engine": engine_name,
+        "is_postgres": is_pg,
+        "table_count": len(tables),
+        "total_records": total_records,
+        "tables": table_stats,
+        "sqlite_size_bytes": sqlite_size,
+        "demo_data_hidden": is_demo_hidden(),
+        "database_url_configured": bool(os.environ.get("DATABASE_URL")),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.post("/api/admin/database/vacuum")
+def admin_vacuum_database():
+    import time
+    t0 = time.time()
+    conn = database.get_db()
+    cursor = conn.cursor()
+    is_pg = database.is_postgres()
+    try:
+        if is_pg:
+            cursor.execute("ANALYZE")
+        else:
+            cursor.execute("VACUUM")
+        conn.commit()
+    except Exception as e:
+        print(f"[WARN] Database optimization notice: {e}")
+    finally:
+        conn.close()
+
+    elapsed = round((time.time() - t0) * 1000, 2)
+    invalidate_api_cache()
+    return {
+        "success": True,
+        "engine": "PostgreSQL ANALYZE" if is_pg else "SQLite VACUUM",
+        "elapsed_ms": elapsed,
+        "message": f"Database optimized successfully ({'PostgreSQL ANALYZE' if is_pg else 'SQLite VACUUM'}, {elapsed}ms)."
+    }
+
+@app.post("/api/admin/database/clean-orphans")
+def admin_clean_database_orphans():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    purged = {}
+
+    try:
+        # 1. Clean expired OTPs
+        from datetime import timedelta
+        cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        cursor.execute("DELETE FROM otp_verifications WHERE created_at < ? OR created_at IS NULL", (cutoff,))
+        purged["expired_otps"] = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+
+        # 2. Clean application events for non-existent applications
+        cursor.execute("DELETE FROM application_events WHERE application_id NOT IN (SELECT id FROM applications)")
+        purged["orphan_application_events"] = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+
+        # 3. Clean messages for non-existent conversations
+        cursor.execute("DELETE FROM messages WHERE conversation_id NOT IN (SELECT id FROM conversations)")
+        purged["orphan_messages"] = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+
+        # 4. Clean saved jobs for non-existent jobs
+        cursor.execute("DELETE FROM saved_jobs WHERE job_id NOT IN (SELECT id FROM jobs)")
+        purged["orphan_saved_jobs"] = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+
+        # 5. Clean followed businesses for non-existent businesses
+        cursor.execute("DELETE FROM followed_businesses WHERE business_id NOT IN (SELECT id FROM businesses)")
+        purged["orphan_followed_businesses"] = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    invalidate_api_cache()
+    total_cleaned = sum(v for v in purged.values() if isinstance(v, int) and v >= 0)
+    return {
+        "success": True,
+        "total_purged": total_cleaned,
+        "details": purged,
+        "message": f"Database integrity cleanup completed. Purged {total_cleaned} unreferenced records."
+    }
+
+@app.post("/api/admin/database/clear-cache")
+def admin_clear_backend_cache():
+    invalidate_api_cache()
+    notify_realtime("cache_cleared", {"timestamp": datetime.utcnow().isoformat()})
+    return {"success": True, "message": "All backend API cache partitions and in-memory caches flushed."}
+
+class AdminQueryPayload(BaseModel):
+    query: str
+
+@app.post("/api/admin/database/query")
+def admin_run_database_query(payload: AdminQueryPayload):
+    import time
+    raw_query = payload.query.strip()
+    if not raw_query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty.")
+
+    cleaned = re.sub(r"--.*?$|/\*.*?\*/", "", raw_query, flags=re.MULTILINE).strip().lower()
+    allowed_starts = ("select", "explain", "with", "pragma")
+    if not any(cleaned.startswith(prefix) for prefix in allowed_starts):
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Only read-only queries (SELECT, EXPLAIN, PRAGMA) are permitted in Database Management."
+        )
+
+    destructive_keywords = ["insert", "update", "delete", "drop", "alter", "truncate", "create", "replace", "grant", "revoke", "vacuum", "attach", "detach"]
+    tokens = re.findall(r"\b[a-z]+\b", cleaned)
+    for tok in tokens:
+        if tok in destructive_keywords:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Forbidden: Modifying keyword '{tok.upper()}' is not permitted in read-only query console."
+            )
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    t0 = time.time()
+    try:
+        exec_query = raw_query
+        if "limit" not in cleaned:
+            exec_query = f"{raw_query.rstrip(';')} LIMIT 100;"
+
+        cursor.execute(exec_query)
+        columns = [desc[0] for desc in cursor.description] if cursor.description else []
+        rows = cursor.fetchall()
+
+        serialized_rows = []
+        for r in rows:
+            if isinstance(r, dict):
+                serialized_rows.append([str(v) if v is not None else "NULL" for v in r.values()])
+            else:
+                serialized_rows.append([str(v) if v is not None else "NULL" for v in r])
+
+        elapsed_ms = round((time.time() - t0) * 1000, 2)
+        return {
+            "success": True,
+            "columns": columns,
+            "rows": serialized_rows,
+            "row_count": len(serialized_rows),
+            "execution_time_ms": elapsed_ms
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Database Query Error: {str(e)}")
+    finally:
+        conn.close()
+
+@app.get("/api/admin/database/export-table/{table_name}")
+def admin_export_table_data(table_name: str):
+    valid_tables = [
+        "users", "employee_profiles", "businesses", "business_memberships",
+        "jobs", "applications", "application_events", "conversations",
+        "messages", "saved_jobs", "followed_businesses", "notifications",
+        "business_verifications", "moderation_reports", "blogs", "system_settings"
+    ]
+    if table_name not in valid_tables:
+        raise HTTPException(status_code=400, detail="Invalid table name for export.")
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT * FROM {table_name}")
+    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+    rows = cursor.fetchall()
+    result = []
+    for r in rows:
+        if isinstance(r, dict):
+            result.append(dict(r))
+        else:
+            result.append(dict(zip(columns, [str(v) if v is not None else None for v in r])))
+    conn.close()
+    return {"table": table_name, "count": len(result), "data": result}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

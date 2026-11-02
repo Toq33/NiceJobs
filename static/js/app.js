@@ -226,6 +226,7 @@ function svgIcon(name, customClass = '', size = 16) {
     utensils: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v20M2 2v8a4 4 0 0 0 4 4h0a4 4 0 0 0 4-4V2M6 2v14M6 16v6M18 2a3 3 0 0 0-3 3v5a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3V5a3 3 0 0 0-3-3z"/></svg>`,
     award: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>`,
     download: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    database: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
     refresh: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
     sliders: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`,
     trendingUp: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
@@ -6967,24 +6968,28 @@ function adminSignOut() {
 // ==========================================================================
 
 const adminState = {
-  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications'
+  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications' | 'database'
   userFilterRole: 'all',
   userFilterStatus: 'all',
   userSearch: '',
   jobFilterStatus: 'all',
-  jobSearch: ''
+  jobSearch: '',
+  dbQuery: 'SELECT * FROM users LIMIT 10;',
+  dbQueryResult: null,
+  dbOverview: null
 };
 
 async function renderAdminScreen(viewport) {
   try {
     const t = Date.now();
-    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes] = await Promise.all([
+    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes, dbRes] = await Promise.all([
       fetch(`/api/admin/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
       fetch(`/api/admin/users?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/jobs-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/businesses-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/moderator-requests?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
-      fetch(`/api/admin/verifications?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] }))
+      fetch(`/api/admin/verifications?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/database/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) }))
     ]);
 
     const overview = await overviewRes.json();
@@ -6993,6 +6998,8 @@ async function renderAdminScreen(viewport) {
     const businesses = await bizRes.json();
     const moderatorRequests = await modRes.json();
     const verifications = await verifsRes.json();
+    const dbOverview = await dbRes.json();
+    adminState.dbOverview = dbOverview;
 
     // Filter Users
     const filteredUsers = users.filter(u => {
@@ -7084,6 +7091,9 @@ async function renderAdminScreen(viewport) {
         </button>
         <button class="admin-nav-btn ${activeTab === 'verifications' ? 'active' : ''}" onclick="switchAdminTab('verifications')">
           ${svgIcon('fileText', '', 14)} Trade Verifications (${verifications.length})
+        </button>
+        <button class="admin-nav-btn ${activeTab === 'database' ? 'active' : ''}" onclick="switchAdminTab('database')">
+          ${svgIcon('database', '', 14)} Database Management
         </button>
       </div>
 
@@ -7499,6 +7509,119 @@ async function renderAdminScreen(viewport) {
           </div>
         </div>
       ` : ''}
+
+      <!-- TAB 6: DATABASE MANAGEMENT CONTROL -->
+      ${activeTab === 'database' ? `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Engine & Health Ribbon -->
+          <div class="admin-table-wrapper" style="padding: 20px; background: rgba(10, 17, 40, 0.7); border: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 16px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 107, 0, 0.15); color: var(--orange-primary);">
+                    ${svgIcon('database', '', 20)}
+                  </span>
+                  <div>
+                    <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0;">Database Engine & Operations Control</h2>
+                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Dual-engine data layer with transactional integrity, live table inspection, optimization, and safety console.</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="status-pill status-${dbOverview.is_postgres ? 'interview_scheduled' : 'under_review'}" style="font-size: 0.82rem; padding: 6px 12px; font-weight: 700;">
+                  ● ${dbOverview.engine || 'Dual-Engine DB'}
+                </span>
+                ${dbOverview.sqlite_size_bytes ? `
+                  <span style="font-size: 0.78rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+                    Size: ${(dbOverview.sqlite_size_bytes / (1024 * 1024)).toFixed(2)} MB
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Operational Control Action Buttons -->
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+              <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminVacuumDb()">
+                ${svgIcon('zap', '', 14)} Optimize DB (VACUUM / ANALYZE)
+              </button>
+              <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminCleanOrphans()">
+                ${svgIcon('trash', '', 14)} Purge Orphaned & Expired Records
+              </button>
+              <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminClearCache()">
+                ${svgIcon('refresh', '', 14)} Flush API Cache Partitions
+              </button>
+              <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminToggleDemoData()">
+                ${svgIcon('eye', '', 14)} ${dbOverview.demo_data_hidden ? 'Restore Demo Fixtures' : 'Hide Demo Fixtures'}
+              </button>
+              <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; color: #fca5a5; border-color: rgba(239,68,68,0.3); display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminResetDemoDb()">
+                ${svgIcon('alertCircle', '', 14)} Reset Demo Records
+              </button>
+            </div>
+          </div>
+
+          <!-- Tables Overview Grid -->
+          <div class="admin-table-wrapper" style="padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <div>
+                <strong style="color: var(--white); font-size: 0.98rem;">Database Tables & Relational Row Counts (${(dbOverview.tables || []).length} Tables, ${dbOverview.total_records || 0} Total Records)</strong>
+                <div style="font-size: 0.78rem; color: var(--text-dim);">Click "Inspect" on any table to auto-populate the SQL console or export as JSON.</div>
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px;">
+              ${(dbOverview.tables || []).map(t => `
+                <div style="background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-weight: 700; color: var(--white); font-size: 0.88rem; font-family: monospace;">${t.name}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 2px;">${t.count} records</div>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <button class="admin-btn-action btn-activate" style="padding: 4px 8px; font-size: 0.74rem;" onclick="handleAdminInspectTable('${t.name}')" title="Inspect table rows">
+                      Inspect
+                    </button>
+                    <button class="admin-btn-action" style="padding: 4px 8px; font-size: 0.74rem; background: rgba(255,255,255,0.06); color: var(--text-muted);" onclick="handleAdminExportTable('${t.name}')" title="Export as JSON">
+                      ${svgIcon('download', '', 11)}
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Read-Only SQL Console -->
+          <div class="admin-table-wrapper" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <strong style="color: var(--white); font-size: 0.98rem;">Read-Only SQL Query Console</strong>
+                <div style="font-size: 0.78rem; color: var(--text-dim);">Inspect database tables safely in real-time. Destructive write operations are strictly blocked.</div>
+              </div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button class="admin-btn-action" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(255,255,255,0.05); color: var(--text-muted);" onclick="setAdminDbQuery('SELECT id, name, email, role, status FROM users LIMIT 10;')">Users Sample</button>
+                <button class="admin-btn-action" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(255,255,255,0.05); color: var(--text-muted);" onclick="setAdminDbQuery('SELECT id, brand_name, city, verification_status FROM businesses LIMIT 10;')">Hotels Sample</button>
+                <button class="admin-btn-action" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(255,255,255,0.05); color: var(--text-muted);" onclick="setAdminDbQuery('SELECT id, title, department, employment_type, status FROM jobs LIMIT 10;')">Jobs Sample</button>
+                <button class="admin-btn-action" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(255,255,255,0.05); color: var(--text-muted);" onclick="setAdminDbQuery('SELECT id, job_id, user_id, status, applied_at FROM applications LIMIT 10;')">Apps Sample</button>
+              </div>
+            </div>
+
+            <div style="position: relative; margin-bottom: 12px;">
+              <textarea id="admin-db-query-input" rows="3" style="width: 100%; box-sizing: border-box; background: rgba(5, 10, 25, 0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #38bdf8; font-family: monospace; font-size: 0.88rem; padding: 12px; outline: none; resize: vertical;" placeholder="Type a SELECT query (e.g., SELECT * FROM users LIMIT 10;)">${adminState.dbQuery || 'SELECT * FROM users LIMIT 10;'}</textarea>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <button class="btn-primary" style="font-size: 0.84rem; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px;" onclick="executeAdminDbQuery()">
+                ${svgIcon('play', '', 13)} Run Query
+              </button>
+              <div id="admin-db-query-status" style="font-size: 0.8rem; color: var(--text-dim);">
+                ${adminState.dbQueryResult ? `Found ${adminState.dbQueryResult.row_count} rows in ${adminState.dbQueryResult.execution_time_ms}ms` : ''}
+              </div>
+            </div>
+
+            <!-- Query Results Table -->
+            <div id="admin-db-query-results" style="margin-top: 16px; overflow-x: auto; max-height: 420px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); ${adminState.dbQueryResult ? '' : 'display: none;'}">
+              ${renderAdminDbQueryResults(adminState.dbQueryResult)}
+            </div>
+          </div>
+        </div>
+      ` : ''}
     `;
   } catch (err) {
     viewport.innerHTML = `<div style="padding: 30px; text-align: center; color: #fca5a5;">Failed to load Admin Console: ${err.message}</div>`;
@@ -7754,6 +7877,173 @@ async function reviewVerification(verifId, action) {
     showToast(err.message, 'danger');
   }
 }
+
+// ==========================================================================
+// Admin Database Management Control Handlers
+// ==========================================================================
+
+async function handleAdminVacuumDb() {
+  showToast('Optimizing database...', 'info');
+  try {
+    const res = await fetch('/api/admin/database/vacuum', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Optimization failed');
+    showToast(data.message || 'Database optimized!', 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminVacuumDb = handleAdminVacuumDb;
+
+async function handleAdminCleanOrphans() {
+  if (!confirm('Purge unreferenced application events, messages, and expired OTP records?')) return;
+  try {
+    const res = await fetch('/api/admin/database/clean-orphans', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Cleanup failed');
+    showToast(data.message || `Cleaned ${data.total_purged} records!`, 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminCleanOrphans = handleAdminCleanOrphans;
+
+async function handleAdminClearCache() {
+  try {
+    const res = await fetch('/api/admin/database/clear-cache', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to clear cache');
+    showToast(data.message || 'API cache cleared!', 'success');
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminClearCache = handleAdminClearCache;
+
+async function handleAdminToggleDemoData() {
+  try {
+    const res = await fetch('/api/admin/toggle-demo-data', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Toggle failed');
+    showToast(data.message, 'info');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminToggleDemoData = handleAdminToggleDemoData;
+
+async function handleAdminResetDemoDb() {
+  if (!confirm('Are you sure you want to reset all demo records to pristine initial state? Real non-demo users and businesses will NOT be affected.')) return;
+  try {
+    const res = await fetch('/api/admin/reset-demo', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Reset failed');
+    showToast(data.message || 'Demo records restored!', 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminResetDemoDb = handleAdminResetDemoDb;
+
+function handleAdminInspectTable(tableName) {
+  setAdminDbQuery(`SELECT * FROM ${tableName} LIMIT 25;`);
+  executeAdminDbQuery();
+}
+window.handleAdminInspectTable = handleAdminInspectTable;
+
+function setAdminDbQuery(queryText) {
+  adminState.dbQuery = queryText;
+  const el = document.getElementById('admin-db-query-input');
+  if (el) el.value = queryText;
+}
+window.setAdminDbQuery = setAdminDbQuery;
+
+async function handleAdminExportTable(tableName) {
+  try {
+    showToast(`Exporting ${tableName}...`, 'info');
+    const res = await fetch(`/api/admin/database/export-table/${tableName}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Export failed');
+    const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${tableName}_export_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${data.count} records from ${tableName}.`, 'success');
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminExportTable = handleAdminExportTable;
+
+async function executeAdminDbQuery() {
+  const inputEl = document.getElementById('admin-db-query-input');
+  const query = (inputEl ? inputEl.value : adminState.dbQuery || '').trim();
+  if (!query) {
+    showToast('Please enter a query', 'warning');
+    return;
+  }
+  adminState.dbQuery = query;
+  const statusEl = document.getElementById('admin-db-query-status');
+  const resultsEl = document.getElementById('admin-db-query-results');
+  if (statusEl) statusEl.textContent = 'Executing query...';
+
+  try {
+    const res = await fetch('/api/admin/database/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Query execution failed');
+
+    adminState.dbQueryResult = data;
+    if (statusEl) statusEl.textContent = `Found ${data.row_count} rows in ${data.execution_time_ms}ms`;
+    if (resultsEl) {
+      resultsEl.style.display = 'block';
+      resultsEl.innerHTML = renderAdminDbQueryResults(data);
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    if (resultsEl) {
+      resultsEl.style.display = 'block';
+      resultsEl.innerHTML = `<div style="padding: 16px; color: #fca5a5; font-family: monospace; font-size: 0.85rem; background: rgba(239, 68, 68, 0.1);">Execution Error: ${err.message}</div>`;
+    }
+    showToast(err.message, 'danger');
+  }
+}
+window.executeAdminDbQuery = executeAdminDbQuery;
+
+function renderAdminDbQueryResults(res) {
+  if (!res || !res.columns || res.columns.length === 0) {
+    return `<div style="padding: 20px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">No results returned.</div>`;
+  }
+  return `
+    <table class="admin-table" style="font-size: 0.8rem; font-family: monospace;">
+      <thead>
+        <tr>
+          ${res.columns.map(col => `<th>${col}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${res.rows.map(row => `
+          <tr>
+            ${row.map(val => `<td style="white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis;" title="${(val || '').replace(/"/g, '&quot;')}">${val}</td>`).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+window.renderAdminDbQueryResults = renderAdminDbQueryResults;
 
 // ==========================================================================
 // Screen 8: Saved Jobs
