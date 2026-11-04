@@ -2407,6 +2407,7 @@ async function navigateTo(screen, params = null) {
   parseRoute();
   return await renderApp();
 }
+window.navigateTo = navigateTo;
 
 // ==========================================================================
 // Role Switcher (Persona Simulation)
@@ -7163,9 +7164,9 @@ async function renderAdminScreen(viewport) {
                     <td>
                       <div class="admin-user-cell">
                         <img src="${u.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${u.name}">
-                        <div>
-                          <strong style="color: var(--white);">${u.name}</strong>
-                          <div style="font-size: 0.74rem; color: var(--text-dim);">${u.id}</div>
+                        <div style="min-width: 0;">
+                          <strong class="admin-cell-name" style="color: var(--white);">${u.name}</strong>
+                          <div class="admin-cell-sub">${u.id}</div>
                         </div>
                       </div>
                     </td>
@@ -7173,18 +7174,18 @@ async function renderAdminScreen(viewport) {
                       <span class="badge-count" style="font-size: 0.72rem; ${u.role==='jobseeker' ? 'background: rgba(255, 255, 255, 0.08); color:#93c5fd;' : 'background: rgba(249,115,22,0.2); color:#fdba74;'}">
                         ${u.role === 'jobseeker' ? 'Candidate' : (u.role === 'recruiter' ? 'Business User' : 'Admin')}
                       </span>
-                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px;">
+                      <div class="admin-cell-text" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px;" title="${u.designation || u.current_position || u.headline || 'Hospitality Associate'}">
                         ${u.designation || u.current_position || u.headline || 'Hospitality Associate'}
                       </div>
                       ${u.business_name ? `
-                        <div style="font-size: 0.72rem; color: #fdba74; margin-top: 2px;">
+                        <div class="admin-cell-text" style="font-size: 0.72rem; color: #fdba74; margin-top: 2px;" title="${u.business_name}">
                           ${u.business_name}
                         </div>
                       ` : ''}
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white); font-size: 0.82rem;">+88 ${u.phone}</div>
-                      <div style="font-size: 0.76rem; color: var(--text-dim);">${u.email}</div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.82rem; white-space: nowrap;">+88 ${u.phone}</div>
+                      <div class="admin-cell-text" style="font-size: 0.76rem; color: var(--text-dim);" title="${u.email}">${u.email}</div>
                     </td>
                     <td>
                       <span class="status-pill status-${u.status === 'active' ? 'interview_scheduled' : (u.status === 'suspended' ? 'rejected' : 'under_review')}">
@@ -18170,8 +18171,14 @@ function closeModal(modalId) {
     return;
   }
   const el = document.getElementById(modalId);
-  if (el) el.classList.remove('open');
+  if (el) {
+    el.classList.remove('open');
+    if (el.parentElement && el.parentElement.id === 'modal-container') {
+      el.remove();
+    }
+  }
 }
+window.closeModal = closeModal;
 
 // Quick Actions & Utilities
 async function toggleSaveJob(jobId) {
