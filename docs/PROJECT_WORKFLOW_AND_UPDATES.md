@@ -694,5 +694,38 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Ran unit test suites (`tests/test_api_endpoints.py`, `tests/test_admin_database_control.py`, `tests/test_admin_delete_business.py`) with 100% passing results.
   - Verified static file parity (`index.html` and `static/index.html`).
 
+### Update 70: Comprehensive Multi-Breakpoint Responsiveness Audit & Layout Hardening
+
+- **Automated Headless CDP Responsiveness Audit**:
+  - Built automated headless Chromium test suites executing Chrome DevTools Protocol (CDP) measurements across all breakpoints:
+    - Mobile Small: 360px & 375px (iPhone SE, iPhone 12/13/14)
+    - Mobile Large: 480px
+    - Tablet Portrait: 600px & 768px (iPad Portrait)
+    - Tablet Landscape: 1024px
+    - Desktop / Laptop: 1280px+
+  - Audited all 6 Admin Console tabs (`users`, `jobs`, `businesses`, `moderators`, `verifications`, `database`) and core screens (`home`, `jobs`, `hotels`, `blog`, `profile`, `ats`, `login`, `signup`).
+- **Admin Side Navigation & Layout Responsiveness (`static/css/styles.css`)**:
+  - Hardened `.admin-panel-layout`, `.admin-side-panel`, and `.admin-main-content` with `max-width: 100%` and `box-sizing: border-box`, preventing wide inner tables from expanding the flex container on tablet and mobile.
+  - Re-architected `.admin-side-nav` grid rules:
+    - On tablet ($601\text{px} - 960\text{px}$): Uses `grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))`, eliminating text truncation ellipsis on "Users Management", "Job Posts Control", "Moderator Requests", and "Trade Verifications".
+    - On mobile ($\le 600\text{px}$): Automatically transitions into single-column full-width tap pills (`grid-template-columns: 1fr`) with comfortable touch targets.
+  - Added `.admin-table-scroll` (`width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;`) wrapping all admin data tables.
+  - Admin Header (`.admin-header-row`, `.admin-title-wrap`, `.admin-main-heading`, `.admin-refresh-btn`):
+    - Replaced rigid pixel heading sizes with fluid responsive typography `clamp(1.35rem, 3.5vw, 1.85rem)`.
+    - Allowed badge and title wrapping with `flex-wrap: wrap;` and stacked refresh button on screens $\le 540\text{px}$.
+  - Admin Filter & Search Bar (`.admin-table-actions-bar`, `.admin-filter-group`):
+    - Added responsive stacking on screens $\le 640\text{px}$, allowing search inputs and dropdown filters to stretch smoothly to 100% without overflowing narrow viewports.
+  - Admin Database Module Tab 6:
+    - Added `.admin-db-action-bar`, `.admin-db-tables-grid`, and `.admin-db-sql-header` responsive rules to stack operational buttons and table inspection cards cleanly on mobile.
+- **Hotels Directory Grid Bug Fix (`static/js/app.js`)**:
+  - Fixed rigid inline `minmax(360px, 1fr)` in `renderHotelsScreen` by applying the native `.hotels-grid` design system class (`minmax(min(100%, 320px), 1fr)` with single-column mobile collapse), eliminating the 10px card overflow on 360px viewports.
+  - Hardened saved jobs grid with `minmax(min(100%, 280px), 1fr)`.
+- **Verification**:
+  - Re-ran CDP automated multi-breakpoint audit: 100% PASS across all 6 Admin Console tabs and 8 application screens with 0 horizontal overflows and 0 truncated nav labels.
+  - Full Python test suite passed cleanly (`Ran 30 tests ... OK`, `Ran 7 tests ... OK`).
+  - Strict static file parity confirmed (`index.html` and `static/index.html`).
+  - Python compilation validated (`python3 -m py_compile app.py database.py api/index.py`).
+
+
 
 

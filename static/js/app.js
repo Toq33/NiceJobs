@@ -4679,7 +4679,7 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
       <p style="color: var(--text-muted); font-size: 0.95rem;">Verified properties hiring through NiceJobs.</p>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 24px;">
+    <div class="hotels-grid" style="margin-top: 16px;">
       ${businesses.map(biz => `
         <div class="job-card" style="display: flex; flex-direction: column; justify-content: space-between;">
           <div>
@@ -7032,17 +7032,17 @@ async function renderAdminScreen(viewport) {
     const activeTab = adminState.activeTab;
 
     viewport.innerHTML = `
-      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+      <div class="admin-header-row">
         <div>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white); margin: 0;">Backend Control Console</h1>
+          <div class="admin-title-wrap">
+            <h1 class="admin-main-heading">Backend Control Console</h1>
             <span class="badge-urgent" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.35);">Live Root Admin</span>
           </div>
-          <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 4px;">
+          <p class="admin-subheading">
             Full administrative oversight of candidate users, business accounts, moderator approvals, and job postings.
           </p>
         </div>
-        <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px;" onclick="renderAdminScreen(document.getElementById('app-viewport'))">
+        <button class="btn-secondary admin-refresh-btn" style="font-size: 0.82rem; padding: 8px 14px;" onclick="renderAdminScreen(document.getElementById('app-viewport'))">
           ${svgIcon('refresh', '', 14)} Refresh Console
         </button>
       </div>
@@ -7144,7 +7144,7 @@ async function renderAdminScreen(viewport) {
             <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredUsers.length} user accounts found</span>
           </div>
 
-          <div style="overflow-x: auto;">
+          <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
@@ -7262,7 +7262,7 @@ async function renderAdminScreen(viewport) {
             <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredJobs.length} job postings</span>
           </div>
 
-          <div style="overflow-x: auto;">
+          <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
@@ -7333,7 +7333,7 @@ async function renderAdminScreen(viewport) {
       <!-- TAB 3: BUSINESS DIRECTORY -->
       ${activeTab === 'businesses' ? `
         <div class="admin-table-wrapper">
-          <div style="overflow-x: auto;">
+          <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
@@ -7411,7 +7411,7 @@ async function renderAdminScreen(viewport) {
             <span class="badge-urgent">${moderatorRequests.length} Pending Approval</span>
           </div>
 
-          <div style="overflow-x: auto;">
+          <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
@@ -7480,7 +7480,7 @@ async function renderAdminScreen(viewport) {
       <!-- TAB 5: TRADE LICENSE VERIFICATIONS -->
       ${activeTab === 'verifications' ? `
         <div class="admin-table-wrapper">
-          <div style="overflow-x: auto;">
+          <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
@@ -7562,7 +7562,7 @@ async function renderAdminScreen(viewport) {
             </div>
 
             <!-- Operational Control Action Buttons -->
-            <div style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+            <div class="admin-db-action-bar">
               <button class="btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminVacuumDb()">
                 ${svgIcon('zap', '', 14)} Optimize DB (VACUUM / ANALYZE)
               </button>
@@ -7589,7 +7589,7 @@ async function renderAdminScreen(viewport) {
                 <div style="font-size: 0.78rem; color: var(--text-dim);">Click "Inspect" on any table to auto-populate the SQL console or export as JSON.</div>
               </div>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px;">
+            <div class="admin-db-tables-grid">
               ${(dbOverview.tables || []).map(t => `
                 <div style="background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
                   <div>
@@ -7611,7 +7611,7 @@ async function renderAdminScreen(viewport) {
 
           <!-- Read-Only SQL Console -->
           <div class="admin-table-wrapper" style="padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div class="admin-db-sql-header">
               <div>
                 <strong style="color: var(--white); font-size: 0.98rem;">Read-Only SQL Query Console</strong>
                 <div style="font-size: 0.78rem; color: var(--text-dim);">Inspect database tables safely in real-time. Destructive write operations are strictly blocked.</div>
@@ -8136,7 +8136,7 @@ function renderResourcesScreen(viewport) {
       </a>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 20px;">
       <div class="profile-section-card">
         <div style="margin-bottom: 10px; color: var(--orange-primary);">${svgIcon('sliders', '', 32)}</div>
         <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; color: var(--white);">Salary Benchmark 2026</h3>
