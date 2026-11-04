@@ -7075,27 +7075,49 @@ async function renderAdminScreen(viewport) {
         </div>
       </div>
 
-      <!-- Navigation Tabs -->
-      <div class="admin-nav-tabs">
-        <button class="admin-nav-btn ${activeTab === 'users' ? 'active' : ''}" onclick="switchAdminTab('users')">
-          ${svgIcon('users', '', 14)} Users Management (${users.length})
-        </button>
-        <button class="admin-nav-btn ${activeTab === 'jobs' ? 'active' : ''}" onclick="switchAdminTab('jobs')">
-          ${svgIcon('briefcase', '', 14)} Job Posts Control (${jobs.length})
-        </button>
-        <button class="admin-nav-btn ${activeTab === 'businesses' ? 'active' : ''}" onclick="switchAdminTab('businesses')">
-          ${svgIcon('hotel', '', 14)} Business Directory (${businesses.length})
-        </button>
-        <button class="admin-nav-btn ${activeTab === 'moderators' ? 'active' : ''}" onclick="switchAdminTab('moderators')">
-          ${svgIcon('shield', '', 14)} Moderator Requests (${moderatorRequests.length})
-        </button>
-        <button class="admin-nav-btn ${activeTab === 'verifications' ? 'active' : ''}" onclick="switchAdminTab('verifications')">
-          ${svgIcon('fileText', '', 14)} Trade Verifications (${verifications.length})
-        </button>
-        <button class="admin-nav-btn ${activeTab === 'database' ? 'active' : ''}" onclick="switchAdminTab('database')">
-          ${svgIcon('database', '', 14)} Database Management
-        </button>
-      </div>
+      <!-- Admin Workspace Layout: Left Side Panel Navigation + Right Content -->
+      <div class="admin-panel-layout">
+        <aside class="admin-side-panel">
+          <div class="admin-side-panel-header">
+            <span class="admin-side-panel-title">CONTROL DIRECTORY</span>
+            <span class="admin-side-panel-badge">6 Modules</span>
+          </div>
+          <nav class="admin-side-nav">
+            <button class="admin-side-nav-btn ${activeTab === 'users' ? 'active' : ''}" onclick="switchAdminTab('users')">
+              <span class="admin-side-nav-icon">${svgIcon('users', '', 16)}</span>
+              <span class="admin-side-nav-label">Users Management</span>
+              <span class="admin-side-nav-count">${users.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'jobs' ? 'active' : ''}" onclick="switchAdminTab('jobs')">
+              <span class="admin-side-nav-icon">${svgIcon('briefcase', '', 16)}</span>
+              <span class="admin-side-nav-label">Job Posts Control</span>
+              <span class="admin-side-nav-count">${jobs.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'businesses' ? 'active' : ''}" onclick="switchAdminTab('businesses')">
+              <span class="admin-side-nav-icon">${svgIcon('hotel', '', 16)}</span>
+              <span class="admin-side-nav-label">Business Directory</span>
+              <span class="admin-side-nav-count">${businesses.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'moderators' ? 'active' : ''}" onclick="switchAdminTab('moderators')">
+              <span class="admin-side-nav-icon">${svgIcon('shield', '', 16)}</span>
+              <span class="admin-side-nav-label">Moderator Requests</span>
+              <span class="admin-side-nav-count ${moderatorRequests.length > 0 ? 'highlight-alert' : ''}">${moderatorRequests.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'verifications' ? 'active' : ''}" onclick="switchAdminTab('verifications')">
+              <span class="admin-side-nav-icon">${svgIcon('fileText', '', 16)}</span>
+              <span class="admin-side-nav-label">Trade Verifications</span>
+              <span class="admin-side-nav-count ${verifications.length > 0 ? 'highlight-alert' : ''}">${verifications.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'database' ? 'active' : ''}" onclick="switchAdminTab('database')">
+              <span class="admin-side-nav-icon">${svgIcon('database', '', 16)}</span>
+              <span class="admin-side-nav-label">Database Control</span>
+              <span class="admin-side-nav-status-dot ${dbOverview.is_postgres ? 'postgres' : 'sqlite'}" title="${dbOverview.engine || 'Active DB'}"></span>
+            </button>
+          </nav>
+        </aside>
+
+        <!-- Main Admin Workspace Content Area -->
+        <main class="admin-main-content">
 
       <!-- TAB 1: USERS MANAGEMENT (Both Candidates and Business Users) -->
       ${activeTab === 'users' ? `
@@ -7622,6 +7644,8 @@ async function renderAdminScreen(viewport) {
           </div>
         </div>
       ` : ''}
+        </main>
+      </div>
     `;
   } catch (err) {
     viewport.innerHTML = `<div style="padding: 30px; text-align: center; color: #fca5a5;">Failed to load Admin Console: ${err.message}</div>`;

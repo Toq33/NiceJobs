@@ -675,4 +675,24 @@ When continuing work on the NiceJobs repository in any new conversation:
   - All test suites (`tests/test_api_endpoints.py`, `tests/test_admin_database_control.py`) executed and passed cleanly.
   - Verified static file parity and Python syntax compilation.
 
+### Update 69: Admin Panel Side Panel Layout & Global Dark Glassmorphism Scrollbar
+
+- **Admin Panel Side Panel Layout (`static/js/app.js` & `static/css/styles.css`)**:
+  - Removed the horizontal overflow tab bar (`.admin-nav-tabs`) that produced unsightly default browser scrollbars across screens.
+  - Re-architected the Admin Console into a two-column workspace (`.admin-panel-layout`):
+    - **Left Side Panel Navigation (`.admin-side-panel`)**: 270px sticky navigation drawer with header title (`CONTROL DIRECTORY`), vector SVG icons, section labels, live count pills, and dynamic status dots (PostgreSQL / SQLite).
+    - **Active Visual Styling**: Active items feature gradient borders, glowing orange highlights (`rgba(255, 107, 0, 0.18)`), and dedicated alert highlights for pending moderator requests or verifications.
+    - **Responsive Collapse**: Automatically converts into a multi-column responsive button grid on mobile/tablet viewports (`<= 960px`), eliminating any horizontal overflow.
+    - **Right Main Content Area (`.admin-main-content`)**: Expanded workspace for Users, Job Posts, Businesses, Moderator Approvals, Verifications, and Database Management.
+- **Global Dark Glassmorphism Custom Scrollbars (`static/css/styles.css`)**:
+  - Applied the dark glass custom scrollbar across all containers globally (`*`, `html`, `body`, modal bodies, tables, dropdowns):
+    - WebKit/Blink: 6px width/height, transparent track, rounded 9999px semi-transparent white thumb (`rgba(255, 255, 255, 0.2)` on rest, `rgba(255, 255, 255, 0.38)` on hover, `rgba(255, 107, 0, 0.6)` on drag).
+    - Firefox: `scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.22) transparent;`.
+  - Permanently eliminated default light-grey OS scrollbars across both desktop and mobile browsers.
+- **Verification**:
+  - Tested layout responsiveness and tab switching across all 6 admin modules.
+  - Ran unit test suites (`tests/test_api_endpoints.py`, `tests/test_admin_database_control.py`, `tests/test_admin_delete_business.py`) with 100% passing results.
+  - Verified static file parity (`index.html` and `static/index.html`).
+
+
 
