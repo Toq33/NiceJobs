@@ -7000,6 +7000,7 @@ async function renderAdminScreen(viewport) {
     const verifications = await verifsRes.json();
     const dbOverview = await dbRes.json();
     adminState.dbOverview = dbOverview;
+    adminState.users = users;
 
     // Filter Users
     const filteredUsers = users.filter(u => {
@@ -7150,11 +7151,10 @@ async function renderAdminScreen(viewport) {
                 <tr>
                   <th>User Profile</th>
                   <th>Role & Designation</th>
-                  <th>Contact (+88 Cell & Email)</th>
-                  <th>Account Status</th>
-                  <th>Business Role</th>
-                  <th>Blog Permission</th>
-                  <th style="text-align: right;">Administrative Actions</th>
+                  <th>Contact</th>
+                  <th>Status</th>
+                  <th>Blog Access</th>
+                  <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -7173,28 +7173,23 @@ async function renderAdminScreen(viewport) {
                       <span class="badge-count" style="font-size: 0.72rem; ${u.role==='jobseeker' ? 'background: rgba(255, 255, 255, 0.08); color:#93c5fd;' : 'background: rgba(249,115,22,0.2); color:#fdba74;'}">
                         ${u.role === 'jobseeker' ? 'Candidate' : (u.role === 'recruiter' ? 'Business User' : 'Admin')}
                       </span>
-                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px;">
                         ${u.designation || u.current_position || u.headline || 'Hospitality Associate'}
                       </div>
+                      ${u.business_name ? `
+                        <div style="font-size: 0.72rem; color: #fdba74; margin-top: 2px;">
+                          ${u.business_name}
+                        </div>
+                      ` : ''}
                     </td>
                     <td>
                       <div style="font-weight: 700; color: var(--white); font-size: 0.82rem;">+88 ${u.phone}</div>
-                      <div style="font-size: 0.78rem; color: var(--text-dim);">${u.email}</div>
+                      <div style="font-size: 0.76rem; color: var(--text-dim);">${u.email}</div>
                     </td>
                     <td>
                       <span class="status-pill status-${u.status === 'active' ? 'interview_scheduled' : (u.status === 'suspended' ? 'rejected' : 'under_review')}">
                         ${u.status}
                       </span>
-                    </td>
-                    <td>
-                      ${u.business_name ? `
-                        <div style="font-weight: 700; color: var(--white); font-size: 0.82rem;">${u.business_name}</div>
-                        <div style="font-size: 0.74rem; color: #fdba74;">
-                          ${u.is_business_admin ? `${svgIcon('award', '', 13)} Business Admin` : (u.membership_role || 'Moderator')}
-                        </div>
-                      ` : `
-                        <span style="font-size: 0.75rem; color: var(--text-dim);">${u.candidate_location || 'Dhaka, Bangladesh'}</span>
-                      `}
                     </td>
                     <td>
                       ${u.role === 'admin' ? `
@@ -7213,7 +7208,10 @@ async function renderAdminScreen(viewport) {
                       `}
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px; align-items: center;">
+                      <div style="display: inline-flex; gap: 5px; align-items: center; justify-content: flex-end;">
+                        <button class="admin-btn-action btn-view" onclick="openAdminUserProfileModal('${u.id}')" title="View user profile">
+                          ${svgIcon('eye', '', 12)} View
+                        </button>
                         ${u.status === 'suspended' ? `
                           <button class="admin-btn-action btn-activate" onclick="handleAdminUserStatus('${u.id}', 'active')">
                             Reactivate
@@ -7771,6 +7769,192 @@ async function handleAdminToggleBlogPermission(userId, allow) {
     showToast(err.message, 'danger');
   }
 }
+
+async function openAdminUserProfileModal(userId) {
+  let user = (adminState.users || []).find(u => u.id === userId);
+  let profile = {};
+  try {
+    const res = await fetch(`/api/profile?user_id=${encodeURIComponent(userId)}`);
+    if (res.ok) {
+      profile = await res.json();
+    }
+  } catch (e) {
+    console.warn('Profile fetch warning:', e);
+  }
+
+  const u = user || profile;
+  const name = profile.name || u.name || 'User Profile';
+  const role = u.role || profile.user_role || 'jobseeker';
+  const status = u.status || 'active';
+  const avatar = profile.avatar_url || u.avatar_url || DEFAULT_AVATAR_PREVIEW;
+  const phone = profile.phone || u.phone || 'N/A';
+  const email = profile.email || u.email || 'N/A';
+  const designation = profile.designation || u.designation || profile.current_position || u.current_position || u.headline || 'Hospitality Associate';
+  const businessName = u.business_name || profile.business_name || '';
+  const isBizAdmin = !!(u.is_business_admin || profile.is_business_admin);
+  const canPostBlog = !!(u.can_post_blog || profile.can_post_blog);
+  const skills = Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()).filter(Boolean) : []);
+  const cvList = Array.isArray(profile.cvs) ? profile.cvs : [];
+  const expList = Array.isArray(profile.experience) ? profile.experience : [];
+  const location = profile.location || profile.address || u.candidate_location || 'Dhaka, Bangladesh';
+
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-admin-user-profile" style="display: flex; align-items: center; justify-content: center; z-index: 9999;">
+      <div class="modal-dialog" style="max-width: 680px; width: 92%; max-height: 90vh; overflow-y: auto; background: rgba(13, 21, 44, 0.98); border: 1px solid rgba(255, 107, 0, 0.35); border-radius: 20px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9); padding: 0;">
+        <!-- Modal Header -->
+        <div style="padding: 24px 28px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src="${avatar}" alt="${escapeHtml(name)}" style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange-primary); flex-shrink: 0;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0;">${escapeHtml(name)}</h2>
+                <span class="badge-count" style="font-size: 0.72rem; ${role === 'jobseeker' ? 'background: rgba(255, 255, 255, 0.08); color: #93c5fd;' : 'background: rgba(249,115,22,0.2); color: #fdba74;'}">
+                  ${role === 'jobseeker' ? 'Candidate' : (role === 'recruiter' ? 'Business User' : 'System Admin')}
+                </span>
+                <span class="status-pill status-${status === 'active' ? 'interview_scheduled' : (status === 'suspended' ? 'rejected' : 'under_review')}" style="font-size: 0.7rem; padding: 2px 8px;">
+                  ${status}
+                </span>
+              </div>
+              <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;">
+                ${escapeHtml(designation)} ${businessName ? `• <span style="color: #fdba74;">${escapeHtml(businessName)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-close-modal" onclick="closeModal('modal-admin-user-profile')" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.5rem; line-height: 1; padding: 4px;" title="Close modal">
+            &times;
+          </button>
+        </div>
+
+        <!-- Modal Body Dossier -->
+        <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 20px;">
+          
+          <!-- Key Contact & Identification Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 18px;">
+            <div>
+              <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">Verified Phone</div>
+              <div style="font-size: 0.86rem; font-weight: 700; color: var(--white); margin-top: 2px;">+88 ${escapeHtml(phone)}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">Official Email</div>
+              <div style="font-size: 0.86rem; font-weight: 700; color: var(--white); margin-top: 2px;">${escapeHtml(email)}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">Location / Region</div>
+              <div style="font-size: 0.86rem; color: var(--text-muted); margin-top: 2px;">${escapeHtml(location)}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">User Account ID</div>
+              <div style="font-size: 0.8rem; color: var(--text-dim); font-family: monospace; margin-top: 2px;">${escapeHtml(userId)}</div>
+            </div>
+          </div>
+
+          <!-- Business Card (if representative) -->
+          ${role === 'recruiter' || businessName ? `
+            <div style="background: rgba(255, 107, 0, 0.06); border: 1px solid rgba(255, 107, 0, 0.22); border-radius: 12px; padding: 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.76rem; font-weight: 800; color: var(--orange-primary); text-transform: uppercase; letter-spacing: 0.5px;">Business Role & Property</span>
+                <span class="badge-count" style="font-size: 0.72rem; background: rgba(255, 107, 0, 0.2); color: #fdba74;">
+                  ${isBizAdmin ? `${svgIcon('award', '', 12)} Business Admin` : (u.membership_role || 'Moderator')}
+                </span>
+              </div>
+              <div style="font-size: 1.05rem; font-weight: 800; color: var(--white);">${escapeHtml(businessName || 'Associated Hotel Property')}</div>
+              <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                Designation: <strong>${escapeHtml(designation)}</strong> • Org Role: <strong>${escapeHtml(u.org_role || 'Management')}</strong>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Professional Bio / Headline -->
+          ${(profile.summary || profile.headline) ? `
+            <div>
+              <div style="font-size: 0.76rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Profile Summary</div>
+              <div style="font-size: 0.86rem; color: var(--text-muted); line-height: 1.6; background: rgba(255, 255, 255, 0.02); padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06);">
+                ${escapeHtml(profile.summary || profile.headline)}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Hospitality Competencies / Skills -->
+          ${skills.length > 0 ? `
+            <div>
+              <div style="font-size: 0.76rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Hospitality Skills</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                ${skills.map(s => `
+                  <span style="background: rgba(255, 107, 0, 0.12); color: #ff9d54; border: 1px solid rgba(255, 107, 0, 0.25); padding: 3px 10px; border-radius: 6px; font-size: 0.76rem; font-weight: 600;">
+                    ${escapeHtml(s)}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Resumes & CVs -->
+          <div>
+            <div style="font-size: 0.76rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Curriculum Vitae (CV) Documents</div>
+            ${(cvList.length > 0 || profile.cv_name) ? `
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${(cvList.length > 0 ? cvList : [{ id: 'default', title: profile.cv_name || 'Resume', name: profile.cv_name || 'Resume' }]).map(cv => `
+                  <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 14px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <span style="color: var(--orange-primary);">${svgIcon('fileText', '', 18)}</span>
+                      <div>
+                        <div style="font-weight: 700; color: var(--white); font-size: 0.84rem;">${escapeHtml(cv.title || cv.name || 'Hospitality CV')}</div>
+                        <div style="font-size: 0.74rem; color: var(--text-dim);">${escapeHtml(cv.name || 'PDF Document')}</div>
+                      </div>
+                    </div>
+                    <button class="btn-secondary" style="font-size: 0.76rem; padding: 4px 10px;" onclick="previewCandidateCvModal('${escapeHtml(cv.title || cv.name || 'Resume')}', '${escapeHtml(cv.name || 'Resume')}', '${cv.id}')">
+                      Preview CV
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="font-size: 0.82rem; color: var(--text-dim); font-style: italic; padding: 10px 14px; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">No CV documents uploaded yet.</div>
+            `}
+          </div>
+
+          <!-- Experience Record (if any) -->
+          ${expList.length > 0 ? `
+            <div>
+              <div style="font-size: 0.76rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Experience Record</div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${expList.map(exp => `
+                  <div style="border-left: 2px solid var(--orange-primary); padding-left: 12px; background: rgba(255, 255, 255, 0.02); padding: 8px 12px; border-radius: 0 8px 8px 0;">
+                    <div style="font-weight: 700; color: var(--white); font-size: 0.84rem;">${escapeHtml(exp.role || exp.title || '')}</div>
+                    <div style="font-size: 0.76rem; color: var(--orange-primary);">${escapeHtml(exp.hotel || exp.company || '')} ${exp.period ? `• ${escapeHtml(exp.period)}` : ''}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.25); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-radius: 0 0 20px 20px;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="admin-btn-action" style="${canPostBlog ? 'background: rgba(16, 185, 129, 0.15); color: #34d399;' : 'background: rgba(255, 255, 255, 0.06); color: var(--text-muted);'}" onclick="handleAdminToggleBlogPermission('${userId}', ${!canPostBlog}); closeModal('modal-admin-user-profile');">
+              ${canPostBlog ? `${svgIcon('check', '', 12)} Blog Posting Active` : `${svgIcon('plus', '', 12)} Enable Blog Post`}
+            </button>
+            ${userId !== 'user_admin' ? `
+              <button class="admin-btn-action ${status === 'suspended' ? 'btn-activate' : 'btn-suspend'}" onclick="handleAdminUserStatus('${userId}', '${status === 'suspended' ? 'active' : 'suspended'}'); closeModal('modal-admin-user-profile');">
+                ${status === 'suspended' ? 'Reactivate Account' : 'Suspend Account'}
+              </button>
+            ` : ''}
+          </div>
+          <button class="btn-secondary" style="font-size: 0.82rem; padding: 6px 16px;" onclick="closeModal('modal-admin-user-profile')">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.openAdminUserProfileModal = openAdminUserProfileModal;
+window.closeModal = closeModal;
 
 async function handleAdminJobStatus(jobId, status) {
   try {

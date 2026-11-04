@@ -726,6 +726,39 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Strict static file parity confirmed (`index.html` and `static/index.html`).
   - Python compilation validated (`python3 -m py_compile app.py database.py api/index.py`).
 
+---
+
+### Update 71: Admin Users Management Optimization — Removed Business Role Column, Tightened Layout Gaps & Added User Profile Dossier Modal
+
+- **Admin Users Table Streamlining (`static/js/app.js`, `static/css/styles.css`)**:
+  - **Removed Redundant "Business Role" Column**:
+    - Eliminated the separate `<th>Business Role</th>` column and its corresponding table cell (`<td>`) across the Admin Users Management tab (Tab 1).
+    - Preserved relevant hotel property context seamlessly in the `Role & Designation` column for business users (`${u.business_name ? '<div style="font-size: 0.72rem; color: #fdba74; margin-top: 2px;">' + u.business_name + '</div>' : ''}`).
+  - **Eliminated Desktop Horizontal Scrolling via Gap & Padding Optimization**:
+    - Reduced `.admin-table th` and `.admin-table td` padding from `12px 16px` / `14px 16px` to compact `10px 12px`, with `white-space: nowrap` on table headers.
+    - Adjusted `.admin-user-cell` gap from `12px` to `10px` and avatar image dimensions to `32px` with `flex-shrink: 0`.
+    - Compacted table header labels to `User Profile`, `Role & Designation`, `Contact`, `Status`, `Blog Access`, and `Actions`.
+    - Total table footprint drops under ~830px, allowing the entire table to fit comfortably within the 938px+ desktop workspace without requiring any side-by-side (horizontal) scrolling.
+- **Root Admin User Dossier Modal (`static/js/app.js`, `static/css/styles.css`)**:
+  - Added a dedicated `.admin-btn-action.btn-view` button (`${svgIcon('eye', '', 12)} View`) in the Administrative Actions column of each user row.
+  - Implemented `openAdminUserProfileModal(userId)`:
+    - Fetches user details via `/api/profile?user_id=${userId}` and falls back gracefully to in-memory state (`adminState.users`).
+    - Opens a high-clarity Dark Glassmorphism modal displaying:
+      - Avatar, user name, role badge (`Candidate`, `Business User`, `System Admin`), and account status pill.
+      - Contact & ID card: Verified phone (`+88 ...`), official email, region/district location, and account ID.
+      - Business Property Card (for recruiter accounts): Hotel property name, designation, and business role (Business Admin / Moderator).
+      - Professional summary / bio headline.
+      - Hospitality competencies & skills tags.
+      - Attached CVs and Curriculum Vitae documents with an integrated "Preview CV" button.
+      - Verified hospitality experience history.
+      - Direct modal actions: Toggle blog posting permission, Suspend/Reactivate user account, and Close modal.
+- **Verification & Parity**:
+  - Full Python test suite passed cleanly (`python3 -m unittest discover tests` — 30 tests OK).
+  - Admin database control and delete business tests passed cleanly (7 tests OK).
+  - Static parity confirmed between `index.html` and `static/index.html`.
+  - Python files successfully compiled (`python3 -m py_compile app.py database.py api/index.py`).
+
+
 
 
 
