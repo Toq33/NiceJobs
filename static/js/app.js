@@ -10381,8 +10381,8 @@ function renderSignupPage(viewport) {
                 <div class="auth-field-grid">
                   <div class="auth-field">
                     <label class="auth-label">Official Website</label>
-                    <input type="text" id="biz-new-website" class="auth-input" 
-                      placeholder="Enter official website" 
+                    <input type="url" id="biz-new-website" class="auth-input" 
+                      placeholder="https://example.com" 
                       value="${signupState.website || ''}">
                   </div>
                   <div class="auth-field">
