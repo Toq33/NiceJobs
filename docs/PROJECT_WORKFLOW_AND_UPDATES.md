@@ -760,7 +760,7 @@ When continuing work on the NiceJobs repository in any new conversation:
 
 ---
 
-### Update 72: UI/UX V2 Enterprise Refinement — Design Tokens, Typography & Component Polish
+### Update 72: UI/UX V2 Enterprise Refinement — Phase 2 Global Components & Shared UI Architecture
 
 - **UI/UX Craftsmanship & Anti-AI Refinement (`static/css/styles.css`)**:
   - **Architectural Design System Tokens**:
@@ -775,17 +775,30 @@ When continuing work on the NiceJobs repository in any new conversation:
     - Refined `.site-header` and `.nav-container` floating navbar: added subtle background pill highlight on hover for nav items (`.nav-item a:hover`, `.nav-item a.active`), eliminating layout shift.
   - **Enterprise-Grade Button System**:
     - Standardized `.btn-primary`, `.btn-orange`, `.btn-secondary`, `.btn-white` to executive architectural controls (38px height, `--radius-md` 10px radius, inner bevel highlight `inset 0 1px 0 rgba(255, 255, 255, 0.2)`, tactile `scale(0.985)` active press feedback, removed jittery `translateY(-1px)`).
-  - **Universal Card & Job Card Polish**:
-    - Standardized `.job-card` border-radius to `--radius-lg` (14px).
+    - Refined `.btn-icon` with tactile active scale and clear hover feedback.
+    - Standardized `.hero-search-btn` to 44px with balanced inner bevel highlight and active press state.
+  - **Universal Cards, Blog Cards & ATS Components**:
+    - Standardized `.job-card`, `.talent-card`, and `.blog-card` border-radius to `--radius-lg` (14px).
     - Replaced heavy 4px left-accent alert borders with refined top hairline illumination (`.job-card.featured-card::before` and `.job-card.urgent-card::before`) and subtle surface gradient lighting.
-  - **Status Badges & Form Controls**:
+    - Refined `.talent-tab-btn` and `.talent-tab-badge` with architectural radii and stable hover transitions.
+    - Polished `.blog-cat-pill` and `.blog-filter-btn` to eliminate floating pill aesthetics.
+    - Created a standardized `.empty-state-card` reusable component with dashed glass border and centered layout.
+  - **Badges, Chips & Meta Tokens**:
     - Standardized `.status-pill` to architectural badges (padding `3px 8px`, border-radius `--radius-xs` 4px, crisp semi-transparent tinted backgrounds and borders).
+    - Refined `.badge-urgent` and `.badge-featured` to clean, structured meta tags (`--radius-xs`).
+    - Standardized `.salary-tag` (`#ff9d54` tint with subtle glass background) and `.perk-chip`.
+    - Polished `.filter-pill` with geometric `--radius-sm` (6px) replacing template pill bubbles.
+    - Updated candidate `.skill-tag` and inbox `.template-chip` with architectural micro-radii (`--radius-xs`).
+  - **Form Controls & Modals**:
     - Polished `.auth-input` and `.auth-btn-primary` with 42px heights, high-clarity focus rings, and tactile feedback.
+    - Added dedicated support for `textarea.auth-input` (auto height, 80px min-height, vertical resize) and `select.auth-input` (custom vector chevron indicator).
     - Polished `.modal-dialog` and `.modal-backdrop` with smooth `scale(0.985)` to `scale(1)` transition and 28px blur.
+    - Removed spinning 90-degree rotate animation from `.modal-close` for clean, professional hover contrast.
     - Refined `.admin-metric-card` top hairline indicators and stabilized `.admin-side-nav-btn` hover interactions.
+    - Updated inbox search, active thread border (compact 2px indicator), and standardized `.chat-composer-input` with architectural `--radius-md` (10px).
 - **Verification & Parity**:
   - 100% Chromium V8 JavaScript syntax validation passed (`SUCCESS: 0 syntax errors` across 18,531 lines).
-  - Full Python unit test suites passed (`test_api_endpoints.py`, `test_admin_database_control.py`, `test_admin_delete_business.py`).
+  - Full Python unit test suites passed (`test_api_endpoints.py`, `test_admin_database_control.py`, `test_admin_delete_business.py` — 19 tests OK).
   - Strict static parity maintained between `index.html` and `static/index.html`.
   - Python files verified and compiled cleanly with `py_compile`.
 
