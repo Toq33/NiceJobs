@@ -5173,16 +5173,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 
 /* Enhanced Job Card Polish */
 .job-card-interactive {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: var(--transition);
 }
 
 .job-card-interactive:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   border-color: rgba(255, 107, 0, 0.35);
-  box-shadow: 0 10px 30px rgba(10, 15, 30, 0.6), 0 0 24px rgba(255, 107, 0, 0.12);
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-md), 0 0 16px rgba(255, 107, 0, 0.08);
 }
 
-/* ==========================================================================
 /* ==========================================================================
    Admin Simple Minimal Login
    ========================================================================== */
@@ -5196,8 +5196,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 .admin-login-card-simple {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: 24px;
+  box-shadow: var(--shadow-md);
 }
 
 .admin-form-group-simple {
@@ -5214,37 +5215,45 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 
 .admin-simple-input {
   width: 100%;
-  height: 38px;
+  height: 40px;
   padding: 0 12px;
-  background: var(--bg-surface-elevated);
+  background: var(--bg-input);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--white);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .admin-simple-input:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: var(--orange-primary);
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
 }
 
 .admin-simple-btn {
   width: 100%;
-  height: 38px;
-  background: var(--primary);
-  border: none;
-  border-radius: var(--radius-sm);
+  height: 40px;
+  background: var(--orange-gradient);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
   color: #ffffff;
   font-weight: 600;
   font-size: 0.88rem;
   cursor: pointer;
   margin-top: 6px;
-  transition: opacity 0.15s ease;
+  transition: var(--transition);
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .admin-simple-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-sm), 0 0 14px rgba(255, 107, 0, 0.3);
+}
+
+.admin-simple-btn:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 .admin-simple-btn:disabled {
@@ -5256,11 +5265,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
    Hospitality Blog System (Dark Glassmorphism)
    ========================================================================== */
 .blog-hero-card {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--bg-surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   padding: 24px;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -5268,6 +5277,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
   align-items: center;
   margin-bottom: 32px;
   transition: border-color 0.25s ease;
+  box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 900px) {

@@ -2907,7 +2907,7 @@ function renderChatMessageStatusHtml(msg, isMine) {
   if (!isMine) return '';
   const status = msg.status || 'sent';
   if (status === 'sending') {
-    return `<span class="bubble-status-mark status-sending" title="Sending...">🕒</span>`;
+    return `<span class="bubble-status-mark status-sending" title="Sending...">${svgIcon('clock', '', 11)}</span>`;
   } else if (status === 'delivered') {
     return `<span class="bubble-status-mark status-delivered" title="Delivered to recipient">✓✓</span>`;
   } else if (status === 'read') {
@@ -4693,7 +4693,7 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
 
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
               <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white);">${biz.brand_name}</h2>
-              <span class="verified-badge" title="Verified" style="white-space: nowrap; flex-shrink: 0;">✓ Verified</span>
+              <span class="verified-badge" title="Verified" style="white-space: nowrap; flex-shrink: 0;">${svgIcon('shieldCheck', '', 14)} Verified</span>
             </div>
 
             <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
@@ -4748,7 +4748,7 @@ async function renderHotelDetailScreen(viewport, hotelId) {
           <div>
             <div style="display: flex; align-items: center; gap: 10px;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: white;">${hotel.brand_name}</h1>
-              <span class="verified-badge" style="font-size: 1.1rem;" title="Verified">✓</span>
+              <span class="verified-badge" title="Verified" style="display: inline-flex; align-items: center;">${svgIcon('shieldCheck', '', 18)}</span>
             </div>
             <div style="color: var(--text-muted); font-size: 0.9rem;">
               ${hotel.star_rating}-Star ${hotel.property_type} • ${hotel.city}
@@ -4987,7 +4987,9 @@ async function renderProfileScreen(viewport) {
   if (!userId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('user', '', 30)}
+        </div>
         <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Candidate Profile Active</h2>
         <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">Demo data is removed or you are not signed in. Please register a candidate account or log in to view and manage your profile.</p>
         <button class="btn-orange" onclick="startSignupFlow('candidate')">Register as Candidate</button>
@@ -5002,7 +5004,9 @@ async function renderProfileScreen(viewport) {
     if (!res.ok) {
       viewport.innerHTML = `
         <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-          <div style="font-size: 3rem; margin-bottom: 16px;">👤</div>
+          <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+            ${svgIcon('user', '', 30)}
+          </div>
           <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
           <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
           <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
@@ -5037,7 +5041,7 @@ async function renderProfileScreen(viewport) {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
-              <span class="verified-badge" title="Verified">✓ Verified</span>
+              <span class="verified-badge" title="Verified">${svgIcon('shieldCheck', '', 14)} Verified</span>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
               ${(profile.designation || profile.current_position) ? `
@@ -5232,7 +5236,9 @@ async function renderRecruiterDashboard(viewport) {
   if (!bId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">🏨</div>
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('hotel', '', 30)}
+        </div>
         <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel / Business Active</h2>
         <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Demo data is removed or no business session is active. Please register your establishment or log in to access the recruiter desk.</p>
         <button class="btn-orange" onclick="startSignupFlow('business')">Register New Business</button>
@@ -6068,10 +6074,10 @@ async function renderInboxScreen(viewport) {
           <span style="font-size: 0.76rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Instant 1-Click Access for Review:</span>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
             <button class="btn-secondary" style="font-size: 0.82rem; padding: 7px 16px; border-color: rgba(255,255,255,0.2);" onclick="quickLoginCandidate()">
-              👤 Candidate Inbox (dfdf)
+              ${svgIcon('user', '', 14)} Candidate Inbox (dfdf)
             </button>
             <button class="btn-secondary" style="font-size: 0.82rem; padding: 7px 16px; border-color: rgba(255,255,255,0.2);" onclick="quickLoginRecruiter()">
-              🏨 Employer Inbox (Radisson Blu)
+              ${svgIcon('hotel', '', 14)} Employer Inbox (Radisson Blu)
             </button>
           </div>
         </div>
@@ -6083,7 +6089,9 @@ async function renderInboxScreen(viewport) {
   if (isRecruiter && !bId) {
     viewport.innerHTML = `
       <div class="empty-state-card" style="padding: 60px 20px; text-align: center; max-width: 620px; margin: 40px auto; background: var(--bg-card); border-radius: 18px; border: 1px solid var(--border-subtle);">
-        <div style="font-size: 3rem; margin-bottom: 16px;">✉️</div>
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('mail', '', 30)}
+        </div>
         <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">No Hotel Associated</h2>
         <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">Please log in with your verified hotel account credentials to access candidate communications.</p>
         <button class="btn-orange" onclick="startLoginFlow('business')">Employer Log In</button>
@@ -6192,7 +6200,9 @@ async function renderInboxScreen(viewport) {
           <div class="thread-list-scroll" id="thread-list-scroll">
             ${convs.length === 0 ? `
               <div style="padding: 32px 16px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">
-                <div style="font-size: 1.8rem; margin-bottom: 8px;">💬</div>
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: var(--text-muted);">
+                  ${svgIcon('messageSquare', '', 20)}
+                </div>
                 No active conversations yet.<br>Messages you send or receive will appear here.
               </div>
             ` : convs.map(c => {
@@ -6312,7 +6322,9 @@ async function renderInboxScreen(viewport) {
             </div>
           ` : `
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 30px;">
-              <div style="font-size: 2.2rem; margin-bottom: 10px;">✉️</div>
+              <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: var(--text-muted);">
+                ${svgIcon('mail', '', 28)}
+              </div>
               <h3 style="color: var(--white); font-weight: 700; margin-bottom: 4px;">No Conversation Selected</h3>
               <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 360px;">Choose a candidate or hotel from the left list, or click 'Message' on an application or review dossier to start chatting.</p>
             </div>
@@ -6457,7 +6469,7 @@ async function sendChatMessage() {
       ${renderChatMessageContentHtml(content)}
       <span class="bubble-timestamp">
         <span>${nowTime}</span>
-        <span class="bubble-status-mark status-sending" title="Sending...">🕒</span>
+        <span class="bubble-status-mark status-sending" title="Sending...">${svgIcon('clock', '', 11)}</span>
       </span>
     `;
     if (typingRow) {
