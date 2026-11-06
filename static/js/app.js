@@ -9885,10 +9885,10 @@ function renderSignupPage(viewport) {
             <div style="display: flex; align-items: center; gap: 8px;">
               ${signupState.biz_route !== 'choose' ? `
                 <button type="button" class="auth-back-btn" onclick="${signupState.biz_route === 'join' ? 'prevJoinStage()' : 'prevBizStage()'}">← Back</button>
+                <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('business')" title="Log In to Recruiter Desk">
+                  ${svgIcon('hotel', '', 14)} <span>Already have business account? <strong>Log In</strong></span>
+                </button>
               ` : ''}
-              <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('business')" title="Log In to Recruiter Desk">
-                ${svgIcon('hotel', '', 14)} <span>Already have business account? <strong>Log In</strong></span>
-              </button>
             </div>
             <span class="auth-stage-indicator">
               ${signupState.biz_route === 'new' ? `New Business Registration` : (signupState.biz_route === 'join' ? `Add Team Member` : `Business Portal`)}
