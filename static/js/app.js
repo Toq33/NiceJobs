@@ -3824,7 +3824,94 @@ function updateNavigation() {
   if (mobileActions) {
     mobileActions.innerHTML = mobileActionsHtml;
   }
+  syncSlidingNavIndicator();
+  requestAnimationFrame(syncSlidingNavIndicator);
 }
+
+// ==========================================================================
+// Agency Spotlight Cursor Tracking, Sliding Nav Pill & Scroll Reveal
+// ==========================================================================
+let activeSpotlightCards = [];
+function refreshSpotlightCards() {
+  activeSpotlightCards = Array.from(document.querySelectorAll('.spotlight-card'));
+}
+
+document.addEventListener('pointermove', (e) => {
+  if (!activeSpotlightCards || activeSpotlightCards.length === 0) return;
+  for (let i = 0; i < activeSpotlightCards.length; i++) {
+    const card = activeSpotlightCards[i];
+    const rect = card.getBoundingClientRect();
+    if (
+      e.clientX >= rect.left - 40 &&
+      e.clientX <= rect.right + 40 &&
+      e.clientY >= rect.top - 40 &&
+      e.clientY <= rect.bottom + 40
+    ) {
+      const x = Math.round(e.clientX - rect.left);
+      const y = Math.round(e.clientY - rect.top);
+      card.style.setProperty('--mouse-x', `${x}px`);
+      card.style.setProperty('--mouse-y', `${y}px`);
+    }
+  }
+}, { passive: true });
+
+let scrollRevealObserver = null;
+function initScrollReveal() {
+  refreshSpotlightCards();
+  const elements = document.querySelectorAll('.reveal-on-scroll:not(.revealed)');
+  if (!elements || elements.length === 0) return;
+
+  if (!('IntersectionObserver' in window)) {
+    elements.forEach(el => el.classList.add('revealed'));
+    return;
+  }
+
+  if (scrollRevealObserver) {
+    scrollRevealObserver.disconnect();
+  }
+
+  scrollRevealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+        scrollRevealObserver.unobserve(entry.target);
+      }
+    });
+  }, {
+    rootMargin: '-30px 0px',
+    threshold: 0.05
+  });
+
+  elements.forEach(el => scrollRevealObserver.observe(el));
+}
+
+function syncSlidingNavIndicator() {
+  const navList = document.getElementById('main-nav-links');
+  if (!navList) return;
+  let pill = document.getElementById('nav-indicator-pill');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'nav-indicator-pill';
+    pill.className = 'nav-indicator-pill';
+    navList.prepend(pill);
+  }
+  const activeLink = navList.querySelector('.nav-item a.active');
+  if (activeLink) {
+    const parentItem = activeLink.closest('.nav-item') || activeLink;
+    const navRect = navList.getBoundingClientRect();
+    const itemRect = parentItem.getBoundingClientRect();
+    const offsetLeft = Math.round(itemRect.left - navRect.left);
+    pill.style.transform = `translateX(${offsetLeft}px)`;
+    pill.style.width = `${Math.round(itemRect.width)}px`;
+    pill.style.opacity = '1';
+  } else {
+    pill.style.opacity = '0';
+  }
+}
+
+window.addEventListener('resize', () => {
+  syncSlidingNavIndicator();
+});
 
 // ==========================================================================
 // Master Screen Router
@@ -3886,6 +3973,9 @@ async function renderApp() {
   } else {
     await renderHomeScreen(viewport);
   }
+
+  initScrollReveal();
+  syncSlidingNavIndicator();
 }
 
 // ==========================================================================
@@ -4023,6 +4113,97 @@ async function renderHomeScreen(viewport) {
       </div>
     </section>
 
+    <!-- Bespoke Bento Section: Institutional Hospitality Standards -->
+    <section class="home-bento-section reveal-on-scroll">
+      <div class="section-eyebrow">
+        <span class="eyebrow-dot"></span> Institutional Hospitality Network
+      </div>
+      <div class="bento-header-row">
+        <h2 class="bento-headline">Bespoke Talent Infrastructure for 5-Star Hospitality</h2>
+        <p class="bento-subheadline">
+          Connecting verified luxury properties, executive culinary brigades, and certified hospitality professionals across Bangladesh.
+        </p>
+      </div>
+
+      <div class="bento-grid">
+        <!-- Bento Card 1: 7 cols (Flagship Verified Credentialing) -->
+        <div class="bento-card spotlight-card reveal-on-scroll" style="grid-column: span 7;">
+          <div>
+            <div class="bento-card-badge">
+              ${svgIcon('shieldCheck', '', 14)} AHLEI & Verified 5-Star Standards
+            </div>
+            <h3 class="bento-card-title">Verified Hospitality Credentials</h3>
+            <p class="bento-card-desc">
+              Every candidate is verified against actual hotel employment history, supervisory references, and department-specific skill standards.
+            </p>
+          </div>
+          <div class="bento-metric-row">
+            <div class="bento-metric-pill">
+              <span class="metric-val">100%</span>
+              <span class="metric-lbl">Property Verified</span>
+            </div>
+            <div class="bento-metric-pill">
+              <span class="metric-val">5-Star</span>
+              <span class="metric-lbl">Luxury Properties</span>
+            </div>
+            <div class="bento-metric-pill">
+              <span class="metric-val">48 hrs</span>
+              <span class="metric-lbl">Direct Interview SLA</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento Card 2: 5 cols (Direct Messaging) -->
+        <div class="bento-card spotlight-card reveal-on-scroll" style="grid-column: span 5;">
+          <div>
+            <div class="bento-card-badge">
+              ${svgIcon('messageSquare', '', 14)} Real-Time Chat
+            </div>
+            <h3 class="bento-card-title">Direct GM & Recruiter Comms</h3>
+            <p class="bento-card-desc">
+              Direct, encrypted conversation channels between verified department heads and pre-screened hospitality talent. Zero agency middlemen.
+            </p>
+          </div>
+          <div class="bento-interactive-pill">
+            <span class="pulse-indicator"></span> Real-time interview invitations & stage tracking
+          </div>
+        </div>
+
+        <!-- Bento Card 3: 5 cols (Trade Tests) -->
+        <div class="bento-card spotlight-card reveal-on-scroll" style="grid-column: span 5;">
+          <div>
+            <div class="bento-card-badge">
+              ${svgIcon('award', '', 14)} Trade Tests
+            </div>
+            <h3 class="bento-card-title">Curated Trade Test Blueprints</h3>
+            <p class="bento-card-desc">
+              Standardized assessment rubrics for hot kitchen knife skills, pastry tempering, Opera PMS room assignment, and banquet staging.
+            </p>
+          </div>
+          <div style="font-size: 0.78rem; color: rgba(255, 255, 255, 0.6); display: flex; align-items: center; gap: 6px; margin-top: auto;">
+            ${svgIcon('checkCircle', '', 13)} Aligned with Marriott, Radisson & InterCon standards
+          </div>
+        </div>
+
+        <!-- Bento Card 4: 7 cols (Salary Transparency) -->
+        <div class="bento-card spotlight-card reveal-on-scroll" style="grid-column: span 7;">
+          <div>
+            <div class="bento-card-badge">
+              ${svgIcon('trendingUp', '', 14)} Market Intelligence
+            </div>
+            <h3 class="bento-card-title">Transparent Hospitality Compensation</h3>
+            <p class="bento-card-desc">
+              Verified BDT salary benchmarks across Executive Chef, Front Office Manager, F&B Director, and Executive Housekeeper roles.
+            </p>
+          </div>
+          <div class="bento-salary-spark">
+            <span class="spark-label">Dhaka & Cox's Bazar Executive Range:</span>
+            <span class="spark-value">৳85,000 — ৳2,20,000 / mo</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div id="jobs-feed-anchor"></div>
     ` : `
     <!-- CANDIDATE LOGGED-IN CONSOLE -->
@@ -4148,7 +4329,7 @@ async function renderHomeScreen(viewport) {
       <!-- Sidebar Area: Sponsors Only -->
       <aside class="sidebar-area">
         <!-- Sponsor 1: Swiss Hospitality Management & AHLEI -->
-        <div class="sponsored-box" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 20px; padding: 22px; margin-bottom: 20px;">
+        <div class="sponsored-box spotlight-card reveal-on-scroll" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 22px; margin-bottom: 20px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
             <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">SPONSORED</span>
             <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.72rem; font-weight: 600;">AHLEI Certified</span>
@@ -4164,7 +4345,7 @@ async function renderHomeScreen(viewport) {
         </div>
 
         <!-- Sponsor 2: Marriott South Asia Fast-Track -->
-        <div class="sponsored-box" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 20px; padding: 22px;">
+        <div class="sponsored-box spotlight-card reveal-on-scroll" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 22px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
             <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">SPONSORED</span>
             <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.72rem; font-weight: 600;">Official Partner</span>
@@ -4190,7 +4371,7 @@ function renderJobCardHTML(job) {
   const isSaved = !isGuest && state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id);
 
   return `
-    <article class="job-card job-card-interactive ${isFeatured ? 'featured-card' : ''} ${isUrgent ? 'urgent-card' : ''}" id="job-card-${job.id}">
+    <article class="job-card job-card-interactive spotlight-card reveal-on-scroll ${isFeatured ? 'featured-card' : ''} ${isUrgent ? 'urgent-card' : ''}" id="job-card-${job.id}">
       <div class="job-card-header" style="align-items: flex-start; justify-content: space-between; gap: 16px;">
         <div class="hotel-info-group" style="gap: 16px;">
           <img src="${job.logo_url || '/static/images/hero_lobby.jpg'}" alt="${job.brand_name}" class="hotel-thumb" style="width: 58px; height: 58px; border-radius: var(--radius-md); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
@@ -4727,44 +4908,50 @@ async function renderHotelsScreen(viewport, selectedHotelId = null) {
   }
 
   viewport.innerHTML = `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 4px;">Hotels & Resorts</h1>
-      <p style="color: var(--text-muted); font-size: 0.95rem;">Verified properties hiring through NiceJobs.</p>
+    <div style="margin-bottom: 32px;">
+      <div class="section-eyebrow">
+        <span class="eyebrow-dot"></span> Partner Directory
+      </div>
+      <h1 style="font-size: 2.2rem; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.035em;">Hotels &amp; Resorts</h1>
+      <p style="color: var(--text-muted); font-size: 0.96rem; max-width: 65ch; line-height: 1.6; margin: 0;">Verified 5-star properties and luxury resort operators actively hiring through NiceJobs.</p>
     </div>
 
-    <div class="hotels-grid" style="margin-top: 16px;">
-      ${businesses.map(biz => `
-        <div class="job-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="hotels-grid">
+      ${businesses.map((biz, bizIdx) => `
+        <div class="hotel-bento-card spotlight-card reveal-on-scroll">
           <div>
-            <div style="position: relative; height: 160px; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 16px;">
+            <div style="position: relative; height: ${bizIdx === 0 ? '220px' : '170px'}; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 16px;">
               <img src="${biz.cover_image || '/static/images/hero_lobby.jpg'}" alt="${biz.brand_name}" style="width: 100%; height: 100%; object-fit: cover;">
-              <span class="badge-featured" style="position: absolute; top: 12px; right: 12px; background: rgba(14, 23, 46, 0.9); backdrop-filter: blur(4px);">
+              <span class="badge-featured" style="position: absolute; top: 12px; right: 12px; background: rgba(10, 17, 40, 0.88); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.12);">
                 ${biz.star_rating}-Star ${biz.property_type}
               </span>
             </div>
 
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-              <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white);">${biz.brand_name}</h2>
+              <h2 style="font-size: ${bizIdx === 0 ? '1.45rem' : '1.2rem'}; font-weight: 800; color: var(--white); margin: 0; letter-spacing: -0.025em;">${biz.brand_name}</h2>
               <span class="verified-badge" title="Verified" style="white-space: nowrap; flex-shrink: 0;">${svgIcon('shieldCheck', '', 14)} Verified</span>
             </div>
 
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
+            <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.75); margin-bottom: 14px; line-height: 1.6; max-width: 60ch;">
               ${biz.description}
             </p>
 
-            <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 16px;">
+            <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 16px; display: flex; align-items: center; gap: 6px;">
               ${svgIcon('mapPin', '', 14)} ${biz.address}, ${biz.city}
             </div>
 
             <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;">
-              ${(biz.amenities || []).slice(0, 3).map(am => `<span class="perk-chip">${am}</span>`).join('')}
+              ${(biz.amenities || []).slice(0, bizIdx === 0 ? 5 : 3).map(am => `<span class="perk-chip">${am}</span>`).join('')}
             </div>
           </div>
 
-          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px;">
-            <span style="font-size: 0.8rem; color: var(--text-muted);">${svgIcon('users', '', 14)} ${biz.follower_count || 1200} followers</span>
-            <button class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" onclick="navigateTo('hotels', { id: '${biz.id}' })">
-              View Open Jobs →
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; margin-top: auto;">
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px;">
+              ${svgIcon('users', '', 14)} ${biz.follower_count || 1200} followers
+            </span>
+            <button class="btn-primary" style="padding: 7px 16px; font-size: 0.82rem;" onclick="navigateTo('hotels', { id: '${biz.id}' })">
+              <span>View Open Jobs</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </button>
           </div>
         </div>
@@ -8510,7 +8697,7 @@ async function renderBlogScreen(viewport) {
 
       <!-- Featured Hero Article (shown when All and no search) -->
       ${featuredBlog ? `
-        <div class="blog-hero-card" onclick="openBlogDetailModal('${featuredBlog.id}')" style="cursor: pointer;">
+        <div class="blog-hero-card spotlight-card reveal-on-scroll" onclick="openBlogDetailModal('${featuredBlog.id}')" style="cursor: pointer;">
           <div>
             <img src="${featuredBlog.cover_image}" alt="${escapeHtml(featuredBlog.title)}" class="blog-hero-img">
           </div>
@@ -8521,10 +8708,10 @@ async function renderBlogScreen(viewport) {
                 ${svgIcon('clock', '', 13)} ${featuredBlog.read_time}
               </span>
             </div>
-            <h2 style="font-size: 1.55rem; font-weight: 800; color: var(--white); line-height: 1.35; margin: 0 0 14px 0;">
+            <h2 style="font-size: 1.55rem; font-weight: 800; color: var(--white); line-height: 1.35; margin: 0 0 14px 0; letter-spacing: -0.025em;">
               ${featuredBlog.title}
             </h2>
-            <p style="font-size: 0.92rem; color: rgba(255, 255, 255, 0.7); line-height: 1.6; margin: 0 0 20px 0;">
+            <p style="font-size: 0.94rem; color: rgba(255, 255, 255, 0.75); line-height: 1.6; margin: 0 0 20px 0; max-width: 60ch;">
               ${featuredBlog.excerpt}
             </p>
             <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
@@ -8536,7 +8723,8 @@ async function renderBlogScreen(viewport) {
                 </div>
               </div>
               <button class="btn-orange" style="padding: 8px 18px; font-size: 0.82rem;" onclick="event.stopPropagation(); openBlogDetailModal('${featuredBlog.id}')">
-                Read Article →
+                <span>Read Article</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
               </button>
             </div>
           </div>
@@ -8547,7 +8735,7 @@ async function renderBlogScreen(viewport) {
       ${gridBlogs.length > 0 ? `
         <div class="blog-grid">
           ${gridBlogs.map(blog => `
-            <article class="blog-card" onclick="openBlogDetailModal('${blog.id}')">
+            <article class="blog-card spotlight-card reveal-on-scroll" onclick="openBlogDetailModal('${blog.id}')">
               <img src="${blog.cover_image}" alt="${escapeHtml(blog.title)}" class="blog-card-img">
               <div class="blog-card-body">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
@@ -8556,10 +8744,10 @@ async function renderBlogScreen(viewport) {
                     ${svgIcon('clock', '', 12)} ${blog.read_time}
                   </span>
                 </div>
-                <h3 style="font-size: 1.12rem; font-weight: 700; color: var(--white); line-height: 1.4; margin: 0 0 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                <h3 style="font-size: 1.15rem; font-weight: 750; color: var(--white); line-height: 1.4; margin: 0 0 10px 0; letter-spacing: -0.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                   ${blog.title}
                 </h3>
-                <p style="font-size: 0.84rem; color: rgba(255, 255, 255, 0.65); line-height: 1.55; margin: 0 0 18px 0; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.75); line-height: 1.6; margin: 0 0 18px 0; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-width: 55ch;">
                   ${blog.excerpt}
                 </p>
                 <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: auto;">
@@ -8567,7 +8755,10 @@ async function renderBlogScreen(viewport) {
                     <img src="${blog.author_avatar}" alt="${blog.author_name}" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.2);">
                     <span style="font-size: 0.78rem; color: rgba(255, 255, 255, 0.75); font-weight: 600;">${blog.author_name}</span>
                   </div>
-                  <span style="color: var(--orange-primary); font-size: 0.78rem; font-weight: 700;">Read →</span>
+                  <span style="color: var(--orange-primary); font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                    Read
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  </span>
                 </div>
               </div>
             </article>

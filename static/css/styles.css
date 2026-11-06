@@ -131,7 +131,7 @@ body {
     radial-gradient(circle at 90% 90%, rgba(255, 107, 0, 0.03) 0%, transparent 40%);
   background-attachment: fixed;
   color: var(--text-main);
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   display: flex;
@@ -139,6 +139,48 @@ body {
   overflow-x: hidden;
   max-width: 100vw;
   width: 100%;
+  position: relative;
+}
+
+/* ==========================================================================
+   Background Atmosphere: Architectural Grid & Film Grain Noise
+   ========================================================================== */
+.bg-atmosphere-grid {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  background-size: 52px 52px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.024) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.024) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 30%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 30%, #000 35%, transparent 100%);
+}
+
+.bg-atmosphere-noise {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Strict Typographic Hierarchy & Visual Rules */
+h1, h2, h3, h4, .hero-title, .section-title, .brand-logo, .bento-card-title, .candidate-hero-heading {
+  letter-spacing: -0.035em !important;
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+p, .section-subtitle, .bento-card-desc, .hero-subtitle, .hotel-desc {
+  max-width: 65ch;
+  line-height: 1.6;
 }
 
 a {
@@ -230,20 +272,43 @@ button {
 }
 
 .nav-links {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   list-style: none;
+}
+
+.nav-indicator-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), width 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+  z-index: 1;
+  opacity: 0;
+}
+
+.nav-item {
+  position: relative;
+  z-index: 2;
 }
 
 .nav-item a {
   position: relative;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  z-index: 3;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
   color: var(--text-muted);
   font-weight: 500;
   font-size: 0.9rem;
-  transition: var(--transition);
+  transition: color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -251,24 +316,16 @@ button {
 
 .nav-item a:hover {
   color: var(--white);
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-item a.active {
   color: var(--white);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
 }
 
 .nav-item a.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  background: var(--orange-primary);
-  border-radius: 2px;
+  display: none;
 }
 
 .badge-count {
@@ -430,7 +487,23 @@ button {
 
 .btn-primary:active,
 .btn-orange:active {
-  transform: scale(0.985);
+  transform: scale(0.98) !important;
+}
+
+.btn-primary svg,
+.btn-orange svg,
+.btn-secondary svg,
+.btn-white svg,
+.job-title-link svg {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn-primary:hover svg,
+.btn-orange:hover svg,
+.btn-secondary:hover svg,
+.btn-white:hover svg,
+.job-title-link:hover svg {
+  transform: translateX(2px);
 }
 
 .btn-secondary {
@@ -460,7 +533,7 @@ button {
 }
 
 .btn-secondary:active {
-  transform: scale(0.985);
+  transform: scale(0.98) !important;
 }
 
 .btn-white {
@@ -570,14 +643,14 @@ button {
 }
 
 /* ==========================================================================
-   Hero Section (Dark Glassmorphism matching Reference Image)
+   Hero Section (Dark Glassmorphism with Agency Motion Choreography)
    ========================================================================== */
 .hero-glass-section {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: 36px;
   align-items: flex-end;
-  padding: 4px 0 6px 0;
+  padding: 40px 0 56px 0;
   position: relative;
   z-index: 30;
 }
@@ -585,8 +658,8 @@ button {
 @media (max-width: 968px) {
   .hero-glass-section {
     grid-template-columns: 1fr;
-    gap: 20px;
-    padding: 6px 0 6px;
+    gap: 24px;
+    padding: 24px 0 32px;
   }
 }
 
@@ -594,7 +667,7 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  height: 280px;
+  min-height: 280px;
 }
 
 .hero-chip {
@@ -603,20 +676,24 @@ button {
   gap: 8px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: var(--radius-full);
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
   color: var(--white);
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   width: fit-content;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  animation: heroFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
 }
 
 .orange-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--orange-primary);
   box-shadow: 0 0 10px var(--orange-glow);
@@ -624,12 +701,13 @@ button {
 }
 
 .hero-title {
-  font-size: 2.65rem;
+  font-size: 2.85rem;
   font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -1.2px;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
   color: var(--white);
-  margin-bottom: 40px;
+  margin-bottom: 16px;
+  animation: heroBlurClear 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
 }
 
 .hero-title span.text-orange {
@@ -638,16 +716,17 @@ button {
 
 @media (max-width: 768px) {
   .hero-title {
-    font-size: 1.6rem !important;
+    font-size: 1.85rem !important;
   }
 }
 
 .hero-subtitle {
-  font-size: 0.92rem;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.45;
-  margin-bottom: 10px;
-  max-width: 520px;
+  font-size: 0.98rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  margin-bottom: 24px;
+  max-width: 65ch;
+  animation: heroFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
 }
 
 /* Glass Capsule Search Bar (Reference matching) */
@@ -663,9 +742,10 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
   max-width: 620px;
   margin-bottom: 0;
+  animation: heroFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both;
 }
 
 .capsule-field {
@@ -765,6 +845,7 @@ button {
   align-items: flex-end;
   justify-content: center;
   height: 280px;
+  animation: heroFadeUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.42s both;
 }
 
 .perspective-back-frame {
@@ -1383,20 +1464,21 @@ select option {
 
 .job-card {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
-  padding: 22px;
-  transition: var(--transition);
+  padding: 24px;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow-xs);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  isolation: isolate;
 }
 
 .job-card:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 107, 0, 0.35);
   background: var(--bg-card-hover);
-  box-shadow: var(--shadow-md), 0 0 16px rgba(255, 107, 0, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 
 .job-card.featured-card {
@@ -5296,30 +5378,43 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 
 .blog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(12, 1fr);
   gap: 24px;
   margin-top: 24px;
+}
+
+.blog-grid > .blog-card:nth-child(1) {
+  grid-column: span 7;
+}
+
+.blog-grid > .blog-card:nth-child(2) {
+  grid-column: span 5;
+}
+
+.blog-grid > .blog-card:nth-child(n+3) {
+  grid-column: span 4;
 }
 
 .blog-card {
   background: var(--bg-surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: var(--transition);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
-  box-shadow: var(--shadow-xs);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  isolation: isolate;
 }
 
 .blog-card:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 107, 0, 0.35);
   background: var(--bg-card-hover);
-  box-shadow: var(--shadow-md), 0 0 16px rgba(255, 107, 0, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 
 .blog-card-img {
@@ -5474,6 +5569,357 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 }
 
 /* ==========================================================================
+   Agency UI/UX Design System Overhaul: Spotlight, Bento & Motion
+   ========================================================================== */
+
+/* 1. Cursor-Tracking Spotlight Card System */
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.032);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  isolation: isolate;
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    580px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+    rgba(255, 107, 0, 0.085) 0%,
+    transparent 65%
+  );
+  transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 1;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+.spotlight-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* 2. Home Asymmetrical Bento Grid Section */
+.home-bento-section {
+  padding: 48px 0 32px;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 20;
+}
+
+.section-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 107, 0, 0.1);
+  border: 1px solid rgba(255, 107, 0, 0.25);
+  color: var(--orange-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orange-primary);
+  box-shadow: 0 0 8px var(--orange-glow);
+}
+
+.bento-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 28px;
+  max-width: 720px;
+}
+
+.bento-headline {
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  color: var(--white);
+  margin: 0;
+}
+
+.bento-subheadline {
+  font-size: 0.94rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  max-width: 65ch;
+  margin: 0;
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+  width: 100%;
+}
+
+.bento-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.032);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  isolation: isolate;
+}
+
+.bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 14px 36px rgba(0, 0, 0, 0.35);
+}
+
+.bento-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.72rem;
+  font-weight: 600;
+  width: fit-content;
+  margin-bottom: 14px;
+}
+
+.bento-card-title {
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  color: var(--white);
+  line-height: 1.25;
+  margin: 0 0 8px 0;
+}
+
+.bento-card-desc {
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  margin: 0 0 18px 0;
+  max-width: 55ch;
+}
+
+.bento-metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.bento-metric-pill {
+  flex: 1;
+  min-width: 100px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--orange-primary);
+  letter-spacing: -0.02em;
+}
+
+.metric-lbl {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.bento-interactive-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 107, 0, 0.08);
+  border: 1px solid rgba(255, 107, 0, 0.22);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  margin-top: auto;
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseGreen 2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes pulseGreen {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.6; }
+}
+
+.bento-salary-spark {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: auto;
+}
+
+.spark-label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.spark-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--orange-primary);
+}
+
+/* 3. Asymmetrical Hotels Bento Grid */
+.hotels-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.hotel-bento-card {
+  position: relative;
+  background: var(--bg-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  padding: 22px;
+  isolation: isolate;
+}
+
+.hotel-bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 107, 0, 0.35);
+  background: var(--bg-card-hover);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+.hotels-grid > .hotel-bento-card:nth-child(1) {
+  grid-column: span 7;
+}
+
+.hotels-grid > .hotel-bento-card:nth-child(2) {
+  grid-column: span 5;
+}
+
+.hotels-grid > .hotel-bento-card:nth-child(n+3) {
+  grid-column: span 4;
+}
+
+/* 4. Motion Choreography & Keyframes */
+@keyframes heroBlurClear {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0px);
+  }
+}
+
+@keyframes heroFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Reduced Motion Safeguard */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal-on-scroll {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .hero-chip,
+  .hero-title,
+  .hero-subtitle,
+  .hero-search-capsule,
+  .hero-perspective-wrap {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+/* ==========================================================================
    CONSOLIDATED MEDIUM-SCALE RESPONSIVE & UI/UX DESIGN SYSTEM
    Final cascading block ensuring consistent, medium-scale, high-density UI
    across Desktop, Tablet, and Mobile devices.
@@ -5521,6 +5967,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
   .blog-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 16px !important;
+  }
+
+  .hotels-grid > .hotel-bento-card:nth-child(n),
+  .blog-grid > .blog-card:nth-child(n) {
+    grid-column: span 1 !important;
+  }
+
+  .bento-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .bento-grid > .bento-card {
+    grid-column: span 1 !important;
   }
 
   .feature-glass-grid {
@@ -6302,12 +6762,26 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
   /* Hotels, Blogs & Administrative Grids */
   .hotels-grid {
     grid-template-columns: 1fr !important;
-    gap: 10px !important;
+    gap: 12px !important;
+  }
+  .hotels-grid > .hotel-bento-card:nth-child(n) {
+    grid-column: span 1 !important;
   }
 
   .blog-grid {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
+  }
+  .blog-grid > .blog-card:nth-child(n) {
+    grid-column: span 1 !important;
+  }
+
+  .bento-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .bento-grid > .bento-card {
+    grid-column: span 1 !important;
   }
 
   .blog-hero-card {
