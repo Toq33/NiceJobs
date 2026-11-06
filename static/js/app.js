@@ -9972,7 +9972,6 @@ function renderSignupPage(viewport) {
                 <span style="font-size: 0.78rem; color: #94a3b8;">Candidate: <strong style="color: #fff;">${escapeHtml(state.currentUser.name || '')}</strong></span>
               `}
             </div>
-            <span class="auth-stage-indicator">Step ${signupState.stage || 1} of 5 &bull; Candidate Onboarding</span>
           ` : `
             <div style="display: flex; align-items: center; gap: 8px;">
               ${signupState.biz_route !== 'choose' ? `
