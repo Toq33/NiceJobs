@@ -2276,6 +2276,8 @@ class CandidateRegisterPayload(BaseModel):
     open_to_work: Optional[bool] = True
     job_preferences: Optional[Any] = None
     designation: Optional[str] = None
+    terms_accepted: Optional[bool] = False
+    profile_completed: Optional[bool] = False
 
 @app.post("/api/auth/register-candidate")
 @app.post("/api/auth/candidate-signup")
@@ -2322,10 +2324,16 @@ def register_candidate(payload: CandidateRegisterPayload):
     secure_password_hash = hash_password(payload.password)
     cand_designation = (payload.designation or payload.current_position or "").strip()
 
+    is_explicit_terms = payload.terms_accepted is True or payload.terms_accepted == 1
+    terms_acc = 1 if is_explicit_terms else 0
+    terms_acc_at = datetime.utcnow().isoformat() if terms_acc else ""
+    prof_comp = 1 if (is_explicit_terms and (payload.profile_completed is True or payload.profile_completed == 1)) else 0
+    onb_status = "completed" if (terms_acc and prof_comp) else ("profile_pending" if terms_acc else "terms_pending")
+
     cursor.execute("""
-        INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo, designation)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active", cand_designation))
+        INSERT INTO users (id, name, first_name, middle_name, last_name, name_bangla, email, phone, password, role, avatar_url, created_at, dob, nid_passport, status, is_demo, designation, terms_accepted, terms_accepted_at, profile_completed, onboarding_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+    """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active", cand_designation, terms_acc, terms_acc_at, prof_comp, onb_status))
 
     cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
     cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
@@ -2408,7 +2416,7 @@ def register_candidate(payload: CandidateRegisterPayload):
         json.dumps(prefs_data),
         cv_filename,
         "Just now",
-        85 if payload.cv_name else 70,
+        85 if payload.cv_name else 40,
         initial_cvs,
         dob_val,
         nid_val,
@@ -2432,8 +2440,247 @@ def register_candidate(payload: CandidateRegisterPayload):
         "email": payload.email,
         "phone": payload.phone,
         "role": "jobseeker",
+        "terms_accepted": terms_acc,
+        "terms_accepted_at": terms_acc_at,
+        "profile_completed": prof_comp,
+        "onboarding_status": onb_status,
+        "user": {
+            "id": user_id,
+            "name": full_name,
+            "first_name": fn,
+            "middle_name": mn,
+            "last_name": ln,
+            "name_bangla": nb,
+            "email": payload.email,
+            "phone": payload.phone,
+            "role": "jobseeker",
+            "avatar": avatar,
+            "designation": cand_designation,
+            "terms_accepted": terms_acc,
+            "terms_accepted_at": terms_acc_at,
+            "profile_completed": prof_comp,
+            "onboarding_status": onb_status
+        },
         "message": "Candidate account verified and activated successfully!"
     }
+
+class AcceptTermsPayload(BaseModel):
+    user_id: str
+
+@app.post("/api/auth/accept-terms")
+def accept_candidate_terms(payload: AcceptTermsPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, role, terms_accepted, profile_completed FROM users WHERE id = ?", (payload.user_id,))
+    u = cursor.fetchone()
+    if not u:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Candidate user not found.")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    prof_comp = int(u["profile_completed"] if u["profile_completed"] is not None else 0)
+    new_status = "completed" if prof_comp == 1 else "profile_pending"
+
+    cursor.execute("""
+        UPDATE users 
+        SET terms_accepted = 1, terms_accepted_at = ?, onboarding_status = ?
+        WHERE id = ?
+    """, (now, new_status, payload.user_id))
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "terms_accepted": 1,
+        "terms_accepted_at": now,
+        "profile_completed": prof_comp,
+        "onboarding_status": new_status,
+        "message": "Terms & Conditions accepted successfully."
+    }
+
+class CompleteProfilePayload(BaseModel):
+    user_id: str
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    cv_name: Optional[str] = None
+    cv_url: Optional[str] = None
+    cv_data: Optional[str] = None
+    education: Optional[Any] = None
+    skills: Optional[List[str]] = None
+    languages: Optional[Any] = None
+    experience: Optional[Any] = None
+    job_preferences: Optional[Dict[str, Any]] = None
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    location: Optional[str] = None
+    expected_salary: Optional[str] = None
+
+@app.post("/api/auth/complete-profile")
+def complete_candidate_profile(payload: CompleteProfilePayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, role, terms_accepted FROM users WHERE id = ?", (payload.user_id,))
+    u = cursor.fetchone()
+    if not u:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Candidate account not found.")
+
+    if not u["terms_accepted"]:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Terms and Conditions must be accepted before completing profile.")
+
+    user_updates = ["profile_completed = 1", "onboarding_status = 'completed'"]
+    user_params = []
+    if payload.avatar_url:
+        user_updates.append("avatar_url = ?")
+        user_params.append(payload.avatar_url)
+    if payload.designation:
+        user_updates.append("designation = ?")
+        user_params.append(payload.designation)
+    user_params.append(payload.user_id)
+    cursor.execute(f"UPDATE users SET {', '.join(user_updates)} WHERE id = ?", user_params)
+
+    cursor.execute("SELECT user_id, cv_list, preferences FROM employee_profiles WHERE user_id = ?", (payload.user_id,))
+    p_row = cursor.fetchone()
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    bio_text = (payload.bio or "").strip()
+    cand_role = (payload.designation or "").strip()
+    cand_dept = (payload.department or "").strip()
+    headline_text = f"{cand_role} • {cand_dept}" if cand_role and cand_dept else (cand_role or cand_dept or "Hospitality Specialist")
+
+    prefs_data = {}
+    if p_row and p_row["preferences"]:
+        try:
+            prefs_data = json.loads(p_row["preferences"])
+        except Exception:
+            pass
+    if isinstance(payload.job_preferences, dict):
+        prefs_data.update(payload.job_preferences)
+    if payload.expected_salary:
+        prefs_data["expected_salary"] = payload.expected_salary
+    if payload.location:
+        prefs_data["preferred_location"] = payload.location
+
+    cv_filename = payload.cv_name or f"{u['name'].replace(' ', '_')}_Hospitality_Resume.pdf"
+    cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
+    existing_cvs = []
+    if p_row and p_row["cv_list"]:
+        try:
+            existing_cvs = json.loads(p_row["cv_list"])
+        except Exception:
+            pass
+    if cv_data_content:
+        new_cv = {
+            "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
+            "name": cv_filename,
+            "title": f"Primary {cand_dept or 'Hospitality'} Career CV",
+            "uploaded_at": now.split(' ')[0],
+            "size": "240 KB",
+            "is_default": True,
+            "file_data": cv_data_content
+        }
+        existing_cvs = [new_cv] + [c for c in existing_cvs if c.get("name") != cv_filename]
+
+    edu_list = payload.education if isinstance(payload.education, list) else []
+    exp_list = payload.experience if isinstance(payload.experience, list) else []
+    skills_data = payload.skills if isinstance(payload.skills, list) else []
+    langs_data = payload.languages if isinstance(payload.languages, list) else []
+
+    if p_row:
+        cursor.execute("""
+            UPDATE employee_profiles SET
+                headline = ?,
+                summary = ?,
+                current_position = ?,
+                location = ?,
+                preferences = ?,
+                skills = ?,
+                languages = ?,
+                experience = ?,
+                education = ?,
+                cv_name = ?,
+                cv_url = ?,
+                cv_list = ?,
+                profile_completion = 95
+            WHERE user_id = ?
+        """, (
+            headline_text,
+            bio_text,
+            cand_role,
+            payload.location or "Dhaka, Bangladesh",
+            json.dumps(prefs_data),
+            json.dumps(skills_data),
+            json.dumps(langs_data),
+            json.dumps(exp_list),
+            json.dumps(edu_list),
+            cv_filename,
+            cv_data_content or payload.cv_url or "",
+            json.dumps(existing_cvs),
+            payload.user_id
+        ))
+    else:
+        cursor.execute("""
+            INSERT INTO employee_profiles (
+                user_id, headline, location, summary, current_position, experience_years,
+                open_to_work, visibility, skills, languages, certifications, experience,
+                education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, '[]', ?, ?, ?, ?, 'Just now', 95, ?, ?)
+        """, (
+            payload.user_id,
+            headline_text,
+            payload.location or "Dhaka, Bangladesh",
+            bio_text,
+            cand_role,
+            1,
+            json.dumps(skills_data),
+            json.dumps(langs_data),
+            json.dumps(exp_list),
+            json.dumps(edu_list),
+            json.dumps(prefs_data),
+            cv_filename,
+            json.dumps(existing_cvs),
+            cv_data_content or payload.cv_url or ""
+        ))
+
+    conn.commit()
+    conn.close()
+
+    notify_realtime("candidate_profile_completed", {"user_id": payload.user_id}, target_user=payload.user_id)
+
+    return {
+        "success": True,
+        "profile_completed": 1,
+        "onboarding_status": "completed",
+        "message": "Candidate profile saved and onboarding completed successfully! Welcome to NiceJobs."
+    }
+
+@app.get("/api/auth/onboarding-status")
+def get_candidate_onboarding_status(user_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT u.id, u.name, u.email, u.phone, u.role, u.terms_accepted, u.terms_accepted_at, u.profile_completed, u.onboarding_status, u.designation, u.avatar_url,
+               p.summary as bio, p.headline, p.current_position, p.cv_name, p.cv_url, p.preferences, p.education, p.experience, p.skills, p.languages
+        FROM users u
+        LEFT JOIN employee_profiles p ON u.id = p.user_id
+        WHERE u.id = ?
+    """, (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    data = dict(row)
+    data["terms_accepted"] = int(data["terms_accepted"] if data.get("terms_accepted") is not None else 1)
+    data["profile_completed"] = int(data["profile_completed"] if data.get("profile_completed") is not None else 1)
+    data["onboarding_status"] = data.get("onboarding_status") or ("completed" if data["terms_accepted"] and data["profile_completed"] else "terms_pending")
+    for f in ["preferences", "education", "experience", "skills", "languages"]:
+        if data.get(f):
+            try:
+                data[f] = json.loads(data[f])
+            except Exception:
+                pass
+    return data
 
 class BusinessRegisterPayload(BaseModel):
     # Route A: New Business Account (Parts 1-5)
@@ -3087,6 +3334,10 @@ def login(payload: LoginPayload):
             profile_info["designation"] = user["designation"] or profile_info.get("current_position") or ""
 
     conn.close()
+    terms_acc = int(user["terms_accepted"] if user.get("terms_accepted") is not None else 1)
+    prof_comp = int(user["profile_completed"] if user.get("profile_completed") is not None else 1)
+    onb_stat = user.get("onboarding_status") or ("completed" if terms_acc and prof_comp else "terms_pending")
+
     return {
         "success": True,
         "user": {
@@ -3097,7 +3348,11 @@ def login(payload: LoginPayload):
             "role": user["role"],
             "avatar": user["avatar_url"],
             "designation": user["designation"],
-            "can_post_blog": bool(user["can_post_blog"] or user["role"] == "admin")
+            "can_post_blog": bool(user["can_post_blog"] or user["role"] == "admin"),
+            "terms_accepted": terms_acc,
+            "terms_accepted_at": user.get("terms_accepted_at") or "",
+            "profile_completed": prof_comp,
+            "onboarding_status": onb_stat
         },
         "business": business_info,
         "profile": profile_info,
@@ -3911,6 +4166,17 @@ class ApplicationSubmitPayload(BaseModel):
 def submit_application(payload: ApplicationSubmitPayload):
     conn = database.get_db()
     cursor = conn.cursor()
+
+    # Check onboarding status
+    cursor.execute("SELECT role, terms_accepted, profile_completed FROM users WHERE id = ?", (payload.user_id,))
+    u_cand = cursor.fetchone()
+    if u_cand and u_cand["role"] == "jobseeker":
+        if not u_cand["terms_accepted"]:
+            conn.close()
+            raise HTTPException(status_code=403, detail="Please review and accept Terms & Conditions before applying for jobs.")
+        if not u_cand["profile_completed"]:
+            conn.close()
+            raise HTTPException(status_code=403, detail="Please complete your candidate profile before applying for jobs.")
 
     # Check if already applied
     cursor.execute("SELECT id FROM applications WHERE job_id = ? AND user_id = ?", (payload.job_id, payload.user_id))

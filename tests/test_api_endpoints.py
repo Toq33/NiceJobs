@@ -338,6 +338,105 @@ class TestNiceJobsAPI(unittest.TestCase):
         name_candidates = name_search_res.json()
         self.assertEqual(len(name_candidates), 0)
 
+    def test_candidate_onboarding_lifecycle(self):
+        """Verifies candidate onboarding sequence: Register (OTP) -> Terms -> Profile -> Normal Access."""
+        import time
+        unique_id = int(time.time() * 1000)
+        test_email = f"onboard_{unique_id}@hospitalitycandidate.bd"
+        test_phone = f"017{str(unique_id)[-8:]}"
+        otp_code = "258330" # Demo OTP
+
+        # 1. Register candidate via OTP (Step 1-3)
+        reg_resp = self.client.post("/api/auth/register-candidate", json={
+            "name": "Mahmudur Rahman",
+            "email": test_email,
+            "phone": test_phone,
+            "password": "Password123!",
+            "otp_code": otp_code,
+            "dob": "1995-05-12",
+            "nid_passport": "19951234567890"
+        })
+        self.assertEqual(reg_resp.status_code, 200, f"Registration failed: {reg_resp.text}")
+        cand_data = reg_resp.json()
+        cand_id = cand_data.get("user_id")
+        self.assertTrue(cand_id)
+        self.assertEqual(cand_data.get("terms_accepted"), 0)
+        self.assertEqual(cand_data.get("profile_completed"), 0)
+        self.assertEqual(cand_data.get("onboarding_status"), "terms_pending")
+
+        # 2. Applying for a job should be rejected (403 Forbidden) while onboarding is incomplete
+        apply_resp = self.client.post("/api/applications", json={
+            "job_id": "job_front_desk_radisson",
+            "user_id": cand_id,
+            "cover_letter": "I would like to apply."
+        })
+        self.assertEqual(apply_resp.status_code, 403)
+        self.assertIn("Terms & Conditions", apply_resp.json().get("detail", ""))
+
+        # 3. Accept Terms & Conditions (Step 4)
+        terms_resp = self.client.post("/api/auth/accept-terms", json={
+            "user_id": cand_id
+        })
+        self.assertEqual(terms_resp.status_code, 200)
+        terms_data = terms_resp.json()
+        self.assertEqual(terms_data.get("terms_accepted"), 1)
+        self.assertEqual(terms_data.get("onboarding_status"), "profile_pending")
+
+        # 4. Applying should still be rejected because profile is not yet completed
+        apply_resp2 = self.client.post("/api/applications", json={
+            "job_id": "job_front_desk_radisson",
+            "user_id": cand_id,
+            "cover_letter": "I would like to apply."
+        })
+        self.assertEqual(apply_resp2.status_code, 403)
+        self.assertIn("profile", apply_resp2.json().get("detail", ""))
+
+        # 5. Complete Profile (Step 5)
+        prof_resp = self.client.post("/api/auth/complete-profile", json={
+            "user_id": cand_id,
+            "bio": "Experienced guest relations associate with 3 years in 5-star properties.",
+            "designation": "Guest Relations Officer",
+            "department": "Front Office",
+            "location": "Dhaka",
+            "expected_salary": "BDT 45,000",
+            "skills": ["Opera PMS 5.5", "Guest Relations", "VIP Handling"],
+            "education": [{"institution": "Dhaka University", "degree": "BBA in Tourism", "gpa": "3.8"}],
+            "experience": [{"company": "Radisson Blu Dhaka", "role": "Front Desk Agent", "worked_years": "2"}]
+        })
+        self.assertEqual(prof_resp.status_code, 200)
+        prof_data = prof_resp.json()
+        self.assertEqual(prof_data.get("profile_completed"), 1)
+        self.assertEqual(prof_data.get("onboarding_status"), "completed")
+
+        # 6. Verify status via /api/auth/onboarding-status
+        status_resp = self.client.get(f"/api/auth/onboarding-status?user_id={cand_id}")
+        self.assertEqual(status_resp.status_code, 200)
+        status_data = status_resp.json()
+        self.assertEqual(status_data.get("terms_accepted"), 1)
+        self.assertEqual(status_data.get("profile_completed"), 1)
+        self.assertEqual(status_data.get("onboarding_status"), "completed")
+        self.assertEqual(status_data.get("bio"), "Experienced guest relations associate with 3 years in 5-star properties.")
+
+        # 7. Verify login returns updated onboarding attributes
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": test_email,
+            "password": "Password123!",
+            "role": "jobseeker"
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        login_user = login_resp.json().get("user", {})
+        self.assertEqual(login_user.get("terms_accepted"), 1)
+        self.assertEqual(login_user.get("profile_completed"), 1)
+        self.assertEqual(login_user.get("onboarding_status"), "completed")
+
+        # Cleanup
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (cand_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (cand_id,))
+        conn.commit()
+        conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 

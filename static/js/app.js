@@ -2006,14 +2006,18 @@ function captureCurrentSignupInputs() {
   if (typeof signupState === 'undefined') return;
 
   // Candidate Step 1: Basic Identity
+  const fnInput = document.getElementById('cand-fullname');
+  if (fnInput) signupState.name = fnInput.value.trim();
   const fn = document.getElementById('cand-first-name');
   if (fn) signupState.first_name = fn.value;
   const mn = document.getElementById('cand-middle-name');
   if (mn) signupState.middle_name = mn.value;
   const ln = document.getElementById('cand-last-name');
   if (ln) signupState.last_name = ln.value;
-  const fullName = [signupState.first_name, signupState.middle_name, signupState.last_name].filter(Boolean).join(' ');
-  if (fullName) signupState.name = fullName;
+  if (!signupState.name) {
+    const fullName = [signupState.first_name, signupState.middle_name, signupState.last_name].filter(Boolean).join(' ');
+    if (fullName) signupState.name = fullName;
+  }
 
   const dob = document.getElementById('cand-dob');
   if (dob) signupState.dob = dob.value;
@@ -2275,6 +2279,28 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
           if (state.currentRole === 'jobseeker') {
             document.getElementById('btn-role-seeker')?.classList.add('active');
+            // Re-verify onboarding status against database truth
+            if (state.currentUser && state.currentUser.id) {
+              fetch(`/api/auth/onboarding-status?user_id=${encodeURIComponent(state.currentUser.id)}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(dbStatus => {
+                  if (dbStatus && dbStatus.role === 'jobseeker') {
+                    state.currentUser.terms_accepted = dbStatus.terms_accepted;
+                    state.currentUser.terms_accepted_at = dbStatus.terms_accepted_at;
+                    state.currentUser.profile_completed = dbStatus.profile_completed;
+                    state.currentUser.onboarding_status = dbStatus.onboarding_status;
+                    const sessStr = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+                    try {
+                      sessionStorage.setItem('nicejobs_active_session', sessStr);
+                      sessionStorage.setItem('nicejobs_candidate_session', sessStr);
+                      localStorage.setItem('nicejobs_active_session', sessStr);
+                      localStorage.setItem('nicejobs_candidate_session', sessStr);
+                    } catch (err) {}
+                    parseRoute();
+                    renderApp();
+                  }
+                }).catch(() => {});
+            }
           } else if (state.currentRole === 'recruiter') {
             document.getElementById('btn-role-recruiter')?.classList.add('active');
           }
@@ -2309,9 +2335,35 @@ function parseRoute() {
   state.currentScreen = resolvedScreen;
   state.screenParams = paramStr ? new URLSearchParams(paramStr) : new URLSearchParams();
 
-  // If user navigates away from signup, remove all previously inputted signup data
+  // If candidate is incomplete, enforce onboarding priority redirection
+  if (state.currentUser && state.currentUser.role === 'jobseeker') {
+    const termsAccepted = state.currentUser.terms_accepted === 1 || state.currentUser.terms_accepted === true;
+    const profileCompleted = state.currentUser.profile_completed === 1 || state.currentUser.profile_completed === true;
+
+    if (!termsAccepted) {
+      if (resolvedScreen !== 'signup' || signupState.role !== 'candidate' || (signupState.stage !== 4 && signupState.stage !== 'terms')) {
+        signupState.role = 'candidate';
+        signupState.stage = 4;
+        state.currentScreen = 'signup';
+        window.location.hash = '#signup?role=candidate&stage=4';
+        return;
+      }
+    } else if (!profileCompleted) {
+      if (resolvedScreen !== 'signup' || signupState.role !== 'candidate' || signupState.stage !== 5) {
+        signupState.role = 'candidate';
+        signupState.stage = 5;
+        state.currentScreen = 'signup';
+        window.location.hash = '#signup?role=candidate&stage=5';
+        return;
+      }
+    }
+  }
+
+  // If user navigates away from signup, remove all previously inputted signup data (only for guest/new visitors)
   if (prevScreen === 'signup' && resolvedScreen !== 'signup') {
-    clearSignupState();
+    if (!state.currentUser || state.currentUser.role !== 'jobseeker' || state.currentUser.profile_completed) {
+      clearSignupState();
+    }
   }
 
   if (state.currentScreen === 'inbox') {
@@ -9247,7 +9299,7 @@ function startLoginFlow(role = 'candidate') {
   navigateTo('login', { role });
 }
 
-function startSignupFlow(role = 'candidate', stage = 1, bizRoute = null) {
+async function startSignupFlow(role = 'candidate', stage = 1, bizRoute = null) {
   signupState.role = role;
   signupState.stage = stage;
   if (role === 'business') {
@@ -9256,6 +9308,29 @@ function startSignupFlow(role = 'candidate', stage = 1, bizRoute = null) {
   } else {
     signupState.biz_route = 'choose';
     signupState.biz_step = 1;
+    if (stage === 5 && state.currentUser && state.currentUser.id) {
+      try {
+        const res = await fetch(`/api/auth/onboarding-status?user_id=${encodeURIComponent(state.currentUser.id)}`);
+        if (res.ok) {
+          const prof = await res.json();
+          if (prof) {
+            signupState.name = prof.name || signupState.name || '';
+            signupState.email = prof.email || signupState.email || '';
+            signupState.phone = prof.phone || signupState.phone || '';
+            signupState.bio = prof.bio || signupState.bio || '';
+            signupState.pfp = prof.avatar_url || state.currentUser.avatar || signupState.pfp || DEFAULT_AVATAR_PREVIEW;
+            signupState.cv_name = prof.cv_name || signupState.cv_name || '';
+            signupState.cv_url = prof.cv_url || signupState.cv_url || '';
+            if (prof.preferences) signupState.job_preferences = Object.assign({}, signupState.job_preferences, prof.preferences);
+            if (prof.education && prof.education.length) signupState.education = prof.education;
+            if (prof.experience && prof.experience.length) signupState.experience = prof.experience;
+            if (prof.skills && prof.skills.length) signupState.skills = prof.skills;
+            if (prof.languages && prof.languages.length) signupState.languages = prof.languages;
+            if (prof.designation) signupState.designation = prof.designation;
+          }
+        }
+      } catch (e) {}
+    }
   }
   navigateTo('signup', { role, stage });
 }
@@ -9511,12 +9586,29 @@ async function handleCandidateLogin(event) {
       const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
       sessionStorage.setItem('nicejobs_active_session', sessPayload);
       sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+      localStorage.setItem('nicejobs_active_session', sessPayload);
+      localStorage.setItem('nicejobs_candidate_session', sessPayload);
     } catch (e) {}
 
     updateRoleStatusText();
     onAuthChange();
     document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById('btn-role-seeker')?.classList.add('active');
+
+    // Onboarding status redirection check
+    const termsAccepted = state.currentUser.terms_accepted === 1 || state.currentUser.terms_accepted === true;
+    const profileCompleted = state.currentUser.profile_completed === 1 || state.currentUser.profile_completed === true;
+
+    if (!termsAccepted) {
+      showToast('Please review and accept Terms & Conditions to proceed.', 'info');
+      startSignupFlow('candidate', 4);
+      return;
+    }
+    if (!profileCompleted) {
+      showToast('Please complete your profile to access your candidate dashboard.', 'info');
+      startSignupFlow('candidate', 5);
+      return;
+    }
 
     showToast(data.message || 'Logged in successfully!', 'success');
     await loadInitialData();
@@ -9676,14 +9768,20 @@ function renderSignupPage(viewport) {
         <div class="auth-card-top-nav">
           ${isCandidate ? `
             <div style="display: flex; align-items: center; gap: 8px;">
-              ${(signupState.stage > 1 || signupState.stage === 'terms') ? `
+              ${(signupState.stage > 1 && signupState.stage <= 3) ? `
                 <button type="button" class="auth-back-btn" onclick="prevSignupStage()">← Back</button>
+              ` : (signupState.stage >= 4 && state.currentUser) ? `
+                <button type="button" class="auth-back-btn" onclick="handleLogout()" title="Log Out">${svgIcon('logout', '', 14)} Exit / Log Out</button>
               ` : ''}
-              <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('candidate')" title="Sign In with Existing Account">
-                ${svgIcon('user', '', 14)} <span>Already have an account? <strong>Log In</strong></span>
-              </button>
+              ${(!state.currentUser) ? `
+                <button type="button" class="btn-signup-login-highlight" onclick="startLoginFlow('candidate')" title="Sign In with Existing Account">
+                  ${svgIcon('user', '', 14)} <span>Already have an account? <strong>Log In</strong></span>
+                </button>
+              ` : `
+                <span style="font-size: 0.78rem; color: #94a3b8;">Candidate: <strong style="color: #fff;">${escapeHtml(state.currentUser.name || '')}</strong></span>
+              `}
             </div>
-            <span class="auth-stage-indicator">Candidate Registration</span>
+            <span class="auth-stage-indicator">Step ${signupState.stage || 1} of 5 &bull; Candidate Onboarding</span>
           ` : `
             <div style="display: flex; align-items: center; gap: 8px;">
               ${signupState.biz_route !== 'choose' ? `
@@ -9721,37 +9819,23 @@ function renderSignupPage(viewport) {
         <!-- CANDIDATE SIGNUP FLOW                          -->
         <!-- ============================================== -->
         ${isCandidate ? `
-          <!-- Name, DOB, NID/Passport (opt), Cell (+88), Secondary Phone (+88 opt), Email -->
+          <!-- STEP 1: BASIC INFORMATION -->
           ${signupState.stage === 1 ? `
             <div class="auth-header">
               <h2 class="auth-title">Candidate Details</h2>
-              <p class="auth-subtitle">Basic profile and verified contact info</p>
+              <p class="auth-subtitle">Basic identity and verified contact info</p>
             </div>
 
             <form id="form-cand-part1" novalidate onsubmit="event.preventDefault(); nextSignupStage(2); return false;">
-              <!-- Row 1: First Name, Middle Name, Last Name -->
-              <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-                <div class="auth-field">
-                  <label class="auth-label">First Name *</label>
-                  <input type="text" id="cand-first-name" class="auth-input" required 
-                    placeholder="First name" 
-                    value="${escapeHtml(signupState.first_name || '')}" autofocus>
-                </div>
-                <div class="auth-field">
-                  <label class="auth-label">Middle Name <span style="font-weight: 400; color: var(--text-dim); font-size: 0.78rem;">(Optional)</span></label>
-                  <input type="text" id="cand-middle-name" class="auth-input" 
-                    placeholder="Middle name" 
-                    value="${escapeHtml(signupState.middle_name || '')}">
-                </div>
-                <div class="auth-field">
-                  <label class="auth-label">Last Name *</label>
-                  <input type="text" id="cand-last-name" class="auth-input" required 
-                    placeholder="Last name" 
-                    value="${escapeHtml(signupState.last_name || '')}">
-                </div>
+              <!-- Full Name (Single Field) -->
+              <div class="auth-field">
+                <label class="auth-label">Full Name *</label>
+                <input type="text" id="cand-fullname" class="auth-input" required 
+                  placeholder="Enter your full name" 
+                  value="${escapeHtml(signupState.name || '')}" autofocus>
               </div>
 
-              <!-- Row 2: Personal Email Address -->
+              <!-- Personal Email Address -->
               <div class="auth-field">
                 <label class="auth-label">Personal Email Address *</label>
                 <input type="email" id="cand-email" class="auth-input" required 
@@ -9759,7 +9843,7 @@ function renderSignupPage(viewport) {
                   value="${escapeHtml(signupState.email || '')}">
               </div>
 
-              <!-- Row 2: DOB & NID/Passport Grid -->
+              <!-- DOB & NID/Passport Grid -->
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Date of Birth (DOB)</label>
@@ -9775,7 +9859,7 @@ function renderSignupPage(viewport) {
                 </div>
               </div>
 
-              <!-- Row 3: Primary Phone & Secondary Phone Grid -->
+              <!-- Primary Phone & Secondary Phone Grid -->
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Mobile Cell Number</label>
@@ -9815,19 +9899,124 @@ function renderSignupPage(viewport) {
               </div>
 
               <button type="button" class="auth-btn-primary" style="margin-top: 10px;" id="btn-cand-p1-continue" onclick="nextSignupStage(2)">
-                Continue →
+                Continue to Password →
               </button>
             </form>
           ` : ''}
 
-          <!-- PFP upload, Bio, Drag&Drop CV, Job Preferences, Education (+), Skills, Language, Previous Experience (+) -->
+          <!-- STEP 2: PASSWORD -->
           ${signupState.stage === 2 ? `
             <div class="auth-header">
-              <h2 class="auth-title">Hospitality Background</h2>
-              <p class="auth-subtitle">Photo, Bio, CV, Preferences, Skills &amp; Experience</p>
+              <h2 class="auth-title">Account Security</h2>
+              <p class="auth-subtitle">Set and confirm your candidate password</p>
             </div>
 
             <form id="form-cand-part2" novalidate onsubmit="event.preventDefault(); nextSignupStage(3); return false;">
+              <div class="auth-field-grid">
+                <div class="auth-field">
+                  <label class="auth-label">Password *</label>
+                  <div class="auth-password-wrapper">
+                    <input type="password" id="cand-pwd" class="auth-input" required 
+                      placeholder="Min. 6 characters" value="${escapeHtml(signupState.password || '')}" autofocus>
+                    <button type="button" class="auth-eye-toggle" id="cand-p2-toggle1" 
+                      onclick="togglePasswordVisibility('cand-pwd', 'cand-p2-toggle1')" 
+                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+                  </div>
+                </div>
+
+                <div class="auth-field">
+                  <label class="auth-label">Confirm Password *</label>
+                  <div class="auth-password-wrapper">
+                    <input type="password" id="cand-confirm-pwd" class="auth-input" required 
+                      placeholder="Confirm password" value="${escapeHtml(signupState.confirm_password || '')}">
+                    <button type="button" class="auth-eye-toggle" id="cand-p2-toggle2" 
+                      onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p2-toggle2')" 
+                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="auth-nav-row">
+                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
+                  ← Back
+                </button>
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p2-continue" onclick="nextSignupStage(3)">
+                  Continue to Verification →
+                </button>
+              </div>
+            </form>
+          ` : ''}
+
+          <!-- STEP 3: OTP VERIFICATION -->
+          ${signupState.stage === 3 ? `
+            <div class="auth-header" style="text-align: center;">
+              <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
+              <h2 class="auth-title">Verify Your Email</h2>
+              <p class="auth-subtitle">Enter the 6-digit verification code sent to your email to create your account</p>
+              <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
+                <span>Sent to <strong>${escapeHtml(signupState.email || '')}</strong></span>
+                <span style="font-size: 11px; color: #94a3b8;">From: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
+              </div>
+            </div>
+
+            <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); handleCandidateVerifyAndCreate(event); return false;">
+              <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
+                <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
+                  placeholder="Enter 6-digit code" value="" autofocus required>
+              </div>
+
+              <div class="auth-nav-row" style="margin-top: 14px;">
+                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
+                  ← Back
+                </button>
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-otp-submit" onclick="handleCandidateVerifyAndCreate(event)">
+                  Verify Code &amp; Create Account →
+                </button>
+              </div>
+            </form>
+
+            <div class="auth-otp-footer">
+              <span>Didn't receive code?</span>
+              <button type="button" class="auth-text-link" onclick="resendCandidateOtp()">Resend Code</button>
+            </div>
+          ` : ''}
+
+          <!-- STEP 4: TERMS AND CONDITIONS -->
+          ${(signupState.stage === 4 || signupState.stage === 'terms') ? `
+            <div class="auth-header">
+              <div class="auth-icon-circle" style="margin: 0 auto 12px auto; color: var(--orange-primary);">${svgIcon('fileText', '', 26)}</div>
+              <h2 class="auth-title">Terms &amp; Conditions</h2>
+              <p class="auth-subtitle">NiceJobs Candidate Code of Conduct &amp; Verification Agreement</p>
+            </div>
+            <div class="terms-scroll-panel" style="max-height: 260px; overflow-y: auto; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">1. Accurate Candidate Representations</h4>
+              <p style="margin-bottom: 12px;">All information provided regarding past hospitality work experience, academic qualifications, National ID/Passport data, and hospitality software capabilities (Opera PMS, Fidelio, Micros POS) must be accurate and truthful.</p>
+              
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">2. Direct 5-Star Hotel HR Engagement</h4>
+              <p style="margin-bottom: 12px;">Candidate profiles and CVs are shared strictly with verified hotel properties and HR recruiting directors. NiceJobs does not sell candidate data to third-party commercial marketing entities.</p>
+              
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">3. Messaging &amp; Interview Protocol</h4>
+              <p style="margin-bottom: 12px;">Direct candidate-employer messaging must adhere to professional hospitality standards. Harassment, misrepresentation, or abuse of messaging channels will result in immediate termination of account access.</p>
+
+              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">4. Acceptance Requirement</h4>
+              <p style="margin-bottom: 0;">You must accept these terms before proceeding to profile creation and participating in hotel talent matching.</p>
+            </div>
+
+            <div class="auth-nav-row" style="display: flex; gap: 12px;">
+              <button type="button" class="btn-orange" style="flex: 1; padding: 12px; font-weight: 800;" id="btn-cand-accept-terms" onclick="acceptCandidateTerms()">
+                Accept &amp; Continue to Profile →
+              </button>
+            </div>
+          ` : ''}
+
+          <!-- STEP 5: CREATE YOUR PROFILE -->
+          ${signupState.stage === 5 ? `
+            <div class="auth-header">
+              <h2 class="auth-title">Create Your Profile</h2>
+              <p class="auth-subtitle">Professional Photo, Bio, CV, Career Preferences, Education, Skills &amp; Experience</p>
+            </div>
+
+            <form id="form-cand-part5" novalidate onsubmit="event.preventDefault(); handleCandidateCompleteProfile(event); return false;">
               <!-- Profile Picture Upload (Moved to Part 2 before Bio with Zoom/Drag setting) -->
               <div class="pfp-upload-wrap" style="margin-bottom: 20px;">
                 <div class="pfp-avatar-preview-box">
@@ -10133,122 +10322,14 @@ function renderSignupPage(viewport) {
               </div>
 
               <div class="auth-nav-row">
-                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
-                  ← Back
+                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="saveCandidateProfileProgress(true)">
+                  Save Draft
                 </button>
-                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p2-continue" onclick="nextSignupStage(3)">
-                  Continue →
-                </button>
-              </div>
-            </form>
-          ` : ''}
-
-          <!-- Password & Confirm Password -->
-          ${signupState.stage === 3 ? `
-            <div class="auth-header">
-              <h2 class="auth-title">Account Security</h2>
-              <p class="auth-subtitle">Set and confirm your candidate password</p>
-            </div>
-
-            <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); nextSignupStage(4); return false;">
-              <div class="auth-field-grid">
-                <div class="auth-field">
-                  <label class="auth-label">Password</label>
-                  <div class="auth-password-wrapper">
-                    <input type="password" id="cand-pwd" class="auth-input" required 
-                      placeholder="Min. 6 characters" value="${signupState.password || ''}" autofocus>
-                    <button type="button" class="auth-eye-toggle" id="cand-p3-toggle1" 
-                      onclick="togglePasswordVisibility('cand-pwd', 'cand-p3-toggle1')" 
-                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
-                  </div>
-                </div>
-
-                <div class="auth-field">
-                  <label class="auth-label">Confirm Password</label>
-                  <div class="auth-password-wrapper">
-                    <input type="password" id="cand-confirm-pwd" class="auth-input" required 
-                      placeholder="Confirm password" value="${signupState.confirm_password || ''}">
-                    <button type="button" class="auth-eye-toggle" id="cand-p3-toggle2" 
-                      onclick="togglePasswordVisibility('cand-confirm-pwd', 'cand-p3-toggle2')" 
-                      title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="auth-nav-row">
-                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
-                  ← Back
-                </button>
-                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p3-continue" onclick="nextSignupStage(4)">
-                  Continue →
+                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-p5-finish" onclick="handleCandidateCompleteProfile(event)">
+                  Save Profile &amp; Complete Onboarding →
                 </button>
               </div>
             </form>
-          ` : ''}
-
-          <!-- OTP Process -->
-          ${signupState.stage === 4 ? `
-            <div class="auth-header" style="text-align: center;">
-              <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
-              <h2 class="auth-title">Verify Your Email</h2>
-              <p class="auth-subtitle">Enter the 6-digit code sent to your email</p>
-              <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
-                <span>Sent to <strong>${signupState.email}</strong></span>
-                <span style="font-size: 11px; color: #94a3b8;">From: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
-              </div>
-            </div>
-
-            <form id="form-cand-part4" novalidate onsubmit="event.preventDefault(); handleCandidateFinalSignup(event); return false;">
-              <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
-                <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
-                  placeholder="Enter 6-digit code from email" value="" autofocus required>
-              </div>
-
-              <div class="auth-nav-row" style="margin-top: 14px;">
-                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
-                  ← Back
-                </button>
-                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-otp-submit" onclick="handleCandidateFinalSignup(event)">
-                  Verify Code &amp; Review Terms →
-                </button>
-              </div>
-            </form>
-
-            <div class="auth-otp-footer">
-              <span>Didn't receive code?</span>
-              <button type="button" class="auth-text-link" onclick="resendCandidateOtp()">Resend Code</button>
-            </div>
-          ` : ''}
-
-          <!-- Terms & Conditions Screen (After OTP) -->
-          ${signupState.stage === 'terms' ? `
-            <div class="auth-header">
-              <div class="auth-icon-circle" style="margin: 0 auto 12px auto; color: var(--orange-primary);">${svgIcon('fileText', '', 26)}</div>
-              <h2 class="auth-title">Terms &amp; Conditions</h2>
-              <p class="auth-subtitle">NiceJobs Candidate Code of Conduct &amp; Verification Agreement</p>
-            </div>
-            <div class="terms-scroll-panel" style="max-height: 260px; overflow-y: auto; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">
-              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">1. Accurate Candidate Representations</h4>
-              <p style="margin-bottom: 12px;">All information provided regarding past hospitality work experience, academic qualifications, National ID/Passport data, and hospitality software capabilities (Opera PMS, Fidelio, Micros POS) must be accurate and truthful.</p>
-              
-              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">2. Direct 5-Star Hotel HR Engagement</h4>
-              <p style="margin-bottom: 12px;">Candidate profiles and CVs are shared strictly with verified hotel properties and HR recruiting directors. NiceJobs does not sell candidate data to third-party commercial marketing entities.</p>
-              
-              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">3. Messaging &amp; Interview Protocol</h4>
-              <p style="margin-bottom: 12px;">Direct candidate-employer messaging must adhere to professional hospitality standards. Harassment, misrepresentation, or abuse of messaging channels will result in immediate termination of account access.</p>
-
-              <h4 style="color: var(--white); font-weight: 700; margin-bottom: 6px;">4. Acceptance Requirement</h4>
-              <p style="margin-bottom: 0;">You must accept these terms to activate your candidate profile and participate in hotel talent matching.</p>
-            </div>
-
-            <div class="auth-nav-row" style="display: flex; gap: 12px;">
-              <button type="button" class="btn-secondary" style="padding: 12px 24px;" onclick="prevSignupStage()">
-                ← Back
-              </button>
-              <button type="button" class="btn-orange" style="flex: 1; padding: 12px; font-weight: 800;" onclick="acceptCandidateTerms()">
-                Accept &amp; Continue →
-              </button>
-            </div>
           ` : ''}
         ` : `
           <!-- ============================================== -->
@@ -12445,23 +12526,23 @@ async function nextSignupStage(targetStage) {
   const current = signupState.stage || 1;
 
   if (current === 1) {
-    const firstName = (document.getElementById('cand-first-name')?.value || '').trim();
-    const middleName = (document.getElementById('cand-middle-name')?.value || '').trim();
-    const lastName = (document.getElementById('cand-last-name')?.value || '').trim();
+    const fullNameInput = document.getElementById('cand-fullname');
+    let fullName = (fullNameInput ? fullNameInput.value : (signupState.name || '')).trim();
+    if (!fullName) {
+      const fn = (document.getElementById('cand-first-name')?.value || '').trim();
+      const mn = (document.getElementById('cand-middle-name')?.value || '').trim();
+      const ln = (document.getElementById('cand-last-name')?.value || '').trim();
+      fullName = [fn, mn, ln].filter(Boolean).join(' ').trim();
+    }
     const dob = document.getElementById('cand-dob')?.value || '';
     const nid = (document.getElementById('cand-nid')?.value || '').trim();
     const phoneRaw = document.getElementById('cand-phone')?.value || '';
     const phoneSecRaw = document.getElementById('cand-phone-secondary')?.value || '';
     const email = (document.getElementById('cand-email')?.value || '').trim();
 
-    if (!firstName) {
-      showToast('Please enter your First Name', 'danger');
-      document.getElementById('cand-first-name')?.focus();
-      return;
-    }
-    if (!lastName) {
-      showToast('Please enter your Last Name', 'danger');
-      document.getElementById('cand-last-name')?.focus();
+    if (!fullName) {
+      showToast('Please enter your Full Name', 'danger');
+      document.getElementById('cand-fullname')?.focus();
       return;
     }
 
@@ -12510,10 +12591,6 @@ async function nextSignupStage(targetStage) {
       console.warn('Candidate availability check error:', e);
     }
 
-    const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
-    signupState.first_name = firstName;
-    signupState.middle_name = middleName;
-    signupState.last_name = lastName;
     signupState.name = fullName;
     signupState.dob = dob;
     signupState.nid_passport = nid;
@@ -12523,69 +12600,6 @@ async function nextSignupStage(targetStage) {
   }
 
   if (current === 2) {
-    const bio = (document.getElementById('cand-bio')?.value || '').trim();
-    if (!bio) {
-      showToast('Please enter a brief professional bio', 'warning');
-      document.getElementById('cand-bio')?.focus();
-      return;
-    }
-    signupState.bio = bio;
-
-    // Collect job preferences
-    const prefDept = document.getElementById('cand-pref-dept')?.value || document.getElementById('pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
-    const prefRole = (document.getElementById('cand-pref-role')?.value || document.getElementById('pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || (getJobTitlesForDepartment(prefDept)[0] || 'Front Desk Agent');
-    const prefShift = document.getElementById('cand-pref-shift')?.value || document.getElementById('pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
-    const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
-    const prefSalaryRaw = (document.getElementById('cand-pref-salary')?.value || document.getElementById('pref-salary')?.value || '').trim();
-    const prefSalary = isNegActive ? 'Negotiable' : (prefSalaryRaw || signupState.job_preferences?.expected_salary || 'Negotiable');
-    const prefLoc = (document.getElementById('cand-pref-location')?.value || document.getElementById('pref-loc')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Dhaka';
-
-    signupState.job_preferences = {
-      department: prefDept,
-      desired_role: prefRole,
-      designation: prefRole,
-      shift: prefShift,
-      expected_salary: prefSalary,
-      preferred_location: prefLoc
-    };
-    signupState.designation = prefRole;
-
-    // Collect dynamic education rows
-    const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
-    const updatedEdu = [];
-    eduCards.forEach(card => {
-      const inst = (card.querySelector('.edu-inst')?.value || '').trim();
-      const deg = card.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)';
-      const gpa = (card.querySelector('.edu-gpa')?.value || '').trim();
-      if (inst) updatedEdu.push({ institution: inst, degree: deg, gpa });
-    });
-    if (updatedEdu.length > 0) signupState.education = updatedEdu;
-
-    // Collect dynamic experience rows
-    const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
-    const updatedExp = [];
-    expCards.forEach(card => {
-      const comp = (card.querySelector('.exp-comp')?.value || '').trim();
-      const role = (card.querySelector('.exp-role')?.value || '').trim();
-      const isHosp = card.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
-      const dept = isHosp ? (card.querySelector('.exp-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services') : '';
-      const workedYears = (card.querySelector('.exp-years')?.value || '').trim();
-      const skills = (card.querySelector('.exp-skills')?.value || '').trim();
-      if (comp || role || workedYears) {
-        updatedExp.push({
-          company: comp,
-          role,
-          is_hospitality: isHosp,
-          department: dept,
-          worked_years: workedYears,
-          skills_acquired: skills
-        });
-      }
-    });
-    if (updatedExp.length > 0) signupState.experience = updatedExp;
-  }
-
-  if (current === 3) {
     const pwd = document.getElementById('cand-pwd')?.value || '';
     const confirmPwd = document.getElementById('cand-confirm-pwd')?.value || '';
 
@@ -12603,7 +12617,7 @@ async function nextSignupStage(targetStage) {
     signupState.password = pwd;
     signupState.confirm_password = confirmPwd;
 
-    // Send OTP when progressing to Part 4
+    // Send OTP when progressing to Step 3
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -12634,17 +12648,19 @@ function prevSignupStage() {
   captureCurrentSignupInputs();
   saveSignupProgress();
 
-  if (signupState.stage === 'terms') {
-    signupState.stage = 4;
+  if (signupState.stage === 3) {
+    signupState.stage = 2;
     saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
     return;
   }
-  if (signupState.stage > 1) {
-    signupState.stage -= 1;
+  if (signupState.stage === 2) {
+    signupState.stage = 1;
     saveSignupProgress();
     renderSignupPage(document.getElementById('app-viewport'));
-  } else {
+    return;
+  }
+  if (signupState.stage === 1) {
     startLoginFlow('candidate');
   }
 }
@@ -12675,8 +12691,8 @@ async function resendCandidateOtp() {
   }
 }
 
-// Candidate OTP Verification -> Move to Terms
-async function handleCandidateFinalSignup(event) {
+// STEP 3: OTP Verification -> Account Creation in DB -> Advance to Terms
+async function handleCandidateVerifyAndCreate(event) {
   if (event && event.preventDefault) event.preventDefault();
   const input = document.getElementById('cand-otp-code');
   const code = (input ? input.value : '').trim();
@@ -12686,109 +12702,49 @@ async function handleCandidateFinalSignup(event) {
     return;
   }
 
-  // Verify OTP with the server before advancing to Terms
   const btn = (event && event.target && event.target.tagName === 'BUTTON' ? event.target : (event && event.target && event.target.querySelector ? event.target.querySelector('button[type="submit"], #btn-cand-otp-submit') : null)) || document.getElementById('btn-cand-otp-submit');
   const origBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...`;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating Account...`;
   }
 
   try {
-    const res = await fetch('/api/auth/verify-otp', {
+    const res = await fetch('/api/auth/register-candidate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: signupState.name,
         email: signupState.email,
         phone: signupState.phone,
+        phone_secondary: signupState.phone_secondary || null,
+        password: signupState.password,
         otp_code: code,
-        purpose: 'candidate_signup'
+        dob: signupState.dob || '',
+        nid_passport: signupState.nid_passport || '',
+        terms_accepted: false,
+        profile_completed: false
       })
     });
     const data = await res.json();
     if (!res.ok) {
-      showToast(data.detail || 'Invalid or expired verification code. Please check your email.', 'danger');
+      showToast(data.detail || 'Verification and account creation failed.', 'danger');
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = origBtnText;
       }
       return;
     }
-  } catch (err) {
-    showToast('Verification failed: ' + err.message, 'danger');
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = origBtnText;
-    }
-    return;
-  }
 
-  signupState.otp_code = code;
-  signupState.stage = 'terms';
-  saveSignupProgress();
-  showToast('Email verified successfully! Please review and accept Terms & Conditions.', 'info');
-  renderSignupPage(document.getElementById('app-viewport'));
-}
-
-function declineCandidateTerms() {
-  prevSignupStage();
-}
-
-async function acceptCandidateTerms() {
-  signupState.terms_accepted = true;
-  saveSignupProgress();
-  await finalizeCandidateRegistration();
-}
-
-async function finalizeCandidateRegistration() {
-  try {
-    const payload = {
-      name: signupState.name,
-      first_name: signupState.first_name || '',
-      middle_name: signupState.middle_name || '',
-      last_name: signupState.last_name || '',
-      email: signupState.email,
-      phone: signupState.phone,
-      phone_secondary: signupState.phone_secondary || null,
-      password: signupState.password || '',
-      otp_code: signupState.otp_code || signupState.lastSentOtp || '',
-      dob: signupState.dob,
-      nid_passport: signupState.nid_passport,
-      avatar_url: signupState.pfp,
-      bio: signupState.bio,
-      cv_name: signupState.cv_name,
-      cv_data: signupState.cv_data || signupState.cv_url || '',
-      cv_url: signupState.cv_data || signupState.cv_url || '',
-      education: signupState.education,
-      skills: signupState.skills,
-      languages: signupState.languages,
-      experience: signupState.experience,
-      job_preferences: signupState.job_preferences,
-      current_position: signupState.job_preferences?.desired_role || signupState.designation || signupState.experience[0]?.role || '',
-      designation: signupState.job_preferences?.desired_role || signupState.designation || '',
-      department: signupState.job_preferences?.department || ''
-    };
-
-    const res = await fetch('/api/auth/register-candidate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Registration failed');
-
-    state.currentUser = {
+    state.currentUser = data.user || {
       id: data.user_id,
-      name: data.name || payload.name,
-      first_name: data.first_name || signupState.first_name || '',
-      middle_name: data.middle_name || signupState.middle_name || '',
-      last_name: data.last_name || signupState.last_name || '',
-      email: payload.email,
-      phone: payload.phone,
+      name: data.name || signupState.name,
+      email: data.email || signupState.email,
+      phone: data.phone || signupState.phone,
       role: 'jobseeker',
-      designation: payload.designation,
-      title: `${payload.designation || payload.current_position || 'Candidate'} • ${payload.department || 'Hospitality'}`,
-      avatar: payload.avatar_url
+      terms_accepted: 0,
+      profile_completed: 0,
+      onboarding_status: 'terms_pending'
     };
     state.currentRole = 'jobseeker';
     state.activeHotelId = null;
@@ -12799,20 +12755,249 @@ async function finalizeCandidateRegistration() {
       sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
       localStorage.setItem('nicejobs_active_session', sessPayload);
       localStorage.setItem('nicejobs_candidate_session', sessPayload);
+    } catch (e) {}
+
+    signupState.otp_code = code;
+    signupState.stage = 4;
+    saveSignupProgress();
+    showToast('Email verified and account created! Please review and accept Terms & Conditions.', 'success');
+    renderSignupPage(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast('Registration failed: ' + err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
+}
+
+// Backward-compatible alias
+async function handleCandidateFinalSignup(event) {
+  return await handleCandidateVerifyAndCreate(event);
+}
+
+function declineCandidateTerms() {
+  prevSignupStage();
+}
+
+// STEP 4: Accept Terms & Conditions -> Persist in DB -> Advance to Create Profile
+async function acceptCandidateTerms() {
+  if (!state.currentUser || !state.currentUser.id) {
+    showToast('Session missing. Please log in to complete onboarding.', 'danger');
+    startLoginFlow('candidate');
+    return;
+  }
+
+  const btn = document.getElementById('btn-cand-accept-terms');
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving Acceptance...`;
+  }
+
+  try {
+    const res = await fetch('/api/auth/accept-terms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.currentUser.id })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to accept Terms & Conditions');
+
+    state.currentUser.terms_accepted = 1;
+    state.currentUser.onboarding_status = 'profile_pending';
+    try {
+      const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+      localStorage.setItem('nicejobs_active_session', sessPayload);
+      localStorage.setItem('nicejobs_candidate_session', sessPayload);
+    } catch (e) {}
+
+    signupState.stage = 5;
+    saveSignupProgress();
+    showToast('Terms accepted! Please create your candidate profile.', 'success');
+    renderSignupPage(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
+}
+
+// Progressive profile draft saving
+async function saveCandidateProfileProgress(isManualDraft = false) {
+  if (!state.currentUser || !state.currentUser.id) return;
+  captureCurrentSignupInputs();
+
+  const bioVal = document.getElementById('cand-bio')?.value || signupState.bio || '';
+  const prefDept = document.getElementById('cand-pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
+  const prefRole = (document.getElementById('cand-pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || 'Front Desk Agent';
+  const prefShift = document.getElementById('cand-pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
+  const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
+  const prefSalary = isNegActive ? 'Negotiable' : ((document.getElementById('cand-pref-salary')?.value || '').trim() || 'Negotiable');
+  const prefLoc = (document.getElementById('cand-pref-location')?.value || '').trim() || 'Dhaka';
+
+  signupState.bio = bioVal;
+  signupState.job_preferences = {
+    department: prefDept,
+    desired_role: prefRole,
+    designation: prefRole,
+    shift: prefShift,
+    expected_salary: prefSalary,
+    preferred_location: prefLoc
+  };
+  signupState.designation = prefRole;
+
+  // Education entries
+  const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
+  if (eduCards.length > 0) {
+    signupState.education = Array.from(eduCards).map(c => ({
+      institution: (c.querySelector('.edu-inst')?.value || '').trim(),
+      degree: c.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)',
+      gpa: (c.querySelector('.edu-gpa')?.value || '').trim()
+    })).filter(e => e.institution);
+  }
+
+  // Experience entries
+  const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
+  if (expCards.length > 0) {
+    signupState.experience = Array.from(expCards).map(c => {
+      const isHosp = c.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
+      return {
+        company: (c.querySelector('.exp-comp')?.value || '').trim(),
+        role: (c.querySelector('.exp-role')?.value || '').trim(),
+        is_hospitality: isHosp,
+        department: isHosp ? (c.querySelector('.exp-dept')?.value || prefDept) : '',
+        worked_years: (c.querySelector('.exp-years')?.value || '').trim(),
+        skills_acquired: (c.querySelector('.exp-skills')?.value || '').trim()
+      };
+    }).filter(e => e.company || e.role);
+  }
+
+  saveSignupProgress();
+
+  const payload = {
+    user_id: state.currentUser.id,
+    avatar_url: signupState.pfp,
+    summary: signupState.bio || '',
+    headline: `${prefRole} • ${prefDept}`,
+    current_position: prefRole,
+    location: prefLoc,
+    preferences: signupState.job_preferences,
+    education: signupState.education,
+    experience: signupState.experience,
+    skills: signupState.skills || [],
+    languages: signupState.languages || [],
+    cv_name: signupState.cv_name,
+    cv_url: signupState.cv_data || signupState.cv_url || ''
+  };
+
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok && isManualDraft) {
+      showToast('Profile draft saved to your account.', 'info');
+    }
+  } catch (e) {
+    console.warn('Progressive profile draft save error:', e);
+  }
+}
+
+// STEP 5: Complete Candidate Profile & Mark Onboarding Complete
+async function handleCandidateCompleteProfile(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (!state.currentUser || !state.currentUser.id) {
+    showToast('Session missing. Please log in to complete profile.', 'danger');
+    startLoginFlow('candidate');
+    return;
+  }
+
+  await saveCandidateProfileProgress(false);
+
+  const bio = (document.getElementById('cand-bio')?.value || signupState.bio || '').trim();
+  if (!bio) {
+    showToast('Please enter a brief professional bio.', 'warning');
+    document.getElementById('cand-bio')?.focus();
+    return;
+  }
+  signupState.bio = bio;
+
+  const btn = document.getElementById('btn-cand-p5-finish') || (event && event.target);
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Completing Onboarding...`;
+  }
+
+  const payload = {
+    user_id: state.currentUser.id,
+    avatar_url: signupState.pfp || DEFAULT_AVATAR_PREVIEW,
+    bio: signupState.bio,
+    cv_name: signupState.cv_name,
+    cv_data: signupState.cv_data || signupState.cv_url || '',
+    cv_url: signupState.cv_data || signupState.cv_url || '',
+    department: signupState.job_preferences?.department || 'Front Office & Guest Services',
+    designation: signupState.job_preferences?.desired_role || signupState.designation || 'Front Desk Agent',
+    location: signupState.job_preferences?.preferred_location || 'Dhaka',
+    expected_salary: signupState.job_preferences?.expected_salary || 'Negotiable',
+    job_preferences: signupState.job_preferences,
+    education: signupState.education || [],
+    skills: signupState.skills || [],
+    languages: signupState.languages || [],
+    experience: signupState.experience || []
+  };
+
+  try {
+    const res = await fetch('/api/auth/complete-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to complete candidate profile');
+
+    state.currentUser.profile_completed = 1;
+    state.currentUser.onboarding_status = 'completed';
+    state.currentUser.avatar = payload.avatar_url;
+    state.currentUser.designation = payload.designation;
+    state.currentUser.title = `${payload.designation} • ${payload.department}`;
+
+    try {
+      const sessPayload = JSON.stringify({ user: state.currentUser, role: 'jobseeker' });
+      sessionStorage.setItem('nicejobs_active_session', sessPayload);
+      sessionStorage.setItem('nicejobs_candidate_session', sessPayload);
+      localStorage.setItem('nicejobs_active_session', sessPayload);
+      localStorage.setItem('nicejobs_candidate_session', sessPayload);
       clearSignupState();
     } catch (e) {}
 
-    document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('btn-role-seeker')?.classList.add('active');
     updateRoleStatusText();
     updateNavigation();
     onAuthChange();
-    showToast(data.message || 'Terms accepted! Logged in successfully.', 'success');
+
+    showToast('Welcome to NiceJobs! Your candidate onboarding is complete.', 'success');
     await loadInitialData();
     navigateTo('profile');
   } catch (err) {
     showToast(err.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
   }
+}
+
+// Backward-compatible alias
+async function finalizeCandidateRegistration() {
+  return await handleCandidateCompleteProfile();
 }
 
 // -------------------------------------------------------------
@@ -13393,7 +13578,10 @@ async function finalizeJoinBusinessRegistration() {
 // Window attachments for signup navigation
 window.nextSignupStage = nextSignupStage;
 window.prevSignupStage = prevSignupStage;
+window.handleCandidateVerifyAndCreate = handleCandidateVerifyAndCreate;
 window.handleCandidateFinalSignup = handleCandidateFinalSignup;
+window.handleCandidateCompleteProfile = handleCandidateCompleteProfile;
+window.saveCandidateProfileProgress = saveCandidateProfileProgress;
 window.declineCandidateTerms = declineCandidateTerms;
 window.acceptCandidateTerms = acceptCandidateTerms;
 window.finalizeCandidateRegistration = finalizeCandidateRegistration;
@@ -14358,6 +14546,18 @@ async function handleUserLogin(event) {
     await loadInitialData();
     if (data.user.role === 'recruiter') {
       navigateTo('recruiter-dashboard');
+    } else if (data.user.role === 'jobseeker') {
+      const termsAccepted = data.user.terms_accepted === 1 || data.user.terms_accepted === true;
+      const profileCompleted = data.user.profile_completed === 1 || data.user.profile_completed === true;
+      if (!termsAccepted) {
+        showToast('Please review and accept Terms & Conditions to proceed.', 'info');
+        startSignupFlow('candidate', 4);
+      } else if (!profileCompleted) {
+        showToast('Please complete your profile to access your candidate dashboard.', 'info');
+        startSignupFlow('candidate', 5);
+      } else {
+        navigateTo('home');
+      }
     } else {
       navigateTo('home');
     }

@@ -830,6 +830,48 @@ When continuing work on the NiceJobs repository in any new conversation:
   - Strict static parity maintained between `index.html` and `static/index.html`.
   - Python files verified and compiled cleanly with `py_compile`.
 
+---
+
+### Update 74: Database-Driven 5-Step Candidate Registration & Enforced Onboarding Lifecycle
+
+- **Multi-Step Candidate Registration Flow (`static/js/app.js`, `app.py`, `database.py`)**:
+  - **Step 1: Basic Information**:
+    - Replaced the three-part name inputs (First Name, Middle Name, Last Name) with a single `Full Name` field (`cand-fullname`).
+    - Maintained Date of Birth (`cand-dob`), NID / Passport (`cand-nid`), and Bangladesh phone number enforcement with fixed `+88` prefix and 11-digit validation (`01...`).
+  - **Step 2: Password**:
+    - Relocated candidate password and confirmation password collection immediately after Basic Information.
+    - Preserved existing password validation (minimum 6 characters, confirmation match) and secure PBKDF2-HMAC-SHA256 password hashing.
+  - **Step 3: OTP Verification**:
+    - Verification OTP sent to candidate's registered email via `/api/auth/send-otp`.
+    - OTP is strictly verified before creating candidate user in database.
+    - Candidate account is created in database with `terms_accepted = 0`, `profile_completed = 0`, and `onboarding_status = 'terms_pending'`.
+    - Demo OTP `258330` preserved.
+  - **Step 4: Terms and Conditions**:
+    - Enforces Terms & Conditions review and acceptance page prior to granting candidate access.
+    - `/api/auth/accept-terms` updates candidate state to `terms_accepted = 1`, records ISO timestamp in `terms_accepted_at`, and transitions `onboarding_status = 'profile_pending'`.
+    - Strict navigation guard redirects any direct hash jump (e.g. `#jobs`, `#profile`, `#inbox`) back to `#signup?role=candidate&stage=4`.
+  - **Step 5: Create Your Profile**:
+    - Reusable profile creation wizard capturing PFP (with modal crop/zoom), Bio, Drag & Drop CV resume, Job Preferences (64 Districts proximity selector, salary negotiable toggle), Education, Skills, and Experience.
+    - Progressive draft saving supported via `saveCandidateProfileProgress()`.
+    - `/api/auth/complete-profile` updates `profile_completed = 1` and `onboarding_status = 'completed'`, finalizing candidate onboarding.
+- **Login Redirection & Navigation Route Guards (`static/js/app.js`, `app.py`)**:
+  - Checks onboarding completion priority on login and page load against database truth via `/api/auth/onboarding-status`:
+    1. Unverified registration -> resumes OTP verification (Stage 3).
+    2. Incomplete Terms -> redirects directly to Terms & Conditions (Stage 4).
+    3. Incomplete Profile -> redirects directly to Create Your Profile (Stage 5) with pre-populated draft.
+    4. Fully onboarded -> allows normal access to candidate dashboard and job feed.
+  - Enforced server-side application gating (`POST /api/applications`): Candidate job applications rejected with `403 Forbidden` if onboarding is incomplete.
+- **Database Schema & Dual-Engine Persistence (`database.py`)**:
+  - Added persistent tracking columns to `users`: `terms_accepted`, `terms_accepted_at`, `profile_completed`, and `onboarding_status`.
+  - Backward-compatible migration preserves full access for existing demo users (`terms_accepted = 1`, `profile_completed = 1`, `onboarding_status = 'completed'`).
+  - Verified across both SQLite (`nicejobs.db`) and remote Supabase PostgreSQL.
+- **Testing & Verification**:
+  - Added unit test `test_candidate_onboarding_lifecycle` in `tests/test_api_endpoints.py` testing the complete lifecycle (13/13 unit tests passed).
+  - Executed end-to-end headless Chromium CDP browser walkthrough confirming DOM rendering, form validation, OTP verification, route guarding, and status persistence across all 5 stages.
+  - Static parity between `index.html` and `static/index.html` verified with 0 diffs.
+  - Python files compiled cleanly with `py_compile`.
+
+
 
 
 

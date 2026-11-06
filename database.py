@@ -343,6 +343,10 @@ def init_db():
         avatar_url TEXT,
         created_at TEXT,
         can_post_blog INTEGER DEFAULT 0,
+        terms_accepted INTEGER DEFAULT 1,
+        terms_accepted_at TEXT DEFAULT '',
+        profile_completed INTEGER DEFAULT 1,
+        onboarding_status TEXT DEFAULT 'completed',
         UNIQUE (email, role)
     );
 
@@ -579,7 +583,7 @@ def init_db():
 
     conn.commit()
 
-    # Safe migrations for extended Phase 2 doc fields
+    # Safe migrations for extended Phase 2 doc fields & candidate onboarding
     if_not_exists = "IF NOT EXISTS " if is_postgres() else ""
     for col, typ in [
         ("password", "TEXT DEFAULT 'Password123!'"),
@@ -593,7 +597,11 @@ def init_db():
         ("middle_name", "TEXT DEFAULT ''"),
         ("last_name", "TEXT DEFAULT ''"),
         ("name_bangla", "TEXT DEFAULT ''"),
-        ("can_post_blog", "INTEGER DEFAULT 0")
+        ("can_post_blog", "INTEGER DEFAULT 0"),
+        ("terms_accepted", "INTEGER DEFAULT 1"),
+        ("terms_accepted_at", "TEXT DEFAULT ''"),
+        ("profile_completed", "INTEGER DEFAULT 1"),
+        ("onboarding_status", "TEXT DEFAULT 'completed'")
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {if_not_exists}{col} {typ}")
@@ -614,6 +622,16 @@ def init_db():
         else:
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_role ON users (email, role)")
             conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # Ensure existing users have completed onboarding status by default
+    try:
+        cursor.execute("UPDATE users SET terms_accepted = 1, profile_completed = 1, onboarding_status = 'completed' WHERE terms_accepted IS NULL OR onboarding_status IS NULL OR onboarding_status = ''")
+        conn.commit()
     except Exception:
         try:
             conn.rollback()
@@ -647,6 +665,16 @@ def init_db():
         cursor.execute("UPDATE businesses SET telephone = '+880 2 9834555', official_telephone = '+880 2 9834555' WHERE id = 'biz_radisson' AND (telephone IS NULL OR telephone = '')")
         cursor.execute("UPDATE businesses SET telephone = '+880 2 9891988', official_telephone = '+880 2 9891988' WHERE id = 'biz_westin' AND (telephone IS NULL OR telephone = '')")
         cursor.execute("UPDATE businesses SET telephone = '+880 341 51301', official_telephone = '+880 341 51301' WHERE id = 'biz_sayeman' AND (telephone IS NULL OR telephone = '')")
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # Ensure existing users have completed onboarding status by default
+    try:
+        cursor.execute("UPDATE users SET terms_accepted = 1, profile_completed = 1, onboarding_status = 'completed' WHERE terms_accepted IS NULL OR onboarding_status IS NULL OR onboarding_status = ''")
         conn.commit()
     except Exception:
         try:
