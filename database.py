@@ -208,11 +208,15 @@ def get_pg_pool():
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():
             conn_kwargs["sslmode"] = "require"
-        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "5"))
+        conn_kwargs["keepalives"] = 1
+        conn_kwargs["keepalives_idle"] = 30
+        conn_kwargs["keepalives_interval"] = 10
+        conn_kwargs["keepalives_count"] = 3
         
         # Serverless functions (Vercel) need low minconn (1) to prevent slow cold starts
-        default_min = "1" if is_production() else "2"
-        default_max = "5" if is_production() else "30"
+        default_min = "1"
+        default_max = "5" if is_production() else "10"
         minconn = int(os.environ.get("DB_POOL_MIN", default_min))
         maxconn = int(os.environ.get("DB_POOL_MAX", default_max))
         try:
@@ -264,7 +268,11 @@ def get_db():
         conn_kwargs = {}
         if "sslmode" not in database_url.lower():
             conn_kwargs["sslmode"] = "require"
-        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+        conn_kwargs["connect_timeout"] = int(os.environ.get("DB_CONNECT_TIMEOUT", "5"))
+        conn_kwargs["keepalives"] = 1
+        conn_kwargs["keepalives_idle"] = 30
+        conn_kwargs["keepalives_interval"] = 10
+        conn_kwargs["keepalives_count"] = 3
         raw_conn = psycopg2.connect(database_url, **conn_kwargs)
         return PostgresConnectionWrapper(raw_conn)
 
@@ -340,6 +348,13 @@ def init_db():
         email TEXT NOT NULL,
         phone TEXT NOT NULL,
         role TEXT NOT NULL, -- 'jobseeker', 'recruiter', 'admin'
+        password TEXT DEFAULT 'Password123!',
+        dob TEXT DEFAULT '',
+        nid_passport TEXT DEFAULT '',
+        designation TEXT DEFAULT '',
+        status TEXT DEFAULT 'active',
+        is_business_admin INTEGER DEFAULT 0,
+        is_demo INTEGER DEFAULT 0,
         avatar_url TEXT,
         created_at TEXT,
         can_post_blog INTEGER DEFAULT 0,
@@ -368,11 +383,14 @@ def init_db():
         cv_name TEXT,
         cv_updated_at TEXT,
         profile_completion INTEGER DEFAULT 85,
-        cv_list TEXT, -- JSON array of multiple CVs,
+        cv_list TEXT, -- JSON array of multiple CVs
         first_name TEXT DEFAULT '',
         middle_name TEXT DEFAULT '',
         last_name TEXT DEFAULT '',
         name_bangla TEXT DEFAULT '',
+        dob TEXT DEFAULT '',
+        nid_passport TEXT DEFAULT '',
+        cv_url TEXT DEFAULT '',
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -405,7 +423,18 @@ def init_db():
         departments TEXT, -- JSON array
         amenities TEXT, -- JSON array
         benefits TEXT, -- JSON array
-        follower_count INTEGER DEFAULT 1240
+        follower_count INTEGER DEFAULT 1240,
+        parent_group TEXT DEFAULT '',
+        property_size TEXT DEFAULT '',
+        plot_number TEXT DEFAULT '',
+        road_number TEXT DEFAULT '',
+        thana_upazila TEXT DEFAULT '',
+        district TEXT DEFAULT '',
+        features TEXT DEFAULT '[]',
+        admin_user_id TEXT DEFAULT '',
+        telephone TEXT DEFAULT '',
+        official_telephone TEXT DEFAULT '',
+        is_demo INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS business_memberships (
@@ -414,6 +443,10 @@ def init_db():
         user_id TEXT NOT NULL,
         org_role TEXT NOT NULL, -- 'Owner', 'Admin', 'HR Manager', 'Recruiter', 'Hiring Manager'
         created_at TEXT,
+        membership_role TEXT DEFAULT 'admin',
+        approval_status TEXT DEFAULT 'approved',
+        approved_by TEXT DEFAULT '',
+        approved_at TEXT DEFAULT '',
         FOREIGN KEY (business_id) REFERENCES businesses(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -448,6 +481,7 @@ def init_db():
         deadline TEXT,
         posted_at TEXT,
         applicant_count INTEGER DEFAULT 0,
+        is_demo INTEGER DEFAULT 0,
         FOREIGN KEY (business_id) REFERENCES businesses(id)
     );
 
@@ -465,6 +499,7 @@ def init_db():
         recruiter_notes TEXT, -- Private internal notes
         interview_time TEXT,
         interview_notes TEXT,
+        is_demo INTEGER DEFAULT 0,
         FOREIGN KEY (job_id) REFERENCES jobs(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -488,6 +523,7 @@ def init_db():
         last_message_time TEXT,
         unread_for_user INTEGER DEFAULT 0,
         unread_for_business INTEGER DEFAULT 0,
+        is_demo INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (business_id) REFERENCES businesses(id)
     );
@@ -501,6 +537,10 @@ def init_db():
         content TEXT NOT NULL,
         is_action_prompt INTEGER DEFAULT 0,
         timestamp TEXT,
+        status TEXT DEFAULT 'sent',
+        delivered_at TEXT,
+        read_at TEXT,
+        is_demo INTEGER DEFAULT 0,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id)
     );
 
@@ -526,7 +566,8 @@ def init_db():
         type TEXT NOT NULL, -- 'application', 'message', 'job_alert', 'verification'
         link TEXT,
         is_read INTEGER DEFAULT 0,
-        timestamp TEXT
+        timestamp TEXT,
+        is_demo INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS email_logs (
@@ -550,6 +591,7 @@ def init_db():
         reviewed_at TEXT,
         reviewed_by TEXT,
         review_comments TEXT,
+        issuing_authority TEXT DEFAULT '',
         FOREIGN KEY (business_id) REFERENCES businesses(id)
     );
 
@@ -779,29 +821,34 @@ def init_db():
             pass
 
     for idx_sql in [
-        "CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON messages (conversation_id, timestamp ASC)",
-        "CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations (user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_conversations_biz ON conversations (business_id)",
         "CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)",
         "CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone)",
         "CREATE INDEX IF NOT EXISTS idx_users_role_status ON users (role, status)",
         "CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses (email)",
         "CREATE INDEX IF NOT EXISTS idx_businesses_verif ON businesses (verification_status)",
         "CREATE INDEX IF NOT EXISTS idx_businesses_city ON businesses (city)",
+        "CREATE INDEX IF NOT EXISTS idx_businesses_rating ON businesses (star_rating DESC, follower_count DESC)",
         "CREATE INDEX IF NOT EXISTS idx_biz_members_biz_user ON business_memberships (business_id, user_id)",
         "CREATE INDEX IF NOT EXISTS idx_biz_members_user ON business_memberships (user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_jobs_status_featured ON jobs (status, is_featured, is_urgent, posted_at)",
-        "CREATE INDEX IF NOT EXISTS idx_jobs_business ON jobs (business_id)",
-        "CREATE INDEX IF NOT EXISTS idx_jobs_dept ON jobs (department)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_status_featured ON jobs (status, is_featured, is_urgent, posted_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_business ON jobs (business_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_dept ON jobs (department, status)",
         "CREATE INDEX IF NOT EXISTS idx_jobs_emp_type ON jobs (employment_type)",
         "CREATE INDEX IF NOT EXISTS idx_jobs_exp_level ON jobs (experience_level)",
+        "CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs (property_location)",
         "CREATE INDEX IF NOT EXISTS idx_applications_job ON applications (job_id, status)",
-        "CREATE INDEX IF NOT EXISTS idx_applications_user ON applications (user_id, applied_at)",
+        "CREATE INDEX IF NOT EXISTS idx_applications_user ON applications (user_id, applied_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_applications_job_user ON applications (job_id, user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications (user_id, is_read, timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations (user_id, last_message_time DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_conversations_biz ON conversations (business_id, last_message_time DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON messages (conversation_id, timestamp ASC)",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications (user_id, is_read, timestamp DESC)",
         "CREATE INDEX IF NOT EXISTS idx_otp_identifier_code ON otp_verifications (identifier, otp_code, verified)",
+        "CREATE INDEX IF NOT EXISTS idx_otp_created_at ON otp_verifications (created_at)",
         "CREATE INDEX IF NOT EXISTS idx_saved_jobs_job ON saved_jobs (job_id)",
-        "CREATE INDEX IF NOT EXISTS idx_followed_biz_biz ON followed_businesses (business_id)"
+        "CREATE INDEX IF NOT EXISTS idx_followed_biz_biz ON followed_businesses (business_id)",
+        "CREATE INDEX IF NOT EXISTS idx_emp_profiles_open_vis ON employee_profiles (open_to_work, visibility)",
+        "CREATE INDEX IF NOT EXISTS idx_email_logs_sent ON email_logs (sent_at)"
     ]:
         try:
             cursor.execute(idx_sql)
@@ -818,7 +865,7 @@ def init_db():
         value TEXT
     );
     """)
-    cursor.execute("INSERT INTO system_settings (key, value) VALUES ('demo_data_hidden', '1') ON CONFLICT (key) DO NOTHING")
+    cursor.execute("INSERT INTO system_settings (key, value) VALUES ('demo_data_hidden', '0') ON CONFLICT (key) DO NOTHING")
 
     cursor.execute("UPDATE users SET is_business_admin = 1 WHERE role = 'recruiter'")
     cursor.execute("UPDATE business_memberships SET membership_role = 'admin' WHERE membership_role IS NULL OR membership_role = '' OR membership_role = 'moderator'")
