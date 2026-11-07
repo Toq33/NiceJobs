@@ -1974,6 +1974,7 @@ function getFreshSignupState(role = 'candidate') {
       preferred_location: 'Dhaka'
     },
     education: [],
+    certifications: [],
     skills: [],
     customSkillsPool: [],
     skillsSearchQuery: '',
@@ -2123,6 +2124,26 @@ function captureCurrentSignupInputs() {
     });
   } else if (document.getElementById('edu-dynamic-container')) {
     signupState.education = [];
+  }
+
+  // Dynamic Certification cards
+  const certCards = document.querySelectorAll('#cert-dynamic-container .dynamic-entry-card');
+  if (certCards.length > 0) {
+    signupState.certifications = Array.from(certCards).map(card => {
+      const name = (card.querySelector('.cert-name')?.value || '').trim();
+      const issuer = (card.querySelector('.cert-issuer')?.value || '').trim();
+      const year = (card.querySelector('.cert-year')?.value || '').trim();
+      return {
+        name: name,
+        title: name,
+        issuer: issuer,
+        issued_by: issuer,
+        year: year,
+        year_obtained: year
+      };
+    });
+  } else if (document.getElementById('cert-dynamic-container')) {
+    signupState.certifications = [];
   }
 
   // Dynamic Experience cards
@@ -6184,7 +6205,7 @@ async function openCandidateTalentDossierModal(candidateId) {
                       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                         ${cand.certifications.map(c => `
                           <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; padding: 2px 8px; font-size: 0.74rem; color: var(--white);">
-                            ${escapeHtml(c)}
+                            ${typeof c === 'string' ? escapeHtml(c) : `${escapeHtml(c.title || c.name || '')}${c.issuer || c.issued_by ? ' • ' + escapeHtml(c.issuer || c.issued_by) : ''}${c.year || c.year_obtained ? ' (' + escapeHtml(c.year || c.year_obtained) + ')' : ''}`}
                           </span>
                         `).join('')}
                       </div>
@@ -10168,6 +10189,7 @@ async function startSignupFlow(role = 'candidate', stage = 1, bizRoute = null) {
             signupState.cv_url = prof.cv_url || signupState.cv_url || '';
             if (prof.preferences) signupState.job_preferences = Object.assign({}, signupState.job_preferences, prof.preferences);
             if (prof.education && prof.education.length) signupState.education = prof.education;
+            if (prof.certifications && prof.certifications.length) signupState.certifications = prof.certifications;
             if (prof.experience && prof.experience.length) signupState.experience = prof.experience;
             if (prof.skills && prof.skills.length) signupState.skills = prof.skills;
             if (prof.languages && prof.languages.length) signupState.languages = prof.languages;
@@ -11001,6 +11023,26 @@ function renderSignupPage(viewport) {
 
                 <button type="button" class="dynamic-add-btn" onclick="addEducationEntry()">
                   + Add Another Degree / School Certificate
+                </button>
+              </div>
+
+              <!-- CERTIFICATIONS: Multi-entry with Certification Name, Year Obtained, Issued by -->
+              <div class="auth-field" id="certifications-section-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="auth-label" style="margin: 0;">Professional Certifications</label>
+                  <span style="font-size: 0.74rem; color: var(--text-dim);">Hospitality accreditations &amp; licenses</span>
+                </div>
+
+                <div class="dynamic-list-container" id="cert-dynamic-container">
+                  ${(!signupState.certifications || signupState.certifications.length === 0) ? `
+                    <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+                      No certifications added yet. Click below to add your certificates (or leave empty).
+                    </div>
+                  ` : signupState.certifications.map((cert, idx) => renderSingleCertificationCardHtml(cert, idx)).join('')}
+                </div>
+
+                <button type="button" class="dynamic-add-btn" onclick="addCertificationEntry()">
+                  + Add Another Certification
                 </button>
               </div>
 
@@ -12245,6 +12287,81 @@ function removeEducationEntry(idx) {
   saveSignupProgress();
 }
 window.removeEducationEntry = removeEducationEntry;
+
+// Certification dynamic entries (Certification Name, Year Obtained, Issued by)
+function renderSingleCertificationCardHtml(cert, idx) {
+  return `
+    <div class="dynamic-entry-card" data-cert-index="${idx}">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Certification #${idx + 1}</span>
+        <button type="button" class="dynamic-remove-btn" onclick="removeCertificationEntry(${idx})" title="Remove certification entry">
+          ${svgIcon('x', '', 13)} Remove
+        </button>
+      </div>
+
+      <div class="auth-field" style="margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Certification Name *</label>
+        <input type="text" class="auth-input cert-name" placeholder="e.g. ServSafe Food Protection Manager, WSET Level 2, CPR/First Aid" 
+          value="${escapeHtml(cert.name || cert.title || '')}">
+      </div>
+
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Issued by *</label>
+          <input type="text" class="auth-input cert-issuer" placeholder="e.g. AHLEI, NRA, WSET, City &amp; Guilds" 
+            value="${escapeHtml(cert.issuer || cert.issued_by || '')}">
+        </div>
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Year Obtained *</label>
+          <input type="text" inputmode="numeric" class="auth-input cert-year" placeholder="e.g. 2024" maxlength="4" 
+            value="${escapeHtml(cert.year || cert.year_obtained || '')}"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.renderSingleCertificationCardHtml = renderSingleCertificationCardHtml;
+
+function renderCertificationCardsDOM() {
+  const container = document.getElementById('cert-dynamic-container');
+  if (!container) return;
+  if (!signupState.certifications || signupState.certifications.length === 0) {
+    container.innerHTML = `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No certifications added yet. Click below to add your certificates (or leave empty).
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = signupState.certifications.map((cert, idx) => renderSingleCertificationCardHtml(cert, idx)).join('');
+}
+window.renderCertificationCardsDOM = renderCertificationCardsDOM;
+
+function addCertificationEntry() {
+  captureCurrentSignupInputs();
+  if (!signupState.certifications) signupState.certifications = [];
+  signupState.certifications.push({
+    name: '',
+    title: '',
+    issuer: '',
+    issued_by: '',
+    year: '',
+    year_obtained: ''
+  });
+  renderCertificationCardsDOM();
+  saveSignupProgress();
+}
+window.addCertificationEntry = addCertificationEntry;
+
+function removeCertificationEntry(idx) {
+  captureCurrentSignupInputs();
+  if (!signupState.certifications) signupState.certifications = [];
+  signupState.certifications.splice(idx, 1);
+  renderCertificationCardsDOM();
+  saveSignupProgress();
+}
+window.removeCertificationEntry = removeCertificationEntry;
 
 // Experience calculations and dynamic in-place DOM render
 function calculateExperienceYears(dateFrom, dateTo, isCurrent = false) {
@@ -13912,6 +14029,26 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
     signupState.education = [];
   }
 
+  // Dynamic Certification cards
+  const certCards = document.querySelectorAll('#cert-dynamic-container .dynamic-entry-card');
+  if (certCards.length > 0) {
+    signupState.certifications = Array.from(certCards).map(card => {
+      const name = (card.querySelector('.cert-name')?.value || '').trim();
+      const issuer = (card.querySelector('.cert-issuer')?.value || '').trim();
+      const year = (card.querySelector('.cert-year')?.value || '').trim();
+      return {
+        name: name,
+        title: name,
+        issuer: issuer,
+        issued_by: issuer,
+        year: year,
+        year_obtained: year
+      };
+    });
+  } else if (document.getElementById('cert-dynamic-container')) {
+    signupState.certifications = [];
+  }
+
   // Experience entries
   const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
   if (expCards.length > 0) {
@@ -13951,6 +14088,7 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
     location: prefLoc,
     preferences: signupState.job_preferences,
     education: signupState.education,
+    certifications: signupState.certifications || [],
     experience: signupState.experience,
     skills: signupState.skills || [],
     languages: signupState.languages || [],
@@ -14017,6 +14155,7 @@ async function handleCandidateCompleteProfile(event) {
     expected_salary: signupState.job_preferences?.expected_salary || 'Negotiable',
     job_preferences: signupState.job_preferences,
     education: signupState.education || [],
+    certifications: signupState.certifications || [],
     skills: signupState.skills || [],
     languages: signupState.languages || [],
     experience: signupState.experience || []

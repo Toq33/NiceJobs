@@ -2343,6 +2343,7 @@ class CandidateRegisterPayload(BaseModel):
     cv_url: Optional[str] = None
     cv_data: Optional[str] = None
     education: Optional[Any] = None # List of {institution, degree, gpa}
+    certifications: Optional[Any] = None # List of {name, year, issuer}
     skills: Optional[List[str]] = None
     languages: Optional[Any] = None # List of {name, level}
     experience: Optional[Any] = None # List of {company, role, period, skills_acquired}
@@ -2452,6 +2453,9 @@ def register_candidate(payload: CandidateRegisterPayload):
     else:
         exp_list = []
 
+    # Process certifications
+    cert_list = payload.certifications if isinstance(payload.certifications, list) else []
+
     bio_text = (payload.bio or payload.summary or "").strip()
     if bio_text:
         bio_words = len(re.findall(r'\S+', bio_text))
@@ -2496,7 +2500,7 @@ def register_candidate(payload: CandidateRegisterPayload):
         payload.visibility or "eligible_employers",
         json.dumps(skills_data),
         json.dumps(langs_data),
-        json.dumps([]),
+        json.dumps(cert_list),
         json.dumps(exp_list),
         json.dumps(edu_list),
         json.dumps(prefs_data),
@@ -2592,6 +2596,7 @@ class CompleteProfilePayload(BaseModel):
     cv_url: Optional[str] = None
     cv_data: Optional[str] = None
     education: Optional[Any] = None
+    certifications: Optional[Any] = None
     skills: Optional[List[str]] = None
     languages: Optional[Any] = None
     experience: Optional[Any] = None
@@ -2674,6 +2679,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
         existing_cvs = [new_cv] + [c for c in existing_cvs if c.get("name") != cv_filename]
 
     edu_list = payload.education if isinstance(payload.education, list) else []
+    cert_list = payload.certifications if isinstance(payload.certifications, list) else []
     exp_list = payload.experience if isinstance(payload.experience, list) else []
     skills_data = payload.skills if isinstance(payload.skills, list) else []
     langs_data = payload.languages if isinstance(payload.languages, list) else []
@@ -2690,6 +2696,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
                 languages = ?,
                 experience = ?,
                 education = ?,
+                certifications = ?,
                 cv_name = ?,
                 cv_url = ?,
                 cv_list = ?,
@@ -2705,6 +2712,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             json.dumps(langs_data),
             json.dumps(exp_list),
             json.dumps(edu_list),
+            json.dumps(cert_list),
             cv_filename,
             cv_data_content or payload.cv_url or "",
             json.dumps(existing_cvs),
@@ -2716,7 +2724,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
                 user_id, headline, location, summary, current_position, experience_years,
                 open_to_work, visibility, skills, languages, certifications, experience,
                 education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, '[]', ?, ?, ?, ?, 'Just now', 95, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', 95, ?, ?)
         """, (
             payload.user_id,
             headline_text,
@@ -2726,6 +2734,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             1,
             json.dumps(skills_data),
             json.dumps(langs_data),
+            json.dumps(cert_list),
             json.dumps(exp_list),
             json.dumps(edu_list),
             json.dumps(prefs_data),
@@ -2752,7 +2761,7 @@ def get_candidate_onboarding_status(user_id: str):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT u.id, u.name, u.email, u.phone, u.role, u.terms_accepted, u.terms_accepted_at, u.profile_completed, u.onboarding_status, u.designation, u.avatar_url,
-               p.summary as bio, p.headline, p.current_position, p.cv_name, p.cv_url, p.preferences, p.education, p.experience, p.skills, p.languages
+               p.summary as bio, p.headline, p.current_position, p.cv_name, p.cv_url, p.preferences, p.education, p.experience, p.skills, p.languages, p.certifications
         FROM users u
         LEFT JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -2765,7 +2774,7 @@ def get_candidate_onboarding_status(user_id: str):
     data["terms_accepted"] = int(data["terms_accepted"] if data.get("terms_accepted") is not None else 1)
     data["profile_completed"] = int(data["profile_completed"] if data.get("profile_completed") is not None else 1)
     data["onboarding_status"] = data.get("onboarding_status") or ("completed" if data["terms_accepted"] and data["profile_completed"] else "terms_pending")
-    for f in ["preferences", "education", "experience", "skills", "languages"]:
+    for f in ["preferences", "education", "experience", "skills", "languages", "certifications"]:
         if data.get(f):
             try:
                 data[f] = json.loads(data[f])
