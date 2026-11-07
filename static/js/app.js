@@ -2020,8 +2020,7 @@ function captureCurrentSignupInputs() {
 
   const dob = document.getElementById('cand-dob');
   if (dob) signupState.dob = dob.value;
-  const nid = document.getElementById('cand-nid');
-  if (nid) signupState.nid_passport = nid.value;
+  signupState.nid_passport = '';
   const phone = document.getElementById('cand-phone');
   if (phone) signupState.phone = phone.value.replace(/[^0-9]/g, '').slice(0, 11);
   const phoneSec = document.getElementById('cand-phone-secondary');
@@ -10614,20 +10613,12 @@ function renderSignupPage(viewport) {
                   value="${escapeHtml(signupState.email || '')}">
               </div>
 
-              <!-- DOB & NID/Passport Grid -->
-              <div class="auth-field-grid">
-                <div class="auth-field">
-                  <label class="auth-label">Date of Birth (DOB)</label>
-                  <input type="date" id="cand-dob" class="auth-input" required 
-                    style="color-scheme: dark;"
-                    value="${signupState.dob || ''}">
-                </div>
-                <div class="auth-field">
-                  <label class="auth-label">NID / Passport (Optional)</label>
-                  <input type="text" id="cand-nid" class="auth-input" 
-                    placeholder="Enter 10/17 digit NID or passport number" 
-                    value="${signupState.nid_passport || ''}">
-                </div>
+              <!-- Date of Birth (DOB) -->
+              <div class="auth-field">
+                <label class="auth-label">Date of Birth (DOB)</label>
+                <input type="date" id="cand-dob" class="auth-input" required 
+                  style="color-scheme: dark;"
+                  value="${signupState.dob || ''}">
               </div>
 
               <!-- Primary Phone & Secondary Phone Grid -->
@@ -13306,7 +13297,6 @@ async function nextSignupStage(targetStage) {
       fullName = [fn, mn, ln].filter(Boolean).join(' ').trim();
     }
     const dob = document.getElementById('cand-dob')?.value || '';
-    const nid = (document.getElementById('cand-nid')?.value || '').trim();
     const phoneRaw = document.getElementById('cand-phone')?.value || '';
     const phoneSecRaw = document.getElementById('cand-phone-secondary')?.value || '';
     const email = (document.getElementById('cand-email')?.value || '').trim();
@@ -13364,7 +13354,7 @@ async function nextSignupStage(targetStage) {
 
     signupState.name = fullName;
     signupState.dob = dob;
-    signupState.nid_passport = nid;
+    signupState.nid_passport = '';
     signupState.phone = cleanPhone;
     signupState.phone_secondary = cleanPhoneSec;
     signupState.email = email;
