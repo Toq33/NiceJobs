@@ -295,7 +295,7 @@ const DEFAULT_HOTEL_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.or
 // Application State Store
 const state = {
   currentRole: 'guest', // 'jobseeker', 'recruiter', 'admin', 'guest'
-  demoDataHidden: true,
+  demoDataHidden: false,
   currentUser: null,
   currentScreen: 'home',
   activeJobId: null,
@@ -2919,8 +2919,29 @@ function scheduleSyncMissedUpdates(delayMs = 200) {
 
 async function syncMissedUpdates() {
   try {
+    const isGuest = !state.currentUser || state.currentRole === 'guest';
+    if (isGuest) {
+      // Guests have no private notifications, inbox messages, or ATS updates.
+      // Fetch active jobs silently in the background without thrashing the DOM or wiping viewport
+      try {
+        const jobsRes = await fetch('/api/jobs?status=active');
+        if (jobsRes.ok) {
+          const fresh = await jobsRes.json();
+          if (Array.isArray(fresh) && fresh.length > 0) {
+            state.jobs = fresh;
+          }
+        }
+      } catch(e) {}
+      return;
+    }
+
     const jobsRes = await fetch('/api/jobs?status=active');
-    if (jobsRes.ok) state.jobs = await jobsRes.json();
+    if (jobsRes.ok) {
+      const fresh = await jobsRes.json();
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        state.jobs = fresh;
+      }
+    }
 
     if (state.currentUser && state.currentUser.role === 'jobseeker') {
       const [notifsRes, appsRes, savedRes, convRes] = await Promise.all([
@@ -2947,8 +2968,8 @@ async function syncMissedUpdates() {
 
     const viewport = document.getElementById('app-viewport');
     if (viewport) {
-      if (state.currentScreen === 'home') await renderHomeScreen(viewport);
-      else if (state.currentScreen === 'applications') await renderApplicationsScreen(viewport);
+      // Do not re-render home screen during background sync to prevent wiping search queries, inputs, or scroll position
+      if (state.currentScreen === 'applications') await renderApplicationsScreen(viewport);
       else if (state.currentScreen === 'recruiter-dashboard') await renderRecruiterDashboard(viewport);
       else if (state.currentScreen === 'ats') await renderATSBoard(viewport);
       else if (state.currentScreen === 'saved-jobs') await renderSavedJobsScreen(viewport);
@@ -3241,14 +3262,24 @@ async function handleRealtimeEvent(payload) {
     case 'job_created': {
       try {
         const res = await fetch('/api/jobs?status=active');
-        if (res.ok) state.jobs = await res.json();
+        if (res.ok) {
+          const fresh = await res.json();
+          if (Array.isArray(fresh) && fresh.length > 0) state.jobs = fresh;
+        }
       } catch(e) {}
 
       const viewport = document.getElementById('app-viewport');
       if (viewport) {
-        if (state.currentScreen === 'home') await renderHomeScreen(viewport);
-        else if (state.currentScreen === 'jobs') await renderJobsScreen(viewport);
-        else if (state.currentScreen === 'recruiter-dashboard') {
+        if (state.currentScreen === 'home') {
+          const jobsList = viewport.querySelector('.jobs-list');
+          if (jobsList && Array.isArray(state.jobs) && state.jobs.length > 0) {
+            jobsList.innerHTML = state.jobs.map(job => renderJobCardHTML(job)).join('');
+            const countSubtitle = viewport.querySelector('.section-subtitle');
+            if (countSubtitle) {
+              countSubtitle.innerHTML = `<strong>${state.jobs.length}</strong> verified opening${state.jobs.length === 1 ? '' : 's'} available`;
+            }
+          }
+        } else if (state.currentScreen === 'recruiter-dashboard') {
           const myBizId = state.currentUser?.business_id || state.activeHotelId;
           if (data && data.business_id === myBizId) {
             await renderRecruiterDashboard(viewport);
@@ -3265,9 +3296,18 @@ async function handleRealtimeEvent(payload) {
     case 'job_status_changed': {
       try {
         const res = await fetch('/api/jobs?status=active');
-        if (res.ok) state.jobs = await res.json();
+        if (res.ok) {
+          const fresh = await res.json();
+          if (Array.isArray(fresh) && fresh.length > 0) state.jobs = fresh;
+        }
       } catch(e) {}
-      if (['home', 'jobs', 'recruiter-dashboard', 'admin-dashboard'].includes(state.currentScreen)) {
+      if (state.currentScreen === 'home') {
+        const viewport = document.getElementById('app-viewport');
+        const jobsList = viewport?.querySelector('.jobs-list');
+        if (jobsList && Array.isArray(state.jobs) && state.jobs.length > 0) {
+          jobsList.innerHTML = state.jobs.map(job => renderJobCardHTML(job)).join('');
+        }
+      } else if (['recruiter-dashboard', 'admin-dashboard'].includes(state.currentScreen)) {
         const viewport = document.getElementById('app-viewport');
         if (viewport) renderApp();
       }
@@ -3687,12 +3727,14 @@ async function handleRealtimeEvent(payload) {
         const jobsRes = await fetch('/api/jobs');
         if (jobsRes.ok) {
           const freshJobs = await jobsRes.json();
-          state.jobs = Array.isArray(freshJobs) ? freshJobs : (freshJobs.jobs || []);
+          const validJobs = Array.isArray(freshJobs) ? freshJobs : (freshJobs.jobs || []);
+          if (validJobs.length > 0 || state.demoDataHidden) {
+            state.jobs = validJobs;
+          }
           if (['home', 'jobs', 'recruiter-dashboard'].includes(state.currentScreen)) {
             const viewport = document.getElementById('app-viewport');
             if (viewport) {
-              if (state.currentScreen === 'home') await renderHomeScreen(viewport);
-              else if (state.currentScreen === 'jobs') await renderJobsScreen(viewport);
+              if (state.currentScreen === 'home' || state.currentScreen === 'jobs') await renderHomeScreen(viewport);
               else if (state.currentScreen === 'recruiter-dashboard') await renderRecruiterDashboard(viewport);
             }
           }
@@ -3717,16 +3759,23 @@ async function handleRealtimeEvent(payload) {
 
 async function loadInitialData() {
   try {
-    state.demoDataHidden = true;
+    state.demoDataHidden = false;
 
     const [jobsRes, bizRes, blogsRes] = await Promise.all([
       fetch('/api/jobs?status=active'),
       fetch('/api/businesses'),
       fetch('/api/blogs')
     ]);
-    state.jobs = jobsRes.ok ? await jobsRes.json() : [];
-    state.businesses = bizRes.ok ? await bizRes.json() : [];
-    state.blogs = blogsRes.ok ? await blogsRes.json() : [];
+    if (jobsRes.ok) {
+      const fresh = await jobsRes.json();
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        state.jobs = fresh;
+      } else if (!state.jobs || state.jobs.length === 0) {
+        state.jobs = Array.isArray(fresh) ? fresh : [];
+      }
+    }
+    state.businesses = bizRes.ok ? await bizRes.json() : (state.businesses || []);
+    state.blogs = blogsRes.ok ? await blogsRes.json() : (state.blogs || []);
 
     if (state.currentUser && state.currentUser.role === 'jobseeker') {
       const [appsRes, savedRes, notifRes, profRes, convRes] = await Promise.all([
@@ -4092,8 +4141,8 @@ async function renderHomeScreen(viewport) {
     state.search.designation || state.search.accommodation || state.search.duty_meals
   );
 
-  let jobs;
-  if (!hasFilter && state.jobs && state.jobs.length > 0) {
+  let jobs = [];
+  if (!hasFilter && Array.isArray(state.jobs) && state.jobs.length > 0) {
     jobs = [...state.jobs];
   } else {
     const params = new URLSearchParams();
@@ -4104,9 +4153,22 @@ async function renderHomeScreen(viewport) {
     if (state.search.accommodation) params.append('accommodation', 'true');
     if (state.search.duty_meals) params.append('duty_meals', 'true');
 
-    const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
-    jobs = jobsRes.ok ? await jobsRes.json() : [];
-    if (!hasFilter) state.jobs = jobs;
+    try {
+      const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
+      if (jobsRes.ok) {
+        const fetched = await jobsRes.json();
+        if (Array.isArray(fetched)) {
+          jobs = fetched;
+          if (!hasFilter && fetched.length > 0) state.jobs = fetched;
+        }
+      }
+    } catch(err) {
+      console.warn('[NiceJobs] Error fetching jobs:', err);
+    }
+
+    if (!hasFilter && jobs.length === 0 && Array.isArray(state.jobs) && state.jobs.length > 0) {
+      jobs = [...state.jobs];
+    }
   }
 
   // Candidate sorting logic

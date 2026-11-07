@@ -1082,7 +1082,7 @@ DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000
 DEFAULT_HOTEL_LOGO_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%23ffffff'/><path d='M28 80 V22 H72 V80 H28 Z M38 32 H46 V40 H38 V32 Z M38 46 H46 V54 H38 V46 Z M38 60 H46 V68 H38 V60 Z M54 32 H62 V40 H54 V32 Z M54 46 H62 V54 H54 V46 Z M54 60 H62 V68 H54 V60 Z' fill='%23000000'/></svg>"
 
 # In-memory performance cache for ultra-fast response times
-_demo_hidden_cache = {"val": True, "ts": 0.0}
+_demo_hidden_cache = {"val": False, "ts": 0.0}
 _API_CACHE = {}
 _API_CACHE_TTL = 15.0  # Cache public list reads for 15s to make tab switching & refresh instant
 
@@ -1123,7 +1123,7 @@ def is_demo_hidden() -> bool:
         _demo_hidden_cache["ts"] = now
         return _demo_hidden_cache["val"]
     except Exception:
-        return True
+        return False
 
 @app.get("/api/locations/districts")
 def get_locations_districts(division: Optional[str] = None):
