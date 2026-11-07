@@ -1268,13 +1268,7 @@ def get_jobs(
         d["education_requirements"] = json.loads(d["education_requirements"]) if d.get("education_requirements") else []
         d["skill_requirements"] = json.loads(d["skill_requirements"]) if d.get("skill_requirements") else []
         d["screening_questions"] = json.loads(d["screening_questions"]) if d.get("screening_questions") else []
-        raw_b = json.loads(d["benefits"]) if d.get("benefits") else []
-        if not raw_b:
-            if d.get("service_charge_included"): raw_b.append("Service Charge Distribution (100% Shared)")
-            if d.get("accommodation_provided"): raw_b.append("Complimentary Staff Accommodation")
-            if d.get("duty_meals_provided"): raw_b.append("Free Duty Meals (3 Meals / Shift)")
-            raw_b.append("Comprehensive Health & Medical Insurance")
-        d["benefits"] = raw_b
+        d["benefits"] = json.loads(d["benefits"]) if d.get("benefits") else []
 
         # Resolve district for each job
         j_dist = locations.match_job_district(d.get("city", ""), d.get("district", ""), d.get("property_location", ""))
@@ -1362,13 +1356,7 @@ def get_job_detail(job_id: str, user_id: Optional[str] = "user_rahim"):
     job["screening_questions"] = json.loads(job["screening_questions"]) if job.get("screening_questions") else []
     job["amenities"] = json.loads(job["amenities"]) if job.get("amenities") else []
     job["business_benefits"] = json.loads(job["business_benefits"]) if job.get("business_benefits") else []
-    raw_jb = json.loads(job["benefits"]) if job.get("benefits") else []
-    if not raw_jb:
-        if job.get("service_charge_included"): raw_jb.append("Service Charge Distribution (100% Shared)")
-        if job.get("accommodation_provided"): raw_jb.append("Complimentary Staff Accommodation")
-        if job.get("duty_meals_provided"): raw_jb.append("Free Duty Meals (3 Meals / Shift)")
-        raw_jb.append("Comprehensive Health & Medical Insurance")
-    job["benefits"] = raw_jb
+    job["benefits"] = json.loads(job["benefits"]) if job.get("benefits") else []
 
     # Extract application and saved state from joined fields
     applied = bool(job.get("application_id"))
@@ -2462,8 +2450,8 @@ def register_candidate(payload: CandidateRegisterPayload):
         if bio_words > 100:
             conn.close()
             raise HTTPException(status_code=400, detail=f"Candidate bio cannot exceed 100 words (currently {bio_words} words).")
-    effective_role = cand_designation or payload.current_position or "Hospitality Specialist"
-    headline_text = f"{effective_role} • {payload.department}" if effective_role and payload.department else (effective_role or payload.department or "Hospitality Specialist")
+    effective_role = cand_designation or payload.current_position or ""
+    headline_text = f"{effective_role} • {payload.department}" if effective_role and payload.department else (effective_role or payload.department or "")
 
     prefs_data = {
         "designation": effective_role,
@@ -2492,7 +2480,7 @@ def register_candidate(payload: CandidateRegisterPayload):
     """, (
         user_id,
         headline_text,
-        payload.location or "Dhaka, Bangladesh",
+        payload.location or "",
         bio_text,
         effective_role,
         payload.experience_years or 0,
@@ -2643,7 +2631,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             raise HTTPException(status_code=400, detail=f"Candidate bio cannot exceed 100 words (currently {bio_words} words).")
     cand_role = (payload.designation or "").strip()
     cand_dept = (payload.department or "").strip()
-    headline_text = f"{cand_role} • {cand_dept}" if cand_role and cand_dept else (cand_role or cand_dept or "Hospitality Specialist")
+    headline_text = f"{cand_role} • {cand_dept}" if cand_role and cand_dept else (cand_role or cand_dept or "")
 
     prefs_data = {}
     if p_row and p_row["preferences"]:
@@ -2706,7 +2694,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             headline_text,
             bio_text,
             cand_role,
-            payload.location or "Dhaka, Bangladesh",
+            payload.location or "",
             json.dumps(prefs_data),
             json.dumps(skills_data),
             json.dumps(langs_data),
@@ -2895,7 +2883,7 @@ def register_business(payload: BusinessRegisterPayload):
 
         feature_list = payload.features if isinstance(payload.features, list) else []
         dept_list = ["Front Office", "Food & Beverage", "Culinary", "Housekeeping", "Sales & Banquets", "Engineering"]
-        benefits_list = ["Competitive Service Charge", "Duty Meals Included", "Staff Accommodation", "Health Insurance"]
+        benefits_list = []
 
         composite_addr = payload.address or f"Plot {payload.plot_number}, Road {payload.road_number}, {payload.thana_upazila}, {payload.district}"
         city_val = payload.district or payload.thana_upazila or "Dhaka"
@@ -3495,8 +3483,8 @@ def get_profile(user_id: str = "user_rahim"):
     profile["preferences"] = json.loads(profile["preferences"]) if profile.get("preferences") else {}
     profile["can_post_blog"] = bool(row["can_post_blog"] or row.get("user_role") == "admin")
     profile["designation"] = (profile.get("designation") or profile.get("current_position") or "").strip()
-    profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department", "Front Office & Guest Services")
-    profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary", "")
+    profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
+    profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
 
     conn.close()
     return profile

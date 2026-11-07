@@ -4441,28 +4441,21 @@ function renderJobCardHTML(job) {
         </div>
       ` : ''}
 
-      <!-- Benefits & Perks Row (High candidate attraction points) -->
+      <!-- Benefits & Perks Row (Only if provided by employer) -->
       ${(Array.isArray(job.benefits) && job.benefits.length > 0) ? `
         <div class="job-perks-row" style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
           ${job.benefits.slice(0, 4).map(b => `
             <span class="perk-chip ${b.toLowerCase().includes('service charge') ? 'perk-highlight' : ''}">
-              ${svgIcon(getBenefitIcon(b), '', 13)} ${b}
+              ${svgIcon(getBenefitIcon(b), '', 13)} ${escapeHtml(b)}
             </span>
           `).join('')}
           ${job.benefits.length > 4 ? `
-            <span class="perk-chip" style="background: rgba(255, 255, 255, 0.05); color: var(--text-dim); border: 1px dashed var(--border-subtle);" title="${job.benefits.slice(4).join(', ')}">
+            <span class="perk-chip" style="background: rgba(255, 255, 255, 0.05); color: var(--text-dim); border: 1px dashed var(--border-subtle);" title="${escapeHtml(job.benefits.slice(4).join(', '))}">
               +${job.benefits.length - 4} more perks
             </span>
           ` : ''}
         </div>
-      ` : ((job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
-        <div class="job-perks-row" style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
-          ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 13)} Service Charge</span>` : ''}
-          ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 13)} Accommodation</span>` : ''}
-          ${job.duty_meals_provided ? `<span class="perk-chip">${svgIcon('utensils', '', 13)} Duty Meals</span>` : ''}
-          <span class="perk-chip">${svgIcon('shield', '', 13)} Health Insurance</span>
-        </div>
-      ` : '')}
+      ` : ''}
 
       <!-- Footer & Action Buttons -->
       <div class="job-card-footer">
@@ -4860,29 +4853,19 @@ async function renderJobDetailScreen(viewport, jobId) {
         ` : ''}
 
         ${(Array.isArray(job.benefits) && job.benefits.length > 0) ? `
-          <div style="margin-top: 24px; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 22px; border-radius: var(--radius-md);">
+          <div style="margin-top: 24px; background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); padding: 22px; border-radius: var(--radius-md);">
             <h4 style="font-size: 1.1rem; font-weight: 800; color: var(--white); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
               ${svgIcon('starFilled', 'color: var(--orange-primary);', 18)} Hospitality Benefits &amp; Perks
             </h4>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
               ${job.benefits.map(b => `
                 <span class="perk-chip ${b.toLowerCase().includes('service charge') ? 'perk-highlight' : ''}" style="font-size: 0.88rem; padding: 6px 14px;">
-                  ${svgIcon(getBenefitIcon(b), '', 15)} ${b}
+                  ${svgIcon(getBenefitIcon(b), '', 15)} ${escapeHtml(b)}
                 </span>
               `).join('')}
             </div>
           </div>
-        ` : ((job.service_charge_included || job.accommodation_provided || job.duty_meals_provided) ? `
-          <div style="margin-top: 24px; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 20px; border-radius: var(--radius-md);">
-            <h4 style="font-size: 1rem; font-weight: 800; color: var(--white); margin-bottom: 12px;">Hospitality Benefits &amp; Perks</h4>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-              ${job.service_charge_included ? `<span class="perk-chip perk-highlight">${svgIcon('dollar', '', 14)} Service Charge Distribution</span>` : ''}
-              ${job.accommodation_provided ? `<span class="perk-chip">${svgIcon('home', '', 14)} Staff Housing Provided</span>` : ''}
-              ${job.duty_meals_provided ? `<span class="perk-chip">${svgIcon('utensils', '', 14)} Duty Meals Provided</span>` : ''}
-              <span class="perk-chip">${svgIcon('shield', '', 14)} Medical Insurance Included</span>
-            </div>
-          </div>
-        ` : '')}
+        ` : ''}
 
         <div style="margin-top: 24px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-subtle); padding-top: 20px;">
           <div style="font-size: 0.85rem; color: var(--text-dim);">
@@ -5021,15 +5004,19 @@ async function renderHotelDetailScreen(viewport, hotelId) {
           <h2 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 10px;">About</h2>
           <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">${hotel.description}</p>
           
-          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 10px;">Amenities</h3>
-          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
-            ${(hotel.amenities || []).map(am => `<span class="perk-chip" style="font-size: 0.85rem;">${am}</span>`).join('')}
-          </div>
+          ${(Array.isArray(hotel.amenities) && hotel.amenities.length > 0) ? `
+            <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 10px;">Amenities</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+              ${hotel.amenities.map(am => `<span class="perk-chip" style="font-size: 0.85rem;">${escapeHtml(am)}</span>`).join('')}
+            </div>
+          ` : ''}
 
-          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 10px;">Benefits</h3>
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-            ${(hotel.benefits || []).map(b => `<span class="perk-chip perk-highlight" style="font-size: 0.85rem;">${b}</span>`).join('')}
-          </div>
+          ${(Array.isArray(hotel.benefits) && hotel.benefits.length > 0) ? `
+            <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 10px;">Benefits</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              ${hotel.benefits.map(b => `<span class="perk-chip perk-highlight" style="font-size: 0.85rem;">${escapeHtml(b)}</span>`).join('')}
+            </div>
+          ` : ''}
         </div>
 
         <!-- Open Job Posts -->
@@ -5302,15 +5289,23 @@ async function renderProfileScreen(viewport) {
                   ${svgIcon('hotel', '', 14)} ${escapeHtml(profile.department || profile.preferences?.department)}
                 </span>
               ` : ''}
-              <span style="font-size: 1.02rem; color: #cbd5e1; font-weight: 600;">${escapeHtml(profile.headline || profile.designation || profile.current_position || 'Hospitality Specialist')}</span>
+              ${(profile.headline || profile.designation || profile.current_position) ? `
+                <span style="font-size: 1.02rem; color: #cbd5e1; font-weight: 600;">${escapeHtml(profile.headline || profile.designation || profile.current_position)}</span>
+              ` : ''}
             </div>
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
-              <span>${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || profile.preferences?.preferred_location || 'Dhaka, Bangladesh')}</span>
-              <span>${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')}</span>
+              ${(profile.location || profile.preferences?.preferred_location) ? `
+                <span>${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || profile.preferences?.preferred_location)}</span>
+              ` : ''}
+              ${profile.phone ? `
+                <span>${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone)}</span>
+              ` : ''}
               ${(profile.phone_secondary || profile.preferences?.phone_secondary) ? `
                 <span>${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone_secondary || profile.preferences?.phone_secondary)} <span style="font-size: 0.74rem; color: var(--text-muted);">(Alt)</span></span>
               ` : ''}
-              <span>${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}</span>
+              ${profile.email ? `
+                <span>${svgIcon('mail', '', 14)} ${escapeHtml(profile.email)}</span>
+              ` : ''}
               ${profile.dob ? `
                 <span>${svgIcon('calendar', '', 14)} Born: ${escapeHtml(profile.dob)}</span>
               ` : ''}
@@ -5548,31 +5543,44 @@ async function renderProfileScreen(viewport) {
             <button class="btn-icon" onclick="openEditJobPreferencesModal()" title="Edit Career Preferences">${svgIcon('edit', '', 14)}</button>
           </div>
           <div style="font-size: 0.84rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 10px;">
-            <div>
-              ${svgIcon('hotel', '', 15)} <strong>Department:</strong> 
-              <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.department || profile.preferences?.department || 'Front Office & Guest Services')}</span>
-            </div>
-            <div>
-              ${svgIcon('briefcase', '', 15)} <strong>Desired Role:</strong> 
-              <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.desired_role || profile.designation || profile.current_position || 'Front Desk Agent')}</span>
-            </div>
-            <div>
-              ${svgIcon('clock', '', 15)} <strong>Preferred Shift:</strong> 
-              <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences?.shift || 'Rotational')}</span>
-            </div>
-            <div>
-              ${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> 
-              <span style="color: #ff9d42; font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.expected_salary || profile.expected_salary || 'Negotiable')}</span>
-            </div>
-            <div>
-              ${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> 
-              <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences?.preferred_location || (profile.preferences?.locations || []).join(', ') || profile.location || 'Anywhere in Bangladesh')}</span>
-            </div>
+            ${(profile.department || profile.preferences?.department) ? `
+              <div>
+                ${svgIcon('hotel', '', 15)} <strong>Department:</strong> 
+                <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.department || profile.preferences?.department)}</span>
+              </div>
+            ` : ''}
+            ${(profile.preferences?.desired_role || profile.designation || profile.current_position) ? `
+              <div>
+                ${svgIcon('briefcase', '', 15)} <strong>Desired Role:</strong> 
+                <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.desired_role || profile.designation || profile.current_position)}</span>
+              </div>
+            ` : ''}
+            ${profile.preferences?.shift ? `
+              <div>
+                ${svgIcon('clock', '', 15)} <strong>Preferred Shift:</strong> 
+                <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences.shift)}</span>
+              </div>
+            ` : ''}
+            ${(profile.preferences?.expected_salary || profile.expected_salary) ? `
+              <div>
+                ${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> 
+                <span style="color: #ff9d42; font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.expected_salary || profile.expected_salary)}</span>
+              </div>
+            ` : ''}
+            ${(profile.preferences?.preferred_location || (profile.preferences?.locations && profile.preferences.locations.length > 0) || profile.location) ? `
+              <div>
+                ${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> 
+                <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences?.preferred_location || (profile.preferences?.locations || []).join(', ') || profile.location)}</span>
+              </div>
+            ` : ''}
             ${profile.preferences?.notice_period ? `
               <div>
                 ${svgIcon('clock', '', 15)} <strong>Notice Period:</strong> 
                 <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences.notice_period)}</span>
               </div>
+            ` : ''}
+            ${(!profile.department && !profile.preferences?.department && !profile.preferences?.desired_role && !profile.designation && !profile.current_position && !profile.preferences?.shift && !profile.preferences?.expected_salary && !profile.expected_salary && !profile.preferences?.preferred_location && (!profile.preferences?.locations || profile.preferences.locations.length === 0) && !profile.location && !profile.preferences?.notice_period) ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem; padding: 4px 0;">No job preferences specified yet. Click edit to set them.</div>
             ` : ''}
           </div>
         </div>
@@ -16600,9 +16608,11 @@ async function openCandidateReviewModal(appId) {
                           </span>
                         ` : ''}
                       </div>
-                      <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600; margin-top: 1px;">
-                        ${escapeHtml(app.candidate_headline || 'Hospitality Professional')}
-                      </div>
+                      ${app.candidate_headline ? `
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600; margin-top: 1px;">
+                          ${escapeHtml(app.candidate_headline)}
+                        </div>
+                      ` : ''}
                       <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 0.78rem;">
                         <a href="tel:${escapeHtml(app.candidate_phone)}" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px;">
                           ${svgIcon('phone', '', 12)} ${escapeHtml(app.candidate_phone)}
@@ -19581,13 +19591,94 @@ async function handleSaveBusinessProfile(event, bizId) {
 
 const createJobState = {
   isNegotiable: false,
-  selectedDegrees: ["Diploma in Hospitality & Tourism Management"],
-  degreeField: "Hospitality Management",
-  selectedSkills: ["Opera PMS", "Guest Relations", "Customer Satisfaction (CSAT)"],
+  selectedDegrees: [],
+  degreeField: '',
+  selectedSkills: [],
   customSkillsPool: [],
   skillSearchQuery: '',
+  selectedBenefits: [],
+  customBenefitsPool: [],
+  benefitSearchQuery: '',
   screeningQuestions: []
 };
+
+function filterJobBenefits(query) {
+  createJobState.benefitSearchQuery = query;
+  updateJobBenefitsUI();
+}
+
+function toggleJobBenefitSelection(benefit) {
+  const idx = createJobState.selectedBenefits.indexOf(benefit);
+  if (idx > -1) {
+    createJobState.selectedBenefits.splice(idx, 1);
+  } else {
+    createJobState.selectedBenefits.unshift(benefit);
+  }
+  updateJobBenefitsUI();
+}
+
+function addCustomJobBenefit(benefit) {
+  const input = document.getElementById('input-job-benefit-search');
+  const val = benefit || (input ? input.value : '');
+  if (!val) return;
+  const trimmed = val.trim();
+  if (trimmed) {
+    if (!createJobState.customBenefitsPool.some(b => b.toLowerCase() === trimmed.toLowerCase()) &&
+        !HOTEL_BENEFITS_SCHEMA.some(b => b.toLowerCase() === trimmed.toLowerCase())) {
+      createJobState.customBenefitsPool.push(trimmed);
+    }
+    const idx = createJobState.selectedBenefits.indexOf(trimmed);
+    if (idx > -1) createJobState.selectedBenefits.splice(idx, 1);
+    createJobState.selectedBenefits.unshift(trimmed);
+    createJobState.benefitSearchQuery = '';
+    if (input) input.value = '';
+    showToast(`Added "${trimmed}" to job benefits & perks`, 'success');
+    updateJobBenefitsUI();
+  }
+}
+
+function updateJobBenefitsUI() {
+  const q = (createJobState.benefitSearchQuery || '').toLowerCase().trim();
+  const allPool = Array.from(new Set([...(createJobState.customBenefitsPool || []), ...HOTEL_BENEFITS_SCHEMA]));
+  const hasExactMatch = q && allPool.some(b => b.toLowerCase() === q);
+
+  const chipContainer = document.getElementById('job-benefit-add-chip-container');
+  if (chipContainer) {
+    if (q && !hasExactMatch) {
+      chipContainer.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomJobBenefit('${createJobState.benefitSearchQuery.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${createJobState.benefitSearchQuery}" to job benefits & perks
+        </div>
+      `;
+    } else {
+      chipContainer.innerHTML = '';
+    }
+  }
+
+  const pool = document.getElementById('job-benefits-pool');
+  if (pool) {
+    const selectedStack = (createJobState.selectedBenefits || []).filter(b => !q || b.toLowerCase().includes(q));
+    const unselectedPool = allPool.filter(b => !createJobState.selectedBenefits.includes(b)).filter(b => !q || b.toLowerCase().includes(q));
+
+    pool.innerHTML = [
+      ...selectedStack.map(b => `
+        <span class="schema-pill-item selected" onclick="toggleJobBenefitSelection('${b.replace(/'/g, "\\'")}')" title="Click to unselect">
+          ✓ ${b}
+        </span>
+      `),
+      ...unselectedPool.map(b => `
+        <span class="schema-pill-item" onclick="toggleJobBenefitSelection('${b.replace(/'/g, "\\'")}')" title="Click to select">
+          + ${b}
+        </span>
+      `)
+    ].join('');
+  }
+}
+
+window.filterJobBenefits = filterJobBenefits;
+window.toggleJobBenefitSelection = toggleJobBenefitSelection;
+window.addCustomJobBenefit = addCustomJobBenefit;
+window.updateJobBenefitsUI = updateJobBenefitsUI;
 
 function handleJobPostDepartmentChange(dept) {
   const titleSelect = document.getElementById('create-job-title');
@@ -19982,6 +20073,9 @@ async function openCreateJobModal() {
   createJobState.selectedSkills = [];
   createJobState.customSkillsPool = [];
   createJobState.skillSearchQuery = '';
+  createJobState.selectedBenefits = [];
+  createJobState.customBenefitsPool = [];
+  createJobState.benefitSearchQuery = '';
 
   const container = document.getElementById('modal-container');
   container.innerHTML = `
@@ -20167,6 +20261,49 @@ async function openCreateJobModal() {
               </div>
             </div>
 
+            <!-- Hospitality Benefits & Perks Schema Selection -->
+            <div class="schema-box-wrapper" style="margin-bottom: 0;">
+              <div style="margin-bottom: 8px;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 2px;">
+                  Hospitality Benefits &amp; Perks (Optional)
+                </label>
+                <div style="font-size: 0.78rem; color: var(--text-dim);">Select or type specific employee benefits provided for this position (e.g. Service Charge, Meals, Accommodation, Bonuses). Only selected benefits will be displayed.</div>
+              </div>
+
+              <!-- Single Search Input with Enter to Add -->
+              <input type="text" class="schema-search-input" id="input-job-benefit-search" 
+                placeholder="Type benefit (e.g. Service Charge, Duty Meals, Health Insurance) and press Enter to add..." 
+                value="${createJobState.benefitSearchQuery || ''}" 
+                oninput="filterJobBenefits(this.value)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomJobBenefit(this.value);}">
+
+              <!-- Dynamic Add Chip -->
+              <div id="job-benefit-add-chip-container"></div>
+
+              <!-- Filterable Benefits Pool with Selected Stack at Top -->
+              <div class="schema-pills-pool" id="job-benefits-pool" style="max-height: 180px;">
+                ${(() => {
+                  const q = (createJobState.benefitSearchQuery || '').toLowerCase().trim();
+                  const allPool = Array.from(new Set([...(createJobState.customBenefitsPool || []), ...HOTEL_BENEFITS_SCHEMA]));
+                  const selectedStack = (createJobState.selectedBenefits || []).filter(b => !q || b.toLowerCase().includes(q));
+                  const unselectedPool = allPool.filter(b => !createJobState.selectedBenefits.includes(b)).filter(b => !q || b.toLowerCase().includes(q));
+
+                  return [
+                    ...selectedStack.map(b => `
+                      <span class="schema-pill-item selected" onclick="toggleJobBenefitSelection('${b.replace(/'/g, "\\'")}')" title="Click to unselect">
+                        ✓ ${b}
+                      </span>
+                    `),
+                    ...unselectedPool.map(b => `
+                      <span class="schema-pill-item" onclick="toggleJobBenefitSelection('${b.replace(/'/g, "\\'")}')" title="Click to select">
+                        + ${b}
+                      </span>
+                    `)
+                  ].join('');
+                })()}
+              </div>
+            </div>
+
             <!-- Role Description -->
             <div>
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
@@ -20220,6 +20357,7 @@ async function openCreateJobModal() {
   // Initialize screening questions state array
   createJobState.screeningQuestions = [];
   updateJobDegreesUI();
+  updateJobBenefitsUI();
   renderScreeningQuestions();
 }
 
@@ -20250,6 +20388,11 @@ async function submitNewJob(event) {
 
   const propertyLoc = bizObj ? (bizObj.address ? `${bizObj.address}, ${bizObj.city || ''}` : (bizObj.city || '')) : '';
 
+  const selectedB = createJobState.selectedBenefits || [];
+  const hasServiceCharge = selectedB.some(b => b.toLowerCase().includes('service charge'));
+  const hasAccommodation = selectedB.some(b => b.toLowerCase().includes('accommodation') || b.toLowerCase().includes('housing'));
+  const hasDutyMeals = selectedB.some(b => b.toLowerCase().includes('meal'));
+
   const payload = {
     business_id: bId,
     title: form.title.value.trim(),
@@ -20261,14 +20404,15 @@ async function submitNewJob(event) {
     salary_min: createJobState.isNegotiable ? 0 : (parseInt(form.salary_min?.value) || 0),
     salary_max: createJobState.isNegotiable ? 0 : (parseInt(form.salary_max?.value) || 0),
     salary_period: createJobState.isNegotiable ? 'negotiable' : 'month',
-    service_charge_included: false,
-    accommodation_provided: false,
-    duty_meals_provided: false,
+    service_charge_included: hasServiceCharge,
+    accommodation_provided: hasAccommodation,
+    duty_meals_provided: hasDutyMeals,
     experience_level: form.experience_level.value,
     vacancies: 1,
     description: form.description.value.trim(),
     education_requirements: eduReqs,
     skill_requirements: createJobState.selectedSkills,
+    benefits: selectedB,
     screening_questions: (createJobState.screeningQuestions || [])
       .filter(q => q && q.q && q.q.trim())
       .map(q => ({

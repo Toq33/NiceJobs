@@ -437,6 +437,136 @@ class TestNiceJobsAPI(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_job_post_benefits_explicit_and_empty_isolation(self):
+        """Verifies job post benefits: only user-inputted benefits appear, and empty benefits are NOT auto-injected."""
+        import database
+        import uuid
+
+        suffix = uuid.uuid4().hex[:6]
+        biz_id = f"biz_test_{suffix}"
+        user_id = f"user_biz_test_{suffix}"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO businesses (id, legal_name, brand_name, property_type, verification_status, city, address)
+            VALUES (?, ?, ?, ?, 'verified', 'Dhaka', 'Gulshan 2, Dhaka')
+        """, (biz_id, f"Test Hospitality {suffix}", f"Test Resort {suffix}", "Luxury Hotel"))
+        cursor.execute("""
+            INSERT INTO users (id, name, email, phone, role, status, is_business_admin)
+            VALUES (?, ?, ?, ?, 'recruiter', 'active', 1)
+        """, (user_id, "Test Recruiter", f"rec_{suffix}@test.com", f"01711{suffix[:6]}"))
+        cursor.execute("""
+            INSERT INTO business_memberships (id, business_id, user_id, org_role, approval_status)
+            VALUES (?, ?, ?, 'HR Director', 'approved')
+        """, (f"mem_{suffix}", biz_id, user_id))
+        conn.commit()
+        conn.close()
+
+        # 1. Create Job with custom benefits
+        custom_benefits = ["Festival Bonus (2x Yearly)", "Daily Cash Tips / Gratuity Payout"]
+        resp1 = self.client.post("/api/jobs", json={
+            "business_id": biz_id,
+            "title": "Front Desk Associate",
+            "department": "Front Office",
+            "property_location": "Gulshan 2, Dhaka",
+            "shift": "Morning Shift",
+            "employment_type": "Full-time",
+            "experience_level": "1-2 Years",
+            "description": "Handle VIP guest arrivals and check-ins.",
+            "benefits": custom_benefits,
+            "deadline": "2026-12-31"
+        })
+        self.assertEqual(resp1.status_code, 200)
+        job1_id = resp1.json()["job_id"]
+
+        # 2. Create Job with NO benefits
+        resp2 = self.client.post("/api/jobs", json={
+            "business_id": biz_id,
+            "title": "Night Auditor",
+            "department": "Finance & Accounts",
+            "property_location": "Gulshan 2, Dhaka",
+            "shift": "Night Shift",
+            "employment_type": "Full-time",
+            "experience_level": "3-5 Years",
+            "description": "Audit daily revenue and register guest accounts.",
+            "benefits": [],
+            "deadline": "2026-12-31"
+        })
+        self.assertEqual(resp2.status_code, 200)
+        job2_id = resp2.json()["job_id"]
+
+        # 3. Retrieve Job 1 detail: MUST only have the 2 explicit benefits
+        detail1 = self.client.get(f"/api/jobs/{job1_id}").json()
+        self.assertEqual(detail1["benefits"], custom_benefits)
+        self.assertNotIn("Comprehensive Health & Medical Insurance", detail1["benefits"])
+
+        # 4. Retrieve Job 2 detail: MUST be empty list, NO auto-injected benefits
+        detail2 = self.client.get(f"/api/jobs/{job2_id}").json()
+        self.assertEqual(detail2["benefits"], [])
+        self.assertNotIn("Comprehensive Health & Medical Insurance", detail2["benefits"])
+
+        # 5. Retrieve Jobs Feed: Job 2 must remain empty list
+        feed_resp = self.client.get("/api/jobs")
+        self.assertEqual(feed_resp.status_code, 200)
+        feed_jobs = {j["id"]: j for j in feed_resp.json()}
+        if job2_id in feed_jobs:
+            self.assertEqual(feed_jobs[job2_id]["benefits"], [])
+        if job1_id in feed_jobs:
+            self.assertEqual(feed_jobs[job1_id]["benefits"], custom_benefits)
+
+        # Cleanup
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM jobs WHERE id IN (?, ?)", (job1_id, job2_id))
+        cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (biz_id,))
+        cursor.execute("DELETE FROM businesses WHERE id = ?", (biz_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+    def test_candidate_profile_unentered_data_not_injected(self):
+        """Verifies candidate profile has no dummy/unentered data injected by the system."""
+        import database
+        import uuid
+
+        suffix = uuid.uuid4().hex[:6]
+        user_id = f"user_cand_{suffix}"
+        test_email = f"clean_cand_{suffix}@test.com"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (id, name, email, phone, role, status, terms_accepted, profile_completed)
+            VALUES (?, ?, ?, ?, 'jobseeker', 'active', 1, 1)
+        """, (user_id, "Clean Candidate", test_email, f"01712{suffix[:6]}"))
+        cursor.execute("""
+            INSERT INTO employee_profiles (user_id, headline, summary, location, preferences, skills, education, experience)
+            VALUES (?, '', '', '', '{}', '[]', '[]', '[]')
+        """, (user_id,))
+        conn.commit()
+        conn.close()
+
+        # Retrieve profile
+        prof_resp = self.client.get(f"/api/profile?user_id={user_id}")
+        self.assertEqual(prof_resp.status_code, 200)
+        prof = prof_resp.json()
+
+        # Verify no fake dummy fallbacks are present
+        self.assertEqual(prof.get("department", ""), "")
+        self.assertEqual(prof.get("phone_secondary", ""), "")
+        self.assertEqual(prof.get("location", ""), "")
+        self.assertNotEqual(prof.get("department"), "Front Office & Guest Services")
+        self.assertNotEqual(prof.get("location"), "Dhaka, Bangladesh")
+
+        # Cleanup
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 
