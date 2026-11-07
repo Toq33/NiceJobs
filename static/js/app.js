@@ -3931,6 +3931,12 @@ async function renderApp() {
     document.body.classList.remove('screen-inbox');
   }
 
+  if (screen === 'admin' || screen === 'admin-login') {
+    document.body.classList.add('screen-admin');
+  } else {
+    document.body.classList.remove('screen-admin');
+  }
+
   if (screen === 'home') {
     await renderHomeScreen(viewport);
   } else if (screen === 'job-details') {
@@ -7313,8 +7319,7 @@ async function renderAdminScreen(viewport) {
                   <th>User Profile</th>
                   <th>Role & Designation</th>
                   <th>Contact</th>
-                  <th>Status</th>
-                  <th>Blog Access</th>
+                  <th>Status & Permissions</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
@@ -7325,7 +7330,7 @@ async function renderAdminScreen(viewport) {
                       <div class="admin-user-cell">
                         <img src="${u.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${u.name}">
                         <div style="min-width: 0;">
-                          <strong class="admin-cell-name" style="color: var(--white);">${u.name}</strong>
+                          <strong class="admin-cell-name" style="color: var(--white); font-size: 0.88rem;">${u.name}</strong>
                           <div class="admin-cell-sub">${u.id}</div>
                         </div>
                       </div>
@@ -7344,32 +7349,32 @@ async function renderAdminScreen(viewport) {
                       ` : ''}
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white); font-size: 0.82rem; white-space: nowrap;">+88 ${u.phone}</div>
-                      <div class="admin-cell-text" style="font-size: 0.76rem; color: var(--text-dim);" title="${u.email}">${u.email}</div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.80rem; white-space: nowrap;">+88 ${u.phone}</div>
+                      <div class="admin-cell-text" style="font-size: 0.75rem; color: var(--text-dim); margin-top: 2px;" title="${u.email}">${u.email}</div>
                     </td>
                     <td>
-                      <span class="status-pill status-${u.status === 'active' ? 'interview_scheduled' : (u.status === 'suspended' ? 'rejected' : 'under_review')}">
-                        ${u.status}
-                      </span>
-                    </td>
-                    <td>
-                      ${u.role === 'admin' ? `
-                        <span class="badge-count" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
-                          ${svgIcon('shield_check', '', 12)} Admin Author
+                      <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-start;">
+                        <span class="status-pill status-${u.status === 'active' ? 'interview_scheduled' : (u.status === 'suspended' ? 'rejected' : 'under_review')}">
+                          ${u.status}
                         </span>
-                      ` : `
-                        <button 
-                          class="admin-btn-action" 
-                          style="${u.can_post_blog ? 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);' : 'background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1);'}"
-                          onclick="handleAdminToggleBlogPermission('${u.id}', ${!u.can_post_blog})"
-                          title="${u.can_post_blog ? 'Revoke blog posting permission' : 'Approve for blog posting'}"
-                        >
-                          ${u.can_post_blog ? `${svgIcon('check', '', 12)} Approved` : `${svgIcon('plus', '', 12)} Allow Blog`}
-                        </button>
-                      `}
+                        ${u.role === 'admin' ? `
+                          <span class="badge-count" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; font-size: 0.70rem; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 6px;">
+                            ${svgIcon('shield_check', '', 11)} Admin Author
+                          </span>
+                        ` : `
+                          <button 
+                            class="admin-btn-action" 
+                            style="font-size: 0.70rem; padding: 2px 6px; ${u.can_post_blog ? 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);' : 'background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1);'}"
+                            onclick="handleAdminToggleBlogPermission('${u.id}', ${!u.can_post_blog})"
+                            title="${u.can_post_blog ? 'Revoke blog posting permission' : 'Approve for blog posting'}"
+                          >
+                            ${u.can_post_blog ? `${svgIcon('check', '', 11)} Blog Author` : `${svgIcon('plus', '', 11)} Allow Blog`}
+                          </button>
+                        `}
+                      </div>
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 5px; align-items: center; justify-content: flex-end;">
+                      <div class="admin-actions-cell">
                         <button class="admin-btn-action btn-view" onclick="openAdminUserProfileModal('${u.id}')" title="View user profile">
                           ${svgIcon('eye', '', 12)} View
                         </button>
@@ -7390,7 +7395,7 @@ async function renderAdminScreen(viewport) {
                             data-user-name="${escapeHtml(u.name || 'User')}"
                             onclick="openAdminDeleteUserModal('${u.id}', '${(u.name || 'User').replace(/['"\\]/g, ' ')}', '${(u.email || '').replace(/['"\\]/g, ' ')}')" 
                             title="Delete user account">
-                            ${svgIcon('trash', '', 14)}
+                            ${svgIcon('trash', '', 13)}
                           </button>
                         `}
                       </div>
@@ -7426,10 +7431,9 @@ async function renderAdminScreen(viewport) {
               <thead>
                 <tr>
                   <th>Job Title & Department</th>
-                  <th>Hotel / Establishment</th>
-                  <th>Salary & Type</th>
-                  <th>Job Posts / Applicants</th>
-                  <th>Status & Highlights</th>
+                  <th>Hotel & Location</th>
+                  <th>Compensation & Type</th>
+                  <th>Status & Applicants</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
@@ -7437,47 +7441,46 @@ async function renderAdminScreen(viewport) {
                 ${filteredJobs.map(j => `
                   <tr>
                     <td>
-                      <strong style="color: var(--white); font-size: 0.92rem;">${j.title}</strong>
-                      <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+                      <strong style="color: var(--white); font-size: 0.90rem;">${j.title}</strong>
+                      <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">
                         ${j.department} • Level: ${j.experience_level}
                       </div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white);">${j.brand_name}</div>
-                      <div style="font-size: 0.76rem; color: var(--text-dim);">${j.property_location}</div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.82rem;">${j.brand_name}</div>
+                      <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 2px;">${j.property_location}</div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white);">${(j.is_negotiable || j.salary_period === 'negotiable' || (!j.salary_min && !j.salary_max)) ? 'BDT Negotiable' : `BDT ${j.salary_min?.toLocaleString()} - ${j.salary_max?.toLocaleString()}`}</div>
-                      <div style="font-size: 0.75rem; color: var(--text-dim);">${j.employment_type} • ${j.shift}</div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.82rem;">${(j.is_negotiable || j.salary_period === 'negotiable' || (!j.salary_min && !j.salary_max)) ? 'BDT Negotiable' : `BDT ${j.salary_min?.toLocaleString()} - ${j.salary_max?.toLocaleString()}`}</div>
+                      <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">${j.employment_type} • ${j.shift}</div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: #a7f3d0;">${j.live_applicants_count || j.applicant_count || 0} applicants</div>
-                      <div style="font-size: 0.75rem; color: var(--text-dim);">${j.vacancies || 1} post</div>
-                    </td>
-                    <td>
-                      <div style="display: flex; flex-direction: column; gap: 4px;">
+                      <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
                         <span class="status-pill status-${j.status === 'active' ? 'interview_scheduled' : (j.status === 'paused' ? 'under_review' : 'rejected')}">
                           ${j.status}
                         </span>
-                        <div style="display: flex; gap: 4px; margin-top: 2px;">
-                          ${j.is_featured ? '<span class="badge-featured" style="font-size: 0.68rem; padding: 2px 6px;">Featured</span>' : ''}
-                          ${j.is_urgent ? '<span class="badge-urgent" style="font-size: 0.68rem; padding: 2px 6px;">Urgent</span>' : ''}
+                        <div style="font-size: 0.74rem; color: #a7f3d0; font-weight: 600;">
+                          ${j.live_applicants_count || j.applicant_count || 0} applicants • ${j.vacancies || 1} post
+                        </div>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                          ${j.is_featured ? '<span class="badge-featured" style="font-size: 0.65rem; padding: 2px 5px;">Featured</span>' : ''}
+                          ${j.is_urgent ? '<span class="badge-urgent" style="font-size: 0.65rem; padding: 2px 5px;">Urgent</span>' : ''}
                         </div>
                       </div>
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px;">
-                        <select class="admin-select-filter" style="height: 28px; font-size: 0.74rem;" 
+                      <div class="admin-actions-cell">
+                        <select class="admin-select-filter" style="height: 28px; font-size: 0.74rem; padding: 0 6px;" 
                           onchange="handleAdminJobStatus('${j.id}', this.value)">
                           <option value="active" ${j.status === 'active' ? 'selected' : ''}>Active</option>
                           <option value="paused" ${j.status === 'paused' ? 'selected' : ''}>Pause</option>
                           <option value="closed" ${j.status === 'closed' ? 'selected' : ''}>Close</option>
                         </select>
                         <button class="admin-btn-action btn-feature" onclick="handleAdminJobFeature('${j.id}', ${!j.is_featured}, ${j.is_urgent})">
-                          ${j.is_featured ? `${svgIcon('starFilled', '', 13)} Unfeature` : `${svgIcon('star', '', 13)} Feature`}
+                          ${j.is_featured ? `${svgIcon('starFilled', '', 12)} Unfeature` : `${svgIcon('star', '', 12)} Feature`}
                         </button>
                         <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteJob('${j.id}', '${(j.title || 'Job Post').replace(/['"\\]/g, ' ')}')">
-                          ${svgIcon('trash', '', 14)}
+                          ${svgIcon('trash', '', 13)}
                         </button>
                       </div>
                     </td>
@@ -7496,11 +7499,9 @@ async function renderAdminScreen(viewport) {
             <table class="admin-table">
               <thead>
                 <tr>
-                  <th>Brand & Legal Name</th>
-                  <th>Location (Segmented)</th>
+                  <th>Hotel Property & Location</th>
                   <th>Official Contact</th>
-                  <th>Designated Admin</th>
-                  <th>Stats (Members / Jobs)</th>
+                  <th>Administration & Team</th>
                   <th>Status</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
@@ -7509,26 +7510,21 @@ async function renderAdminScreen(viewport) {
                 ${businesses.map(b => `
                   <tr>
                     <td>
-                      <strong style="color: var(--white); font-size: 0.95rem;">${b.brand_name}</strong>
-                      <div style="font-size: 0.78rem; color: var(--text-dim);">${b.legal_name} • ${b.property_type}</div>
-                    </td>
-                    <td>
-                      <div style="font-size: 0.82rem; color: var(--white);">
-                        ${b.plot_number ? `Plot ${b.plot_number}, Road ${b.road_number}` : b.address}
+                      <strong style="color: var(--white); font-size: 0.92rem;">${b.brand_name}</strong>
+                      <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">${b.legal_name} • ${b.property_type}</div>
+                      <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                        ${b.plot_number ? `Plot ${b.plot_number}, Road ${b.road_number}, ` : ''}${b.thana_upazila ? b.thana_upazila + ', ' : ''}${b.district || b.city}
                       </div>
-                      <div style="font-size: 0.75rem; color: var(--text-dim);">${b.thana_upazila || ''}, ${b.district || b.city}</div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white); font-size: 0.8rem;">${b.email}</div>
-                      <div style="font-size: 0.74rem; color: var(--orange-primary);"><a href="${b.website ? (b.website.startsWith('http') ? b.website : 'https://' + b.website) : '#'}" target="_blank" style="color: inherit;">${b.website || 'No website'}</a></div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.80rem;">${b.email}</div>
+                      <div style="font-size: 0.74rem; color: var(--orange-primary); margin-top: 2px;">
+                        <a href="${b.website ? (b.website.startsWith('http') ? b.website : 'https://' + b.website) : '#'}" target="_blank" style="color: inherit;">${b.website || 'No website'}</a>
+                      </div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: #fdba74;">${svgIcon('award', '', 13)} ${b.admin_name || 'Designated Admin'}</div>
-                      <div style="font-size: 0.74rem; color: var(--text-dim);">${b.admin_email || ''}</div>
-                    </td>
-                    <td>
-                      <div style="font-weight: 700; color: var(--white);">${b.member_count || 1} team members</div>
-                      <div style="font-size: 0.75rem; color: var(--text-dim);">${b.job_count || 0} job posts</div>
+                      <div style="font-weight: 700; color: #fdba74; font-size: 0.80rem;">${svgIcon('award', '', 12)} ${b.admin_name || 'Designated Admin'}</div>
+                      <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">${b.member_count || 1} team members • ${b.job_count || 0} job posts</div>
                     </td>
                     <td>
                       <span class="status-pill status-${b.verification_status === 'verified' ? 'interview_scheduled' : (b.verification_status === 'pending' ? 'under_review' : 'rejected')}">
@@ -7536,7 +7532,7 @@ async function renderAdminScreen(viewport) {
                       </span>
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px;">
+                      <div class="admin-actions-cell">
                         ${b.verification_status !== 'verified' ? `
                           <button class="admin-btn-action btn-activate" onclick="handleAdminVerifyBusiness('${b.id}', 'verified')">
                             Accept ✓
@@ -7574,9 +7570,8 @@ async function renderAdminScreen(viewport) {
             <table class="admin-table">
               <thead>
                 <tr>
-                  <th>Applicant</th>
-                  <th>Designation</th>
-                  <th>Target Business</th>
+                  <th>Applicant Profile</th>
+                  <th>Target Hotel & Role</th>
                   <th>Contact Info</th>
                   <th>Status</th>
                   <th style="text-align: right;">Admin Resolution</th>
@@ -7585,7 +7580,7 @@ async function renderAdminScreen(viewport) {
               <tbody>
                 ${moderatorRequests.length === 0 ? `
                   <tr>
-                    <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-dim);">
+                    <td colspan="5" style="text-align: center; padding: 32px; color: var(--text-dim);">
                       No pending moderator join requests currently. All business moderators are approved.
                     </td>
                   </tr>
@@ -7595,36 +7590,33 @@ async function renderAdminScreen(viewport) {
                       <div class="admin-user-cell">
                         <img src="${m.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${m.name}">
                         <div>
-                          <strong style="color: var(--white);">${m.name}</strong>
+                          <strong style="color: var(--white); font-size: 0.88rem;">${m.name}</strong>
                           <div style="font-size: 0.72rem; color: var(--text-dim);">Submitted: ${m.created_at}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: #fdba74;">${m.designation || m.org_role}</div>
-                      <div style="font-size: 0.72rem; color: var(--text-dim);">Role: Moderator</div>
+                      <strong style="color: var(--white); font-size: 0.88rem;">${m.brand_name}</strong>
+                      <div style="font-weight: 700; color: #fdba74; font-size: 0.75rem; margin-top: 2px;">${m.designation || m.org_role}</div>
+                      <div style="font-size: 0.72rem; color: var(--text-dim);">${m.business_email || ''}</div>
                     </td>
                     <td>
-                      <strong style="color: var(--white);">${m.brand_name}</strong>
-                      <div style="font-size: 0.74rem; color: var(--text-dim);">${m.business_email}</div>
+                      <div style="color: var(--orange-primary); font-weight: 700; font-size: 0.80rem;">+88 ${m.phone}</div>
+                      <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">${m.email}</div>
                     </td>
                     <td>
-                      <div style="color: var(--orange-primary); font-weight: 700;">+88 ${m.phone}</div>
-                      <div style="font-size: 0.74rem; color: var(--text-dim);">${m.email}</div>
-                    </td>
-                    <td>
-                      <span class="status-pill status-under_review">Pending Admin Approval</span>
+                      <span class="status-pill status-under_review">Pending Review</span>
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px;">
+                      <div class="admin-actions-cell">
                         <button class="admin-btn-action btn-activate" onclick="handleAdminApproveMember('${m.id}')">
-                          Approve Moderator ✓
+                          Approve ✓
                         </button>
                         <button class="admin-btn-action btn-feature" onclick="handleAdminPromoteMemberAdmin('${m.id}')" title="Promote as primary Business Admin">
-                          ${svgIcon('award', '', 13)} Make Admin
+                          ${svgIcon('award', '', 12)} Admin
                         </button>
                         <button class="admin-btn-action btn-suspend" onclick="handleAdminRejectMember('${m.id}')">
-                          Decline ${svgIcon('x', '', 13)}
+                          Decline ${svgIcon('x', '', 12)}
                         </button>
                       </div>
                     </td>
@@ -7645,8 +7637,7 @@ async function renderAdminScreen(viewport) {
                 <tr>
                   <th>Business Establishment</th>
                   <th>License Type & Number</th>
-                  <th>Submitted By</th>
-                  <th>Date</th>
+                  <th>Submission Details</th>
                   <th>Status</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
@@ -7655,18 +7646,16 @@ async function renderAdminScreen(viewport) {
                 ${verifications.map(v => `
                   <tr>
                     <td>
-                      <strong style="color: var(--white);">${v.brand_name}</strong>
-                      <div style="font-size: 0.76rem; color: var(--text-dim);">${v.legal_name} • ${v.city}</div>
+                      <strong style="color: var(--white); font-size: 0.90rem;">${v.brand_name}</strong>
+                      <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">${v.legal_name} • ${v.city}</div>
                     </td>
                     <td>
-                      <div style="font-weight: 700; color: var(--white);">${svgIcon('fileText', '', 14)} ${v.legal_doc_type}</div>
-                      <div style="font-size: 0.76rem; color: var(--text-dim);">${v.doc_number}</div>
+                      <div style="font-weight: 700; color: var(--white); font-size: 0.80rem;">${svgIcon('fileText', '', 13)} ${v.legal_doc_type}</div>
+                      <div style="font-size: 0.75rem; color: var(--text-dim); font-family: monospace; margin-top: 2px;">${v.doc_number}</div>
                     </td>
                     <td>
-                      <div style="color: var(--white);">${v.submitted_by}</div>
-                    </td>
-                    <td>
-                      <div style="font-size: 0.76rem; color: var(--text-dim);">${v.submitted_at}</div>
+                      <div style="color: var(--white); font-size: 0.80rem;">${v.submitted_by}</div>
+                      <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">${v.submitted_at}</div>
                     </td>
                     <td>
                       <span class="status-pill status-${v.status === 'approved' ? 'interview_scheduled' : (v.status === 'pending' ? 'under_review' : 'rejected')}">
@@ -7674,12 +7663,12 @@ async function renderAdminScreen(viewport) {
                       </span>
                     </td>
                     <td style="text-align: right;">
-                      <div style="display: inline-flex; gap: 6px;">
+                      <div class="admin-actions-cell">
                         ${v.status === 'pending' ? `
                           <button class="admin-btn-action btn-activate" onclick="reviewVerification('${v.id}', 'approved')">Approve ✓</button>
-                          <button class="admin-btn-action btn-suspend" onclick="reviewVerification('${v.id}', 'rejected')">Reject ${svgIcon('x', '', 13)}</button>
+                          <button class="admin-btn-action btn-suspend" onclick="reviewVerification('${v.id}', 'rejected')">Reject ${svgIcon('x', '', 12)}</button>
                         ` : `
-                          <span style="font-size: 0.75rem; color: var(--text-dim);">Reviewed by ${v.reviewed_by}</span>
+                          <span style="font-size: 0.74rem; color: var(--text-dim);">Reviewed by ${v.reviewed_by}</span>
                         `}
                       </div>
                     </td>
@@ -8396,20 +8385,22 @@ function renderAdminDbQueryResults(res) {
     return `<div style="padding: 20px; text-align: center; color: var(--text-dim); font-size: 0.85rem;">No results returned.</div>`;
   }
   return `
-    <table class="admin-table" style="font-size: 0.8rem; font-family: monospace;">
-      <thead>
-        <tr>
-          ${res.columns.map(col => `<th>${col}</th>`).join('')}
-        </tr>
-      </thead>
-      <tbody>
-        ${res.rows.map(row => `
+    <div class="admin-table-scroll" style="max-height: 400px; overflow-y: auto;">
+      <table class="admin-table" style="font-size: 0.78rem; font-family: monospace;">
+        <thead>
           <tr>
-            ${row.map(val => `<td style="white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis;" title="${(val || '').replace(/"/g, '&quot;')}">${val}</td>`).join('')}
+            ${res.columns.map(col => `<th>${col}</th>`).join('')}
           </tr>
-        `).join('')}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          ${res.rows.map(row => `
+            <tr>
+              ${row.map(val => `<td style="word-break: break-all; max-width: 220px;" title="${(val || '').replace(/"/g, '&quot;')}">${val}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 window.renderAdminDbQueryResults = renderAdminDbQueryResults;
