@@ -79,11 +79,13 @@ CREATE TABLE IF NOT EXISTS email_logs (
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
+    first_name TEXT DEFAULT '',
+    middle_name TEXT DEFAULT '',
+    last_name TEXT DEFAULT '',
+    name_bangla TEXT DEFAULT '',
+    email TEXT NOT NULL,
     phone TEXT NOT NULL,
     role TEXT NOT NULL,
-    avatar_url TEXT,
-    created_at TEXT,
     password TEXT DEFAULT 'Password123!',
     dob TEXT DEFAULT '',
     nid_passport TEXT DEFAULT '',
@@ -91,7 +93,14 @@ CREATE TABLE IF NOT EXISTS users (
     status TEXT DEFAULT 'active',
     is_business_admin INTEGER DEFAULT 0,
     is_demo INTEGER DEFAULT 0,
-    can_post_blog INTEGER DEFAULT 0
+    avatar_url TEXT,
+    created_at TEXT,
+    can_post_blog INTEGER DEFAULT 0,
+    terms_accepted INTEGER DEFAULT 1,
+    terms_accepted_at TEXT DEFAULT '',
+    profile_completed INTEGER DEFAULT 1,
+    onboarding_status TEXT DEFAULT 'completed',
+    CONSTRAINT users_email_role_key UNIQUE (email, role)
 );
 
 -- 7. Employee Profiles
@@ -114,6 +123,10 @@ CREATE TABLE IF NOT EXISTS employee_profiles (
     cv_updated_at TEXT,
     profile_completion INTEGER DEFAULT 85,
     cv_list TEXT,
+    first_name TEXT DEFAULT '',
+    middle_name TEXT DEFAULT '',
+    last_name TEXT DEFAULT '',
+    name_bangla TEXT DEFAULT '',
     dob TEXT DEFAULT '',
     nid_passport TEXT DEFAULT '',
     cv_url TEXT DEFAULT '',
@@ -208,6 +221,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     requirements TEXT NOT NULL,
     education_requirements TEXT DEFAULT '[]',
     skill_requirements TEXT DEFAULT '[]',
+    benefits TEXT DEFAULT '[]',
     is_negotiable INTEGER DEFAULT 0,
     screening_questions TEXT,
     status TEXT DEFAULT 'active',
@@ -296,6 +310,9 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     is_action_prompt INTEGER DEFAULT 0,
     timestamp TEXT,
+    status TEXT DEFAULT 'sent',
+    delivered_at TEXT,
+    read_at TEXT,
     is_demo INTEGER DEFAULT 0,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );
@@ -315,15 +332,24 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_users_email_role ON users(email, role);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role, status);
+CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses(email);
+CREATE INDEX IF NOT EXISTS idx_businesses_verif ON businesses(verification_status);
+CREATE INDEX IF NOT EXISTS idx_businesses_city ON businesses(city);
+CREATE INDEX IF NOT EXISTS idx_biz_members_biz_user ON business_memberships(business_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_biz_members_user ON business_memberships(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_business_id ON jobs(business_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_dept ON jobs(department, status);
 CREATE INDEX IF NOT EXISTS idx_applications_job_id ON applications(job_id);
 CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_business_id ON conversations(business_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_business_memberships_user_id ON business_memberships(user_id);
+CREATE INDEX IF NOT EXISTS idx_blogs_slug ON blogs(slug);
 """
 
 # Tables in strict foreign-key dependency order for migration

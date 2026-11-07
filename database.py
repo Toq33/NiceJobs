@@ -336,8 +336,13 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Schema definition based on Product Scope & Workflows doc
+    # Unified schema definition with complete modern columns and cascade rules
     cursor.executescript("""
+    CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -391,7 +396,7 @@ def init_db():
         dob TEXT DEFAULT '',
         nid_passport TEXT DEFAULT '',
         cv_url TEXT DEFAULT '',
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS otp_verifications (
@@ -447,8 +452,8 @@ def init_db():
         approval_status TEXT DEFAULT 'approved',
         approved_by TEXT DEFAULT '',
         approved_at TEXT DEFAULT '',
-        FOREIGN KEY (business_id) REFERENCES businesses(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
@@ -482,7 +487,7 @@ def init_db():
         posted_at TEXT,
         applicant_count INTEGER DEFAULT 0,
         is_demo INTEGER DEFAULT 0,
-        FOREIGN KEY (business_id) REFERENCES businesses(id)
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS applications (
@@ -500,8 +505,8 @@ def init_db():
         interview_time TEXT,
         interview_notes TEXT,
         is_demo INTEGER DEFAULT 0,
-        FOREIGN KEY (job_id) REFERENCES jobs(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS application_events (
@@ -511,7 +516,7 @@ def init_db():
         actor_name TEXT NOT NULL,
         note TEXT,
         timestamp TEXT,
-        FOREIGN KEY (application_id) REFERENCES applications(id)
+        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS conversations (
@@ -524,8 +529,8 @@ def init_db():
         unread_for_user INTEGER DEFAULT 0,
         unread_for_business INTEGER DEFAULT 0,
         is_demo INTEGER DEFAULT 0,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (business_id) REFERENCES businesses(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -541,21 +546,25 @@ def init_db():
         delivered_at TEXT,
         read_at TEXT,
         is_demo INTEGER DEFAULT 0,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS saved_jobs (
         user_id TEXT NOT NULL,
         job_id TEXT NOT NULL,
         saved_at TEXT,
-        PRIMARY KEY (user_id, job_id)
+        PRIMARY KEY (user_id, job_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS followed_businesses (
         user_id TEXT NOT NULL,
         business_id TEXT NOT NULL,
         followed_at TEXT,
-        PRIMARY KEY (user_id, business_id)
+        PRIMARY KEY (user_id, business_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS notifications (
@@ -567,7 +576,8 @@ def init_db():
         link TEXT,
         is_read INTEGER DEFAULT 0,
         timestamp TEXT,
-        is_demo INTEGER DEFAULT 0
+        is_demo INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS email_logs (
@@ -592,7 +602,7 @@ def init_db():
         reviewed_by TEXT,
         review_comments TEXT,
         issuing_authority TEXT DEFAULT '',
-        FOREIGN KEY (business_id) REFERENCES businesses(id)
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS moderation_reports (
@@ -859,12 +869,6 @@ def init_db():
             except Exception:
                 pass
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS system_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );
-    """)
     cursor.execute("INSERT INTO system_settings (key, value) VALUES ('demo_data_hidden', '0') ON CONFLICT (key) DO NOTHING")
 
     cursor.execute("UPDATE users SET is_business_admin = 1 WHERE role = 'recruiter'")
