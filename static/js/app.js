@@ -10806,9 +10806,20 @@ function renderSignupPage(viewport) {
 
               <!-- Bio -->
               <div class="auth-field">
-                <label class="auth-label">Professional Bio</label>
-                <textarea id="cand-bio" class="auth-input" rows="2" required 
-                  placeholder="Write a brief professional summary of your hospitality background and key skills...">${signupState.bio || ''}</textarea>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                  <label class="auth-label" style="margin-bottom: 0;">Professional Bio</label>
+                  <span id="cand-bio-word-count" style="font-size: 0.76rem; color: var(--text-dim);">
+                    ${(() => {
+                      const words = (signupState.bio || '').trim().match(/\S+/g);
+                      const count = words ? words.length : 0;
+                      return `${count} / 100 words`;
+                    })()}
+                  </span>
+                </div>
+                <textarea id="cand-bio" class="auth-input" rows="3" required 
+                  oninput="handleCandidateBioInput(this)"
+                  placeholder="Write a brief professional summary of your hospitality background and key skills (maximum 100 words)...">${escapeHtml(signupState.bio || '')}</textarea>
+                <p style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">Maximum 100 words. Highlight your hotel department, guest service philosophy, and core hospitality strengths.</p>
               </div>
 
               <!-- Main CV Upload (Drag and Drop + Device Browse) -->
@@ -10828,7 +10839,7 @@ function renderSignupPage(viewport) {
                 ${signupState.cv_name ? `
                   <div class="cv-uploaded-badge" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between;">
                     <span>✓ CV Attached: <strong>${signupState.cv_name}</strong></span>
-                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}', signupState.cv_data || signupState.cv_url)">Preview CV</button>
+                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
                   </div>
                 ` : ''}
               </div>
@@ -11996,13 +12007,50 @@ function updateCvDropzoneDOM() {
     }
     badge.innerHTML = `
       <span>✓ CV Attached: <strong>${escapeHtml(signupState.cv_name)}</strong></span>
-      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateCvModal('${(signupState.cv_name).replace(/'/g, "\\'")}', '${(signupState.cv_name).replace(/'/g, "\\'")}', signupState.cv_data || signupState.cv_url)">Preview CV</button>
+      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
     `;
   } else if (badge) {
     badge.remove();
   }
 }
 window.updateCvDropzoneDOM = updateCvDropzoneDOM;
+
+function countWords(str) {
+  if (!str) return 0;
+  const matches = (str || '').trim().match(/\S+/g);
+  return matches ? matches.length : 0;
+}
+window.countWords = countWords;
+
+function handleCandidateBioInput(el) {
+  if (!el) return;
+  const count = countWords(el.value);
+  const counter = document.getElementById('cand-bio-word-count');
+  if (counter) {
+    counter.textContent = `${count} / 100 words`;
+    if (count > 100) {
+      counter.style.color = '#f87171';
+      counter.style.fontWeight = '700';
+    } else {
+      counter.style.color = 'var(--text-dim)';
+      counter.style.fontWeight = 'normal';
+    }
+  }
+  signupState.bio = el.value;
+}
+window.handleCandidateBioInput = handleCandidateBioInput;
+
+function previewCandidateSignupCv() {
+  captureCurrentSignupInputs();
+  const name = signupState.cv_name || 'Hospitality_CV.pdf';
+  const data = signupState.cv_data || signupState.cv_url || '';
+  if (!data) {
+    showToast('Please upload or select a CV document first.', 'warning');
+    return;
+  }
+  previewCandidateCvModal(name, name, data);
+}
+window.previewCandidateSignupCv = previewCandidateSignupCv;
 
 function handleCvFileSelected(event) {
   const file = event.target?.files?.[0];
@@ -13684,6 +13732,12 @@ async function handleCandidateCompleteProfile(event) {
   const bio = (document.getElementById('cand-bio')?.value || signupState.bio || '').trim();
   if (!bio) {
     showToast('Please enter a brief professional bio.', 'warning');
+    document.getElementById('cand-bio')?.focus();
+    return;
+  }
+  const bioWordCount = countWords(bio);
+  if (bioWordCount > 100) {
+    showToast(`Candidate bio exceeds 100 words limit (currently ${bioWordCount} words). Please shorten your bio.`, 'warning');
     document.getElementById('cand-bio')?.focus();
     return;
   }
@@ -16783,8 +16837,9 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
       cvId = foundCv.id;
     }
     if (!fileData) {
-      if (signupState && signupState.cv_name === cvName) {
+      if (signupState && (signupState.cv_data || signupState.cv_url)) {
         fileData = signupState.cv_data || signupState.cv_url;
+        name = signupState.cv_name || name;
       } else if (state.profile?.cv_name === cvName || !cvIdentifierOrData) {
         fileData = state.profile?.cv_url || (cvList[0]?.file_data);
         cvId = cvList[0]?.id;
@@ -16796,7 +16851,14 @@ function previewCandidateCvModal(cvTitle, cvName, cvIdentifierOrData) {
   let viewUrl = '';
   let downloadUrl = '';
 
-  if (uId && (cvId || name)) {
+  // Priority 1: In-memory document data (data URL or blob: from newly uploaded document or signupState)
+  if (fileData && (fileData.startsWith('data:') || fileData.startsWith('blob:'))) {
+    viewUrl = getResolvedCvBlobUrl(fileData, name);
+    downloadUrl = viewUrl;
+  } else if (fileData && (fileData.startsWith('http://') || fileData.startsWith('https://') || fileData.startsWith('/api/'))) {
+    viewUrl = fileData;
+    downloadUrl = fileData;
+  } else if (uId && (cvId || name)) {
     const qParams = cvId ? `cv_id=${encodeURIComponent(cvId)}` : `cv_name=${encodeURIComponent(name)}`;
     viewUrl = `/api/profile/cv-file?user_id=${encodeURIComponent(uId)}&${qParams}`;
     downloadUrl = `/api/profile/cv-file?user_id=${encodeURIComponent(uId)}&${qParams}&download=1`;
@@ -16865,9 +16927,14 @@ function openEditSummaryModal() {
         <form onsubmit="handleSaveSummaryModal(event)">
           <div class="modal-body">
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Summary</label>
-              <textarea id="edit-summary-text" rows="5" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.6;">${currentSummary}</textarea>
-              <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 6px;">Highlight your 5-star hospitality experience, departments, guest relations, or leadership background.</p>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0; color: var(--white);">Professional Summary</label>
+                <span id="edit-summary-word-count" style="font-size: 0.76rem; color: var(--text-dim);">${countWords(currentSummary)} / 100 words</span>
+              </div>
+              <textarea id="edit-summary-text" rows="5" required 
+                oninput="const c = countWords(this.value); const el = document.getElementById('edit-summary-word-count'); if(el){ el.textContent = c + ' / 100 words'; el.style.color = c > 100 ? '#f87171' : 'var(--text-dim)'; el.style.fontWeight = c > 100 ? '700' : 'normal'; }"
+                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.6;">${currentSummary}</textarea>
+              <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 6px;">Highlight your 5-star hospitality experience, departments, guest relations, or leadership background (maximum 100 words).</p>
             </div>
           </div>
           <div class="modal-footer">
@@ -16883,6 +16950,12 @@ function openEditSummaryModal() {
 async function handleSaveSummaryModal(e) {
   e.preventDefault();
   const summary = (document.getElementById('edit-summary-text')?.value || '').trim();
+  const wordCount = countWords(summary);
+  if (wordCount > 100) {
+    showToast(`Summary cannot exceed 100 words (currently ${wordCount} words). Please shorten your summary.`, 'warning');
+    document.getElementById('edit-summary-text')?.focus();
+    return;
+  }
   closeModal('modal-edit-summary');
   await saveProfileField({ summary });
 }
@@ -17719,8 +17792,13 @@ async function openComprehensiveEditProfileModal() {
 
             <!-- Bio / Summary -->
             <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Summary</label>
-              <textarea name="summary" rows="3" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${profile.summary || ''}</textarea>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0; color: var(--white);">Summary / Bio</label>
+                <span id="full-profile-summary-word-count" style="font-size: 0.76rem; color: var(--text-dim);">${countWords(profile.summary || '')} / 100 words</span>
+              </div>
+              <textarea name="summary" rows="3" 
+                oninput="const c = countWords(this.value); const el = document.getElementById('full-profile-summary-word-count'); if(el){ el.textContent = c + ' / 100 words'; el.style.color = c > 100 ? '#f87171' : 'var(--text-dim)'; el.style.fontWeight = c > 100 ? '700' : 'normal'; }"
+                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${profile.summary || ''}</textarea>
             </div>
 
             <!-- Location & Visibility -->
@@ -17868,6 +17946,14 @@ async function handleSaveComprehensiveProfile(event) {
   const lastName = (form.last_name?.value || '').trim();
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
 
+  const summaryVal = (form.summary?.value || '').trim();
+  const summaryWords = countWords(summaryVal);
+  if (summaryWords > 100) {
+    showToast(`Summary / Bio cannot exceed 100 words (currently ${summaryWords} words). Please shorten your summary.`, 'warning');
+    form.summary?.focus();
+    return;
+  }
+
   const payload = {
     user_id: userId,
     name: fullName,
@@ -17881,7 +17967,7 @@ async function handleSaveComprehensiveProfile(event) {
     designation: (form.designation?.value || '').trim(),
     current_position: (form.designation?.value || '').trim(),
     headline: form.headline.value,
-    summary: form.summary.value,
+    summary: summaryVal,
     location: form.location.value,
     experience_years: parseInt(form.experience_years.value),
     visibility: form.visibility.value,

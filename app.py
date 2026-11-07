@@ -2452,7 +2452,12 @@ def register_candidate(payload: CandidateRegisterPayload):
     else:
         exp_list = []
 
-    bio_text = payload.bio or payload.summary or ""
+    bio_text = (payload.bio or payload.summary or "").strip()
+    if bio_text:
+        bio_words = len(re.findall(r'\S+', bio_text))
+        if bio_words > 100:
+            conn.close()
+            raise HTTPException(status_code=400, detail=f"Candidate bio cannot exceed 100 words (currently {bio_words} words).")
     effective_role = cand_designation or payload.current_position or "Hospitality Specialist"
     headline_text = f"{effective_role} • {payload.department}" if effective_role and payload.department else (effective_role or payload.department or "Hospitality Specialist")
 
@@ -2626,6 +2631,11 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     bio_text = (payload.bio or "").strip()
+    if bio_text:
+        bio_words = len(re.findall(r'\S+', bio_text))
+        if bio_words > 100:
+            conn.close()
+            raise HTTPException(status_code=400, detail=f"Candidate bio cannot exceed 100 words (currently {bio_words} words).")
     cand_role = (payload.designation or "").strip()
     cand_dept = (payload.department or "").strip()
     headline_text = f"{cand_role} • {cand_dept}" if cand_role and cand_dept else (cand_role or cand_dept or "Hospitality Specialist")
@@ -3581,6 +3591,12 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
         updates.append("location = ?")
         params.append(payload.location)
     if payload.summary is not None:
+        sum_text = (payload.summary or "").strip()
+        if sum_text:
+            sum_words = len(re.findall(r'\S+', sum_text))
+            if sum_words > 100:
+                conn.close()
+                raise HTTPException(status_code=400, detail=f"Candidate summary / bio cannot exceed 100 words (currently {sum_words} words).")
         updates.append("summary = ?")
         params.append(payload.summary)
     if payload.current_position is not None:
