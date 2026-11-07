@@ -312,8 +312,7 @@ const state = {
     department: '',
     designation: '',
     accommodation: false,
-    duty_meals: false,
-    urgent_only: false
+    duty_meals: false
   },
 
   // Talent Discovery State (Open to Work)
@@ -3991,7 +3990,7 @@ async function renderApp() {
 async function renderHomeScreen(viewport) {
   const hasFilter = Boolean(
     state.search.query || state.search.location || state.search.department ||
-    state.search.designation || state.search.accommodation || state.search.duty_meals || state.search.urgent_only
+    state.search.designation || state.search.accommodation || state.search.duty_meals
   );
 
   let jobs;
@@ -4005,7 +4004,6 @@ async function renderHomeScreen(viewport) {
     if (state.search.designation) params.append('designation', state.search.designation);
     if (state.search.accommodation) params.append('accommodation', 'true');
     if (state.search.duty_meals) params.append('duty_meals', 'true');
-    if (state.search.urgent_only) params.append('urgent_only', 'true');
 
     const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
     jobs = jobsRes.ok ? await jobsRes.json() : [];
@@ -4025,13 +4023,11 @@ async function renderHomeScreen(viewport) {
         if (a.is_exact_location !== b.is_exact_location) return a.is_exact_location ? -1 : 1;
         if ((a.distance_km ?? 9999) !== (b.distance_km ?? 9999)) return (a.distance_km ?? 9999) - (b.distance_km ?? 9999);
         if (b.is_featured !== a.is_featured) return (b.is_featured || 0) - (a.is_featured || 0);
-        if (b.is_urgent !== a.is_urgent) return (b.is_urgent || 0) - (a.is_urgent || 0);
         return 0;
       });
     } else {
       jobs.sort((a, b) => {
         if (b.is_featured !== a.is_featured) return (b.is_featured || 0) - (a.is_featured || 0);
-        if (b.is_urgent !== a.is_urgent) return (b.is_urgent || 0) - (a.is_urgent || 0);
         return 0;
       });
     }
@@ -4222,7 +4218,7 @@ async function renderHomeScreen(viewport) {
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">Sort By:</span>
             <select id="select-job-sort" onchange="setJobSort(this.value)" class="admin-select-filter" style="height: 34px; font-size: 0.82rem; padding: 4px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--white); border-radius: var(--radius-md);">
-              <option value="featured" ${sortBy === 'featured' ? 'selected' : ''}>Featured & Urgent</option>
+              <option value="featured" ${sortBy === 'featured' ? 'selected' : ''}>Featured</option>
               <option value="salary_desc" ${sortBy === 'salary_desc' ? 'selected' : ''}>Highest Salary (BDT)</option>
               <option value="latest" ${sortBy === 'latest' ? 'selected' : ''}>Newest First</option>
             </select>
@@ -4280,13 +4276,12 @@ async function renderHomeScreen(viewport) {
 }
 
 function renderJobCardHTML(job) {
-  const isUrgent = job.is_urgent === 1;
   const isFeatured = job.is_featured === 1;
   const isGuest = !state.currentUser || state.currentRole === 'guest';
   const isSaved = !isGuest && state.savedJobs && state.savedJobs.some(s => s.id === job.id || s.job_id === job.id);
 
   return `
-    <article class="job-card job-card-interactive spotlight-card reveal-on-scroll ${isFeatured ? 'featured-card' : ''} ${isUrgent ? 'urgent-card' : ''}" id="job-card-${job.id}">
+    <article class="job-card job-card-interactive spotlight-card reveal-on-scroll ${isFeatured ? 'featured-card' : ''}" id="job-card-${job.id}">
       <div class="job-card-header" style="align-items: flex-start; justify-content: space-between; gap: 16px;">
         <div class="hotel-info-group" style="gap: 16px;">
           <img src="${job.logo_url || '/static/images/hero_lobby.jpg'}" alt="${job.brand_name}" class="hotel-thumb" style="width: 58px; height: 58px; border-radius: var(--radius-md); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
@@ -4312,7 +4307,6 @@ function renderJobCardHTML(job) {
           </div>
 
           <div class="card-badges">
-            ${isUrgent ? `<span class="badge-urgent">${svgIcon('zap', '', 12)} Urgent Hiring</span>` : ''}
             ${isFeatured ? `<span class="badge-featured">${svgIcon('starFilled', '', 12)} Featured</span>` : ''}
           </div>
         </div>
@@ -4623,7 +4617,6 @@ function clearAllFilters() {
     designation: '',
     accommodation: false,
     duty_meals: false,
-    urgent_only: false,
     sort: 'featured'
   };
   renderHomeScreen(document.getElementById('app-viewport'));
@@ -4680,7 +4673,6 @@ async function renderJobDetailScreen(viewport, jobId) {
               <span style="font-size: 0.85rem; color: var(--orange-primary); font-weight: 700;">${job.brand_name}</span>
               <span style="color: var(--text-dim);">•</span>
               <span style="font-size: 0.82rem; color: var(--text-muted);">${job.star_rating}-Star ${job.property_type}</span>
-              ${job.is_urgent ? `<span class="badge-urgent" style="margin-left: 6px;">Urgent</span>` : ''}
               ${job.is_featured ? `<span class="badge-featured" style="margin-left: 6px;">Featured</span>` : ''}
             </div>
             <h1 style="font-size: 2rem; font-weight: 800; color: var(--white); margin-bottom: 0 0 12px 0; line-height: 1.25;">${job.title}</h1>
@@ -7464,7 +7456,6 @@ async function renderAdminScreen(viewport) {
                         </div>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                           ${j.is_featured ? '<span class="badge-featured" style="font-size: 0.65rem; padding: 2px 5px;">Featured</span>' : ''}
-                          ${j.is_urgent ? '<span class="badge-urgent" style="font-size: 0.65rem; padding: 2px 5px;">Urgent</span>' : ''}
                         </div>
                       </div>
                     </td>
@@ -7476,7 +7467,7 @@ async function renderAdminScreen(viewport) {
                           <option value="paused" ${j.status === 'paused' ? 'selected' : ''}>Pause</option>
                           <option value="closed" ${j.status === 'closed' ? 'selected' : ''}>Close</option>
                         </select>
-                        <button class="admin-btn-action btn-feature" onclick="handleAdminJobFeature('${j.id}', ${!j.is_featured}, ${j.is_urgent})">
+                        <button class="admin-btn-action btn-feature" onclick="handleAdminJobFeature('${j.id}', ${!j.is_featured})">
                           ${j.is_featured ? `${svgIcon('starFilled', '', 12)} Unfeature` : `${svgIcon('star', '', 12)} Feature`}
                         </button>
                         <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteJob('${j.id}', '${(j.title || 'Job Post').replace(/['"\\]/g, ' ')}')">
@@ -8121,12 +8112,12 @@ async function handleAdminJobStatus(jobId, status) {
   }
 }
 
-async function handleAdminJobFeature(jobId, isFeatured, isUrgent) {
+async function handleAdminJobFeature(jobId, isFeatured) {
   try {
     const res = await fetch(`/api/admin/jobs/${jobId}/feature`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_featured: isFeatured, is_urgent: isUrgent })
+      body: JSON.stringify({ is_featured: isFeatured, is_urgent: false })
     });
     if (!res.ok) throw new Error('Failed to toggle feature badge');
     showToast(`Job featured state updated.`, 'success');
@@ -18334,21 +18325,12 @@ async function openCreateJobModal() {
               <textarea name="description" rows="3" required placeholder="Outline key hospitality duties, guest service standards, and operational responsibilities..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.5;"></textarea>
             </div>
 
-            <!-- Deadline & Priority -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
-                  Application Deadline <span style="color: #f87171;">*</span>
-                </label>
-                <input type="date" name="deadline" required value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Posting Priority</label>
-                <select name="is_urgent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="0">Standard Publication</option>
-                  <option value="1">Urgent Job Post (Red Badge)</option>
-                </select>
-              </div>
+            <!-- Deadline -->
+            <div>
+              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
+                Application Deadline <span style="color: #f87171;">*</span>
+              </label>
+              <input type="date" name="deadline" required value="" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
 
             <!-- Candidate Screening Questions (Prominent Section) -->
@@ -18444,7 +18426,7 @@ async function submitNewJob(event) {
         type: q.type || 'question',
         options: q.type === 'multiple' ? (q.options || []) : []
       })),
-    is_urgent: form.is_urgent.value === '1',
+    is_urgent: false,
     deadline: form.deadline.value
   };
 

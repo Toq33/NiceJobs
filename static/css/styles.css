@@ -1496,21 +1496,6 @@ select option {
   background: linear-gradient(90deg, var(--orange-primary) 0%, transparent 80%);
 }
 
-.job-card.urgent-card {
-  border-color: rgba(255, 107, 0, 0.38);
-  background: linear-gradient(180deg, rgba(255, 107, 0, 0.045) 0%, var(--bg-surface) 100%);
-}
-
-.job-card.urgent-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--orange-gradient);
-}
-
 .job-card-header {
   display: flex;
   align-items: flex-start;
