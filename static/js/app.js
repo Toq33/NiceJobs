@@ -2128,19 +2128,30 @@ function captureCurrentSignupInputs() {
   // Dynamic Experience cards
   const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
   if (expCards.length > 0) {
-    signupState.experience = Array.from(expCards).map(card => {
+    signupState.experience = Array.from(expCards).map((card, idx) => {
       const isHosp = card.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
       const dept = isHosp ? (card.querySelector('.exp-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services') : '';
-      const workedYears = card.querySelector('.exp-years')?.value || '';
+      const dateFrom = card.querySelector('.exp-date-from')?.value || '';
+      const dateTo = card.querySelector('.exp-date-to')?.value || '';
+      const isCurrent = !!card.querySelector('.exp-current-check')?.checked;
+      const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+      const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+
       return {
-        company: card.querySelector('.exp-comp')?.value || '',
-        role: card.querySelector('.exp-role')?.value || '',
+        company: (card.querySelector('.exp-comp')?.value || '').trim(),
+        role: (card.querySelector('.exp-role')?.value || '').trim(),
         is_hospitality: isHosp,
         department: dept,
-        worked_years: workedYears,
-        skills_acquired: card.querySelector('.exp-skills')?.value || ''
+        date_from: dateFrom,
+        date_to: dateTo,
+        is_current: isCurrent,
+        worked_years: calcYears > 0 ? calcYears.toString() : (signupState.experience?.[idx]?.worked_years || '0'),
+        period: period || (calcYears > 0 ? `${calcYears} yrs` : ''),
+        skills_acquired: (card.querySelector('.exp-skills')?.value || '').trim()
       };
     });
+  } else if (document.getElementById('exp-dynamic-container')) {
+    signupState.experience = [];
   }
 
   // Step 3 Passwords
@@ -12236,7 +12247,57 @@ function removeEducationEntry(idx) {
 window.removeEducationEntry = removeEducationEntry;
 
 // Experience calculations and dynamic in-place DOM render
-function getDepartmentTotalExperience(dept, isHosp) {
+function calculateExperienceYears(dateFrom, dateTo, isCurrent = false) {
+  if (!dateFrom) return 0;
+  const start = new Date(dateFrom);
+  if (isNaN(start.getTime())) return 0;
+
+  const end = isCurrent ? new Date() : (dateTo ? new Date(dateTo) : null);
+  if (!end || isNaN(end.getTime())) return 0;
+
+  if (end < start) return 0;
+
+  const diffTime = Math.abs(end - start);
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  const diffYears = diffDays / 365.25;
+
+  const rounded = Math.round(diffYears * 10) / 10;
+  return rounded > 0 ? rounded : 0.1;
+}
+window.calculateExperienceYears = calculateExperienceYears;
+
+function formatExperiencePeriod(dateFrom, dateTo, isCurrent = false) {
+  if (!dateFrom) return '';
+  try {
+    const s = new Date(dateFrom);
+    if (isNaN(s.getTime())) return '';
+    const mStart = s.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    if (isCurrent) {
+      return `${mStart} - Present`;
+    }
+    if (!dateTo) {
+      return mStart;
+    }
+    const e = new Date(dateTo);
+    if (isNaN(e.getTime())) return mStart;
+    const mEnd = e.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return `${mStart} - ${mEnd}`;
+  } catch (err) {
+    return '';
+  }
+}
+window.formatExperiencePeriod = formatExperiencePeriod;
+
+function getEntryWorkedYears(exp) {
+  if (!exp) return 0;
+  if (exp.date_from) {
+    return calculateExperienceYears(exp.date_from, exp.date_to, exp.is_current);
+  }
+  return parseFloat(exp.worked_years) || 0;
+}
+window.getEntryWorkedYears = getEntryWorkedYears;
+
+function getDepartmentTotalExperience(dept, isHosp = true) {
   if (!signupState.experience || !Array.isArray(signupState.experience)) return '0';
   let total = 0;
   const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
@@ -12244,7 +12305,7 @@ function getDepartmentTotalExperience(dept, isHosp) {
     if (isHosp && e.is_hospitality !== false) {
       const eDept = e.department || defaultDept;
       if (eDept === dept) {
-        const y = parseFloat(e.worked_years) || 0;
+        const y = getEntryWorkedYears(e);
         total += y;
       }
     }
@@ -12258,7 +12319,7 @@ function getTotalHospitalityExperience() {
   let total = 0;
   signupState.experience.forEach(e => {
     if (e.is_hospitality !== false) {
-      const y = parseFloat(e.worked_years) || 0;
+      const y = getEntryWorkedYears(e);
       total += y;
     }
   });
@@ -12282,6 +12343,10 @@ function updateExperienceLiveDisplays() {
         const curDept = exp.department || defaultDept;
         if (numSpan) numSpan.textContent = getDepartmentTotalExperience(curDept, isHosp);
       }
+      const valEl = document.getElementById(`exp-calc-val-${idx}`);
+      if (valEl) {
+        valEl.textContent = getEntryWorkedYears(exp).toString();
+      }
     });
   }
 }
@@ -12299,6 +12364,7 @@ function renderExperienceCardsHTML() {
   const defaultDept = signupState.job_preferences?.department || 'Front Office & Guest Services';
   const totalHotelExp = getTotalHospitalityExperience();
   const primaryDeptExp = getDepartmentTotalExperience(defaultDept, true);
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return `
     <div class="exp-totals-summary-bar" id="exp-totals-summary-bar">
@@ -12314,14 +12380,16 @@ function renderExperienceCardsHTML() {
       const isHosp = exp.is_hospitality !== false;
       const currentDept = exp.department || defaultDept;
       const deptTotal = getDepartmentTotalExperience(currentDept, isHosp);
+      const isCurrent = !!exp.is_current;
+      const calcYears = getEntryWorkedYears(exp);
 
       return `
         <div class="dynamic-entry-card" data-exp-index="${idx}">
           <div class="dynamic-entry-header">
             <span class="dynamic-entry-title">Experience #${idx + 1}</span>
-            ${signupState.experience.length > 1 ? `
-              <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
-            ` : ''}
+            <button type="button" class="dynamic-remove-btn" onclick="removeExperienceEntry(${idx})" title="Remove experience entry">
+              ${svgIcon('x', '', 13)} Remove
+            </button>
           </div>
 
           <div class="auth-field-grid">
@@ -12361,32 +12429,65 @@ function renderExperienceCardsHTML() {
             </div>
           </div>
 
-          <div class="auth-field-grid">
-            ${isHosp ? `
-              <div class="auth-field exp-dept-field" id="exp-dept-wrapper-${idx}">
-                <label class="auth-label" style="font-size: 0.76rem;">Hospitality Department</label>
-                <select class="auth-input exp-dept" onchange="onExperienceDeptChange(${idx}, this.value)">
-                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
-                </select>
-              </div>
-            ` : ''}
-
-            <div class="auth-field" style="${!isHosp ? 'grid-column: 1 / -1;' : ''}">
+          ${isHosp ? `
+            <div class="auth-field exp-dept-field" id="exp-dept-wrapper-${idx}" style="margin-bottom: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label class="auth-label" style="font-size: 0.76rem; margin: 0;">Worked for (years)</label>
-                ${isHosp ? `
-                  <span class="exp-dept-live-stat" id="exp-dept-live-stat-${idx}" style="font-size: 0.72rem; color: #ff9d42; font-weight: 700;">
-                    Total in dept: <span class="dept-total-num">${deptTotal}</span> yrs
-                  </span>
-                ` : ''}
+                <label class="auth-label" style="font-size: 0.76rem; margin: 0;">Hospitality Department</label>
+                <span class="exp-dept-live-stat" id="exp-dept-live-stat-${idx}" style="font-size: 0.72rem; color: #ff9d42; font-weight: 700;">
+                  Total in dept: <span class="dept-total-num">${deptTotal}</span> yrs
+                </span>
               </div>
-              <input type="text" 
-                     inputmode="decimal" 
-                     class="auth-input exp-years" 
-                     placeholder="e.g. 2.5 (numbers only)" 
-                     value="${escapeHtml(exp.worked_years || '')}"
-                     oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\\..*)\\./g, '$1'); onExperienceYearsInput(${idx}, this.value);">
+              <select class="auth-input exp-dept" onchange="onExperienceDeptChange(${idx}, this.value)">
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+              </select>
             </div>
+          ` : ''}
+
+          <!-- Calendar mechanism: Year From and Year To -->
+          <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+            <div class="auth-field" style="margin-bottom: 0;">
+              <label class="auth-label" style="font-size: 0.76rem; display: flex; align-items: center; gap: 4px;">
+                ${svgIcon('calendar', '', 12)} Year From
+              </label>
+              <input type="date" 
+                     class="auth-input exp-date-from" 
+                     value="${escapeHtml(exp.date_from || '')}"
+                     max="${todayStr}"
+                     onchange="onExperienceDateChange(${idx})"
+                     oninput="onExperienceDateChange(${idx})">
+            </div>
+
+            <div class="auth-field" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="auth-label" style="font-size: 0.76rem; margin: 0; display: flex; align-items: center; gap: 4px;">
+                  ${svgIcon('calendar', '', 12)} Year To
+                </label>
+                <label style="font-size: 0.72rem; color: ${isCurrent ? 'var(--orange-primary)' : 'var(--text-dim)'}; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                  <input type="checkbox" 
+                         class="exp-current-check" 
+                         ${isCurrent ? 'checked' : ''} 
+                         onchange="toggleExperienceCurrentJob(${idx}, this.checked)">
+                  Present
+                </label>
+              </div>
+              <input type="date" 
+                     class="auth-input exp-date-to" 
+                     value="${escapeHtml(exp.date_to || '')}"
+                     max="${todayStr}"
+                     ${isCurrent ? 'disabled style="opacity: 0.45; cursor: not-allowed;"' : ''}
+                     onchange="onExperienceDateChange(${idx})"
+                     oninput="onExperienceDateChange(${idx})">
+            </div>
+          </div>
+
+          <!-- Calculated Experience Badge / Duration -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; margin-bottom: 10px;">
+            <span style="font-size: 0.75rem; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px;">
+              ${svgIcon('clock', '', 13)} Experience Duration:
+            </span>
+            <span style="font-size: 0.78rem; font-weight: 700; color: #ff9d42;" id="exp-calc-badge-${idx}">
+              <strong id="exp-calc-val-${idx}">${calcYears}</strong> yrs
+            </span>
           </div>
 
           <div class="auth-field" style="margin-top: 8px;">
@@ -12433,15 +12534,52 @@ function onExperienceDeptChange(idx, val) {
 }
 window.onExperienceDeptChange = onExperienceDeptChange;
 
-function onExperienceYearsInput(idx, val) {
+function onExperienceDateChange(idx) {
   if (!signupState.experience) signupState.experience = [];
+  const card = document.querySelector(`.dynamic-entry-card[data-exp-index="${idx}"]`);
+  if (!card) return;
+
+  const dateFrom = card.querySelector('.exp-date-from')?.value || '';
+  const dateTo = card.querySelector('.exp-date-to')?.value || '';
+  const isCurrent = !!card.querySelector('.exp-current-check')?.checked;
+  const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+  const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+
   if (signupState.experience[idx]) {
-    signupState.experience[idx].worked_years = val;
-    updateExperienceLiveDisplays();
-    saveSignupProgress();
+    signupState.experience[idx].date_from = dateFrom;
+    signupState.experience[idx].date_to = dateTo;
+    signupState.experience[idx].is_current = isCurrent;
+    signupState.experience[idx].worked_years = calcYears.toString();
+    signupState.experience[idx].period = period;
   }
+
+  const valEl = document.getElementById(`exp-calc-val-${idx}`);
+  if (valEl) {
+    valEl.textContent = calcYears.toString();
+  }
+
+  updateExperienceLiveDisplays();
+  saveSignupProgress();
 }
-window.onExperienceYearsInput = onExperienceYearsInput;
+window.onExperienceDateChange = onExperienceDateChange;
+
+function toggleExperienceCurrentJob(idx, isChecked) {
+  if (!signupState.experience) signupState.experience = [];
+  const card = document.querySelector(`.dynamic-entry-card[data-exp-index="${idx}"]`);
+  if (card) {
+    const toInput = card.querySelector('.exp-date-to');
+    if (toInput) {
+      toInput.disabled = isChecked;
+      toInput.style.opacity = isChecked ? '0.45' : '1';
+      toInput.style.cursor = isChecked ? 'not-allowed' : 'pointer';
+    }
+  }
+  if (signupState.experience[idx]) {
+    signupState.experience[idx].is_current = isChecked;
+  }
+  onExperienceDateChange(idx);
+}
+window.toggleExperienceCurrentJob = toggleExperienceCurrentJob;
 
 function addExperienceEntry() {
   captureCurrentSignupInputs();
@@ -12452,7 +12590,11 @@ function addExperienceEntry() {
     role: '',
     is_hospitality: true,
     department: defaultDept,
-    worked_years: '',
+    date_from: '',
+    date_to: '',
+    is_current: false,
+    worked_years: '0',
+    period: '',
     skills_acquired: ''
   });
   renderExperienceCardsDOM();
@@ -13773,17 +13915,29 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
   // Experience entries
   const expCards = document.querySelectorAll('#exp-dynamic-container .dynamic-entry-card');
   if (expCards.length > 0) {
-    signupState.experience = Array.from(expCards).map(c => {
+    signupState.experience = Array.from(expCards).map((c, idx) => {
       const isHosp = c.querySelector('.exp-toggle-btn.active')?.dataset.hospitality !== 'false';
+      const dateFrom = c.querySelector('.exp-date-from')?.value || '';
+      const dateTo = c.querySelector('.exp-date-to')?.value || '';
+      const isCurrent = !!c.querySelector('.exp-current-check')?.checked;
+      const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+      const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+
       return {
         company: (c.querySelector('.exp-comp')?.value || '').trim(),
         role: (c.querySelector('.exp-role')?.value || '').trim(),
         is_hospitality: isHosp,
         department: isHosp ? (c.querySelector('.exp-dept')?.value || prefDept) : '',
-        worked_years: (c.querySelector('.exp-years')?.value || '').trim(),
+        date_from: dateFrom,
+        date_to: dateTo,
+        is_current: isCurrent,
+        worked_years: calcYears > 0 ? calcYears.toString() : (signupState.experience?.[idx]?.worked_years || '0'),
+        period: period || (calcYears > 0 ? `${calcYears} yrs` : ''),
         skills_acquired: (c.querySelector('.exp-skills')?.value || '').trim()
       };
     }).filter(e => e.company || e.role);
+  } else if (document.getElementById('exp-dynamic-container')) {
+    signupState.experience = [];
   }
 
   saveSignupProgress();
