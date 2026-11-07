@@ -1860,7 +1860,88 @@ def create_blog(payload: BlogCreatePayload):
     }
     return {"success": True, "blog": new_blog}
 
+class BlogUpdatePayload(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
+    content: Optional[str] = None
+    cover_image: Optional[str] = None
+    excerpt: Optional[str] = None
+    tags: Optional[List[str]] = None
+    author_id: Optional[str] = None
+    author_name: Optional[str] = None
+    author_title: Optional[str] = None
+    read_time: Optional[str] = None
+
+@app.put("/api/blogs/{blog_id}")
+@app.put("/api/admin/blogs/{blog_id}")
+@app.patch("/api/blogs/{blog_id}")
+@app.patch("/api/admin/blogs/{blog_id}")
+def update_blog(blog_id: str, payload: BlogUpdatePayload, user_id: Optional[str] = None):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM blogs WHERE id = ? OR slug = ?", (blog_id, blog_id))
+    b = cursor.fetchone()
+    if not b:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Blog article not found")
+
+    if user_id:
+        cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+        u = cursor.fetchone()
+        if not u or (u["role"] != "admin" and b["author_id"] != user_id):
+            conn.close()
+            raise HTTPException(status_code=403, detail="Unauthorized to edit this blog article")
+
+    title = (payload.title if payload.title is not None else b["title"]).strip()
+    category = (payload.category if payload.category is not None else b["category"]).strip()
+    content = payload.content if payload.content is not None else b["content"]
+    cover_image = payload.cover_image if payload.cover_image is not None else b["cover_image"]
+
+    if payload.excerpt is not None:
+        excerpt = payload.excerpt.strip()
+    else:
+        excerpt = b["excerpt"]
+
+    if payload.read_time:
+        read_time = payload.read_time.strip()
+    elif payload.content is not None:
+        word_count = len(content.split())
+        read_minutes = max(1, round(word_count / 180))
+        read_time = f"{read_minutes} min read"
+    else:
+        read_time = b["read_time"] or "5 min read"
+
+    if payload.tags is not None:
+        tags_json = json.dumps(payload.tags)
+    else:
+        tags_json = b["tags"]
+
+    author_name = payload.author_name if payload.author_name is not None else b["author_name"]
+    author_title = payload.author_title if payload.author_title is not None else b["author_title"]
+    author_id = payload.author_id if payload.author_id is not None else b["author_id"]
+
+    cursor.execute("""
+        UPDATE blogs
+        SET title = ?, category = ?, excerpt = ?, content = ?, cover_image = ?,
+            read_time = ?, tags = ?, author_name = ?, author_title = ?, author_id = ?
+        WHERE id = ?
+    """, (
+        title, category, excerpt, content, cover_image,
+        read_time, tags_json, author_name, author_title, author_id, b["id"]
+    ))
+    conn.commit()
+
+    cursor.execute("SELECT * FROM blogs WHERE id = ?", (b["id"],))
+    updated_row = dict(cursor.fetchone())
+    updated_row["tags"] = json.loads(updated_row["tags"]) if updated_row["tags"] else []
+    conn.close()
+
+    invalidate_api_cache("blogs")
+    invalidate_api_cache("admin")
+    return {"success": True, "blog": updated_row}
+
 @app.delete("/api/blogs/{blog_id}")
+@app.delete("/api/admin/blogs/{blog_id}")
 def delete_blog(blog_id: str, user_id: Optional[str] = None):
     conn = database.get_db()
     cursor = conn.cursor()
@@ -5406,7 +5487,8 @@ def get_admin_overview():
             (SELECT count(*) FROM business_memberships WHERE approval_status = 'pending_admin_approval') as pending_moderators,
             (SELECT count(*) FROM jobs) as total_jobs,
             (SELECT count(*) FROM jobs WHERE status = 'active') as active_jobs,
-            (SELECT count(*) FROM users WHERE status = 'suspended') as suspended_users
+            (SELECT count(*) FROM users WHERE status = 'suspended') as suspended_users,
+            (SELECT count(*) FROM blogs) as total_blogs
     """)
     row = cursor.fetchone()
     conn.close()
@@ -5420,10 +5502,45 @@ def get_admin_overview():
         "pending_moderators": row["pending_moderators"] if row else 0,
         "total_jobs": row["total_jobs"] if row else 0,
         "active_jobs": row["active_jobs"] if row else 0,
-        "suspended_users": row["suspended_users"] if row else 0
+        "suspended_users": row["suspended_users"] if row else 0,
+        "total_blogs": row["total_blogs"] if row else 0
     }
     set_cached_api("admin_overview", res)
     return res
+
+@app.get("/api/admin/blogs")
+def get_admin_blogs():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.*, u.email as author_email, u.role as author_role, u.phone as author_phone
+        FROM blogs b
+        LEFT JOIN users u ON b.author_id = u.id
+        ORDER BY b.published_at DESC
+    """)
+    rows = cursor.fetchall()
+    blogs = []
+    for r in rows:
+        b = dict(r)
+        b["tags"] = json.loads(b["tags"]) if b["tags"] else []
+        blogs.append(b)
+    conn.close()
+    return blogs
+
+@app.get("/api/admin/blog-authors")
+def get_admin_blog_authors():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT u.id, u.name, u.email, u.phone, u.role, u.designation, u.avatar_url, u.status, u.can_post_blog,
+               COALESCE((SELECT COUNT(*) FROM blogs WHERE author_id = u.id), 0) as article_count
+        FROM users u
+        WHERE u.can_post_blog = 1 OR u.role = 'admin'
+        ORDER BY article_count DESC, u.name ASC
+    """)
+    authors = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return authors
 
 @app.get("/api/admin/users")
 def get_admin_users(role: Optional[str] = "all", status: Optional[str] = "all", q: Optional[str] = None):

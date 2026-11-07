@@ -3936,6 +3936,11 @@ async function renderApp() {
     document.body.classList.remove('screen-admin');
   }
 
+  if (screen !== 'blog' && screen !== 'blog-post' && typeof blogScrollCleanup === 'function') {
+    blogScrollCleanup();
+    blogScrollCleanup = null;
+  }
+
   if (screen === 'home') {
     await renderHomeScreen(viewport);
   } else if (screen === 'job-details') {
@@ -7127,28 +7132,35 @@ function adminSignOut() {
 // ==========================================================================
 
 const adminState = {
-  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications' | 'database'
+  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications' | 'database' | 'blogs'
   userFilterRole: 'all',
   userFilterStatus: 'all',
   userSearch: '',
   jobFilterStatus: 'all',
   jobSearch: '',
+  blogSearch: '',
+  blogCategory: 'all',
+  blogSubTab: 'articles', // 'articles' | 'authors'
   dbQuery: 'SELECT * FROM users LIMIT 10;',
   dbQueryResult: null,
-  dbOverview: null
+  dbOverview: null,
+  blogs: [],
+  blogAuthors: []
 };
 
 async function renderAdminScreen(viewport) {
   try {
     const t = Date.now();
-    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes, dbRes] = await Promise.all([
+    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes, dbRes, blogsRes, authorsRes] = await Promise.all([
       fetch(`/api/admin/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
       fetch(`/api/admin/users?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/jobs-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/businesses-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/moderator-requests?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/verifications?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
-      fetch(`/api/admin/database/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) }))
+      fetch(`/api/admin/database/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(`/api/admin/blogs?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/blog-authors?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] }))
     ]);
 
     const overview = await overviewRes.json();
@@ -7158,8 +7170,26 @@ async function renderAdminScreen(viewport) {
     const moderatorRequests = await modRes.json();
     const verifications = await verifsRes.json();
     const dbOverview = await dbRes.json();
+    const blogs = await blogsRes.json();
+    const blogAuthors = await authorsRes.json();
     adminState.dbOverview = dbOverview;
     adminState.users = users;
+    adminState.blogs = blogs;
+    adminState.blogAuthors = blogAuthors;
+
+    // Filter Blogs for Admin
+    const filteredAdminBlogs = (blogs || []).filter(b => {
+      if (adminState.blogCategory !== 'all' && b.category !== adminState.blogCategory) return false;
+      if (adminState.blogSearch) {
+        const q = adminState.blogSearch.toLowerCase();
+        const title = (b.title || '').toLowerCase();
+        const author = (b.author_name || '').toLowerCase();
+        const excerpt = (b.excerpt || '').toLowerCase();
+        const cat = (b.category || '').toLowerCase();
+        if (!title.includes(q) && !author.includes(q) && !excerpt.includes(q) && !cat.includes(q)) return false;
+      }
+      return true;
+    });
 
     // Filter Users
     const filteredUsers = users.filter(u => {
@@ -7233,6 +7263,10 @@ async function renderAdminScreen(viewport) {
           <div class="admin-metric-val">${overview.suspended_users ?? users.filter(u=>u.status==='suspended').length}</div>
           <div class="admin-metric-lbl">Suspended Users</div>
         </div>
+        <div class="admin-metric-card">
+          <div class="admin-metric-val">${overview.total_blogs ?? blogs.length}</div>
+          <div class="admin-metric-lbl">Published Articles</div>
+        </div>
       </div>
 
       <!-- Admin Workspace Layout: Left Side Panel Navigation + Right Content -->
@@ -7240,7 +7274,7 @@ async function renderAdminScreen(viewport) {
         <aside class="admin-side-panel">
           <div class="admin-side-panel-header">
             <span class="admin-side-panel-title">CONTROL DIRECTORY</span>
-            <span class="admin-side-panel-badge">6 Modules</span>
+            <span class="admin-side-panel-badge">7 Modules</span>
           </div>
           <nav class="admin-side-nav">
             <button class="admin-side-nav-btn ${activeTab === 'users' ? 'active' : ''}" onclick="switchAdminTab('users')">
@@ -7267,6 +7301,11 @@ async function renderAdminScreen(viewport) {
               <span class="admin-side-nav-icon">${svgIcon('fileText', '', 16)}</span>
               <span class="admin-side-nav-label">Trade Verifications</span>
               <span class="admin-side-nav-count ${verifications.length > 0 ? 'highlight-alert' : ''}">${verifications.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'blogs' ? 'active' : ''}" onclick="switchAdminTab('blogs')">
+              <span class="admin-side-nav-icon">${svgIcon('fileText', '', 16)}</span>
+              <span class="admin-side-nav-label">Hospitality Blog Manager</span>
+              <span class="admin-side-nav-count">${blogs.length}</span>
             </button>
             <button class="admin-side-nav-btn ${activeTab === 'database' ? 'active' : ''}" onclick="switchAdminTab('database')">
               <span class="admin-side-nav-icon">${svgIcon('database', '', 16)}</span>
@@ -7783,6 +7822,259 @@ async function renderAdminScreen(viewport) {
           </div>
         </div>
       ` : ''}
+
+      <!-- TAB 7: HOSPITALITY BLOG & EDITORIAL MANAGEMENT -->
+      ${activeTab === 'blogs' ? `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Sub-navigation & Header -->
+          <div class="admin-table-wrapper" style="padding: 20px; background: rgba(10, 17, 40, 0.7); border: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 107, 0, 0.15); color: var(--orange-primary);">
+                    ${svgIcon('fileText', '', 20)}
+                  </span>
+                  <div>
+                    <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0 0 2px 0;">
+                      Hospitality Blog &amp; Editorial Management
+                    </h2>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin: 0;">
+                      Manage published articles, edit or delete blueprints, and authorize blog writers.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-tab Pills -->
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="admin-sub-tab-pill ${adminState.blogSubTab === 'articles' ? 'active' : ''}" 
+                  onclick="adminState.blogSubTab = 'articles'; renderAdminScreen(document.getElementById('app-viewport'))">
+                  ${svgIcon('fileText', '', 13)} Published Articles (${blogs.length})
+                </button>
+                <button class="admin-sub-tab-pill ${adminState.blogSubTab === 'authors' ? 'active' : ''}" 
+                  onclick="adminState.blogSubTab = 'authors'; renderAdminScreen(document.getElementById('app-viewport'))">
+                  ${svgIcon('users', '', 13)} Users in Charge of Blog (${blogAuthors.length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          ${adminState.blogSubTab === 'articles' ? `
+            <div class="admin-table-wrapper">
+              <div class="admin-table-actions-bar">
+                <div class="admin-filter-group" style="flex: 1; max-width: 700px;">
+                  <input type="text" class="admin-search-box" placeholder="Search by article title, author, or keywords..." 
+                    value="${escapeHtml(adminState.blogSearch)}" 
+                    oninput="adminState.blogSearch = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
+
+                  <select class="admin-select-filter" onchange="adminState.blogCategory = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
+                    <option value="all" ${adminState.blogCategory === 'all' ? 'selected' : ''}>All Categories</option>
+                    <option value="Hotel Standards" ${adminState.blogCategory === 'Hotel Standards' ? 'selected' : ''}>Hotel Standards</option>
+                    <option value="Interview Prep" ${adminState.blogCategory === 'Interview Prep' ? 'selected' : ''}>Interview Prep</option>
+                    <option value="Career Advice" ${adminState.blogCategory === 'Career Advice' ? 'selected' : ''}>Career Advice</option>
+                    <option value="Culinary & F&B" ${adminState.blogCategory === 'Culinary & F&B' ? 'selected' : ''}>Culinary & F&B</option>
+                  </select>
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <button class="btn-orange" style="font-size: 0.82rem; padding: 7px 16px; display: inline-flex; align-items: center; gap: 6px;" onclick="openCreateBlogModal()">
+                    ${svgIcon('plus', '', 14)} Post New Article
+                  </button>
+                  <span style="font-size: 0.78rem; color: var(--text-dim); font-weight: 600;">
+                    Showing ${filteredAdminBlogs.length} of ${blogs.length}
+                  </span>
+                </div>
+              </div>
+
+              <div class="admin-table-scroll">
+                <table class="admin-data-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 320px;">Article Blueprint</th>
+                      <th>Category &amp; Read Time</th>
+                      <th>Author Attribution</th>
+                      <th>Published Date</th>
+                      <th style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${filteredAdminBlogs.length === 0 ? `
+                      <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                          No articles match your current search or category filter.
+                        </td>
+                      </tr>
+                    ` : filteredAdminBlogs.map(b => `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 12px;">
+                            <img src="${b.cover_image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'}" 
+                              alt="${escapeHtml(b.title)}" 
+                              style="width: 52px; height: 52px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+                            <div>
+                              <a href="#blog?id=${b.id}" onclick="navigateTo('blog', { id: '${b.id}' }); return false;" 
+                                style="font-weight: 750; font-size: 0.88rem; color: var(--white); text-decoration: none; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                ${escapeHtml(b.title)}
+                              </a>
+                              <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; font-family: monospace;">
+                                slug: ${escapeHtml(b.slug || b.id)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span class="blog-cat-pill" style="font-size: 0.72rem; padding: 3px 8px; margin: 0 0 4px 0; display: inline-block;">
+                            ${escapeHtml(b.category)}
+                          </span>
+                          <div style="font-size: 0.74rem; color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 4px;">
+                            ${svgIcon('clock', '', 12)} ${escapeHtml(b.read_time || '5 min read')}
+                          </div>
+                        </td>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            <img src="${b.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}" 
+                              alt="${escapeHtml(b.author_name)}" 
+                              style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,107,0,0.4);">
+                            <div>
+                              <div style="font-weight: 700; font-size: 0.82rem; color: var(--white);">${escapeHtml(b.author_name)}</div>
+                              <div style="font-size: 0.72rem; color: var(--text-dim);">${escapeHtml(b.author_title || 'Hospitality Specialist')}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">
+                          ${b.published_at || 'Recent'}
+                        </td>
+                        <td style="text-align: right;">
+                          <div class="admin-actions-cell">
+                            <button class="admin-btn-action" onclick="navigateTo('blog', { id: '${b.id}' })" title="Read Article">
+                              ${svgIcon('eye', '', 12)} Read
+                            </button>
+                            <button class="admin-btn-action btn-feature" onclick="openAdminEditBlogModal('${b.id}')" title="Edit Article Content &amp; Meta">
+                              ${svgIcon('edit', '', 12)} Edit
+                            </button>
+                            <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteBlog('${b.id}', '${(b.title || 'Article').replace(/['"\\]/g, ' ')}')" title="Delete Article Permanently">
+                              ${svgIcon('trash', '', 13)}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : `
+            <!-- SUBTAB: USERS IN CHARGE OF BLOG -->
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+              <!-- Author Clearance Info & Quick Grant Card -->
+              <div class="admin-table-wrapper" style="padding: 20px; background: rgba(10, 17, 40, 0.6); border: 1px solid rgba(255, 255, 255, 0.09);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                  <div style="max-width: 600px;">
+                    <div style="font-size: 0.76rem; font-weight: 800; color: var(--orange-primary); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;">
+                      Editorial Clearance &amp; Author Management
+                    </div>
+                    <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0 0 6px 0;">
+                      Designated Hospitality Authors &amp; Content Curators
+                    </h3>
+                    <p style="font-size: 0.84rem; color: var(--text-dim); line-height: 1.5; margin: 0;">
+                      Users authorized below can publish operational guides, compensation standards, and trade blueprints. Root administrators always retain author clearance.
+                    </p>
+                  </div>
+
+                  <!-- Quick Author Grant Form -->
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <select id="select-grant-blog-user" class="admin-select-filter" style="height: 38px; min-width: 240px; font-size: 0.82rem;">
+                      <option value="">Select a user to grant blog clearance...</option>
+                      ${users.filter(u => !u.can_post_blog && u.role !== 'admin').map(u => `
+                        <option value="${u.id}">${escapeHtml(u.name)} (${u.role === 'recruiter' ? 'Business: ' + (u.business_name || 'Hotel') : 'Candidate'})</option>
+                      `).join('')}
+                    </select>
+                    <button class="btn-orange" style="font-size: 0.82rem; padding: 9px 16px; display: inline-flex; align-items: center; gap: 6px;" onclick="handleAdminGrantSelectedUserBlogPermission()">
+                      ${svgIcon('plus', '', 14)} Authorize Author
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Authors Directory Table -->
+              <div class="admin-table-wrapper">
+                <div class="admin-table-scroll">
+                  <table class="admin-data-table">
+                    <thead>
+                      <tr>
+                        <th>Authorized User</th>
+                        <th>Account Role &amp; Title</th>
+                        <th>Articles Published</th>
+                        <th>Clearance Status</th>
+                        <th style="text-align: right;">Clearance Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${blogAuthors.length === 0 ? `
+                        <tr>
+                          <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                            No external authors authorized yet.
+                          </td>
+                        </tr>
+                      ` : blogAuthors.map(u => `
+                        <tr>
+                          <td>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                              <img src="${u.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${escapeHtml(u.name)}" 
+                                style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(16, 185, 129, 0.4);">
+                              <div>
+                                <div style="font-weight: 750; font-size: 0.88rem; color: var(--white);">${escapeHtml(u.name)}</div>
+                                <div style="font-size: 0.74rem; color: var(--text-dim);">${escapeHtml(u.email || u.phone || '')}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div style="font-size: 0.82rem; color: var(--white); font-weight: 600;">
+                              ${u.role === 'admin' ? '<span style="color: #f87171;">Platform Administrator</span>' : (u.role === 'recruiter' ? '<span style="color: #60a5fa;">Hotel Business User</span>' : '<span style="color: #a7f3d0;">Hospitality Candidate</span>')}
+                            </div>
+                            <div style="font-size: 0.74rem; color: var(--text-dim);">${escapeHtml(u.designation || 'Staff Member')}</div>
+                          </td>
+                          <td>
+                            <div style="display: inline-flex; align-items: center; gap: 6px;">
+                              <span style="font-size: 0.92rem; font-weight: 800; color: var(--orange-primary);">${u.article_count || 0}</span>
+                              <span style="font-size: 0.76rem; color: var(--text-dim);">published</span>
+                              ${(u.article_count || 0) > 0 ? `
+                                <button class="admin-btn-action" style="padding: 2px 8px; font-size: 0.72rem; margin-left: 6px;" 
+                                  onclick="adminState.blogSubTab = 'articles'; adminState.blogSearch = '${escapeHtml(u.name)}'; renderAdminScreen(document.getElementById('app-viewport'))">
+                                  Filter
+                                </button>
+                              ` : ''}
+                            </div>
+                          </td>
+                          <td>
+                            <span class="badge-featured" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.35); font-size: 0.74rem; padding: 3px 8px;">
+                              ${svgIcon('shieldCheck', '', 12)} ${u.role === 'admin' ? 'Root Admin (Permanent)' : 'Authorized Blog Author'}
+                            </span>
+                          </td>
+                          <td style="text-align: right;">
+                            <div class="admin-actions-cell">
+                              ${u.role !== 'admin' ? `
+                                <button class="admin-btn-action btn-delete" onclick="handleAdminToggleBlogPermission('${u.id}', false)" title="Revoke blog posting rights">
+                                  ${svgIcon('x', '', 12)} Revoke Clearance
+                                </button>
+                              ` : `
+                                <span style="font-size: 0.72rem; color: var(--text-dim); font-style: italic;">Protected System Role</span>
+                              `}
+                              <button class="admin-btn-action" onclick="openAdminUserProfileModal('${u.id}')" title="View Full Account Profile">
+                                ${svgIcon('user', '', 12)} Profile
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `}
+        </div>
+      ` : ''}
         </main>
       </div>
     `;
@@ -7906,6 +8198,220 @@ async function handleAdminToggleBlogPermission(userId, allow) {
     }
     showToast(allow ? 'Blog posting permission granted.' : 'Blog posting permission revoked.', 'success');
     renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+async function handleAdminGrantSelectedUserBlogPermission() {
+  const sel = document.getElementById('select-grant-blog-user');
+  if (!sel || !sel.value) {
+    showToast('Please select a user to authorize.', 'warning');
+    return;
+  }
+  const userId = sel.value;
+  await handleAdminToggleBlogPermission(userId, true);
+}
+
+async function openAdminEditBlogModal(blogId) {
+  let blog = (adminState.blogs || state.blogs || []).find(b => b.id === blogId || b.slug === blogId);
+  if (!blog) {
+    try {
+      const res = await fetch(`/api/blogs/${encodeURIComponent(blogId)}`);
+      if (res.ok) blog = await res.json();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  if (!blog) {
+    showToast('Article not found', 'danger');
+    return;
+  }
+
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  const tagsStr = Array.isArray(blog.tags) ? blog.tags.join(', ') : (blog.tags || '');
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-admin-edit-blog" onclick="if(event.target === this) closeModal('modal-admin-edit-blog')">
+      <div class="modal-dialog" style="max-width: 820px; width: 95%; max-height: 92vh; overflow-y: auto; background: rgba(10, 17, 40, 0.98); backdrop-filter: blur(28px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: var(--radius-lg); padding: 28px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: rgba(255, 107, 0, 0.15); color: var(--orange-primary);">
+              ${svgIcon('edit', '', 18)}
+            </span>
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0 0 2px 0;">Edit Hospitality Article</h2>
+              <p style="font-size: 0.78rem; color: var(--text-dim); margin: 0;">Update article copy, category, reading metadata, and author attribution.</p>
+            </div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-admin-edit-blog')" style="background: none; border: none; color: var(--white); cursor: pointer; display: flex;">
+            ${svgIcon('x', '', 18)}
+          </button>
+        </div>
+
+        <form onsubmit="handleAdminUpdateBlogSubmit(event, '${blog.id}')" style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Article Title <span style="color: #f87171;">*</span></label>
+            <input type="text" name="title" required value="${escapeHtml(blog.title)}" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.92rem; font-weight: 600;">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Category</label>
+              <select name="category" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <option value="Hotel Standards" ${blog.category === 'Hotel Standards' ? 'selected' : ''}>Hotel Standards</option>
+                <option value="Interview Prep" ${blog.category === 'Interview Prep' ? 'selected' : ''}>Interview Prep</option>
+                <option value="Career Advice" ${blog.category === 'Career Advice' ? 'selected' : ''}>Career Advice</option>
+                <option value="Culinary & F&B" ${blog.category === 'Culinary & F&B' ? 'selected' : ''}>Culinary & F&B</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Reading Time</label>
+              <input type="text" name="read_time" value="${escapeHtml(blog.read_time || '5 min read')}" placeholder="e.g. 5 min read" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Cover Image URL</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="url" name="cover_image" id="admin-edit-blog-cover-url" value="${escapeHtml(blog.cover_image || '')}" oninput="document.getElementById('admin-edit-blog-cover-preview').src = this.value" style="flex: 1; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              <img id="admin-edit-blog-cover-preview" src="${blog.cover_image || ''}" style="width: 50px; height: 38px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.15);" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'">
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Executive Briefing / Summary <span style="color: #f87171;">*</span></label>
+            <textarea name="excerpt" rows="2" required style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.5;">${escapeHtml(blog.excerpt || '')}</textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Author Name</label>
+              <input type="text" name="author_name" value="${escapeHtml(blog.author_name || '')}" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Author Title / Designation</label>
+              <input type="text" name="author_title" value="${escapeHtml(blog.author_title || '')}" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            </div>
+          </div>
+
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.82rem; font-weight: 700; color: var(--white); margin: 0;">Article Content (Markdown / HTML) <span style="color: #f87171;">*</span></label>
+              <div style="display: flex; gap: 4px;">
+                <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 7px;" onclick="insertTextIntoTextarea('admin-edit-blog-content', '## ', '')">H2</button>
+                <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 7px;" onclick="insertTextIntoTextarea('admin-edit-blog-content', '### ', '')">H3</button>
+                <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 7px;" onclick="insertTextIntoTextarea('admin-edit-blog-content', '**', '**')">Bold</button>
+                <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 7px;" onclick="insertTextIntoTextarea('admin-edit-blog-content', '> ', '')">Quote</button>
+                <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 7px;" onclick="insertTextIntoTextarea('admin-edit-blog-content', '- ', '')">List</button>
+              </div>
+            </div>
+            <textarea name="content" id="admin-edit-blog-content" rows="11" required style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem; line-height: 1.6; font-family: monospace; resize: vertical;">${escapeHtml(blog.content || '')}</textarea>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Tags (Comma separated)</label>
+            <input type="text" name="tags" value="${escapeHtml(tagsStr)}" placeholder="Opera PMS, Trade Test, Luxury Hotel, Salary" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-admin-edit-blog')">Cancel</button>
+            <button type="submit" class="btn-orange" style="padding: 10px 22px; font-weight: 750;">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function insertTextIntoTextarea(id, prefix, suffix) {
+  const ta = document.getElementById(id);
+  if (!ta) return;
+  const start = ta.selectionStart || 0;
+  const end = ta.selectionEnd || 0;
+  const selected = ta.value.substring(start, end);
+  const rep = prefix + selected + suffix;
+  ta.value = ta.value.substring(0, start) + rep + ta.value.substring(end);
+  ta.focus();
+  ta.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+}
+
+async function handleAdminUpdateBlogSubmit(event, blogId) {
+  event.preventDefault();
+  const form = event.target;
+  const tags = (form.tags.value || '')
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  const payload = {
+    title: form.title.value.trim(),
+    category: form.category.value,
+    read_time: form.read_time.value.trim(),
+    cover_image: form.cover_image.value.trim(),
+    excerpt: form.excerpt.value.trim(),
+    author_name: form.author_name.value.trim(),
+    author_title: form.author_title.value.trim(),
+    content: form.content.value.trim(),
+    tags: tags
+  };
+
+  try {
+    const adminId = state.currentUser ? state.currentUser.id : 'user_admin';
+    const res = await fetch(`/api/admin/blogs/${encodeURIComponent(blogId)}?user_id=${encodeURIComponent(adminId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update article');
+    }
+    const data = await res.json();
+    closeModal('modal-admin-edit-blog');
+    showToast('Article updated successfully!', 'success');
+
+    if (state.blogs) {
+      const idx = state.blogs.findIndex(b => b.id === blogId || b.slug === blogId);
+      if (idx !== -1 && data.blog) {
+        state.blogs[idx] = data.blog;
+      }
+    }
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    } else if (viewport && state.currentScreen === 'blog') {
+      renderBlogScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+async function handleAdminDeleteBlog(blogId, blogTitle) {
+  if (!confirm(`Are you sure you want to permanently delete the article "${blogTitle}"?\n\nThis will remove the publication from the Knowledge Hub.`)) {
+    return;
+  }
+  try {
+    const adminId = state.currentUser ? state.currentUser.id : 'user_admin';
+    const res = await fetch(`/api/admin/blogs/${encodeURIComponent(blogId)}?user_id=${encodeURIComponent(adminId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete article');
+    }
+    showToast(`Article "${blogTitle}" removed successfully.`, 'success');
+    if (state.blogs) {
+      state.blogs = state.blogs.filter(b => b.id !== blogId && b.slug !== blogId);
+    }
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
   } catch (err) {
     showToast(err.message, 'danger');
   }
@@ -8494,8 +9000,56 @@ function renderResourcesScreen(viewport) {
 
 let activeBlogCategory = 'All';
 let activeBlogSearch = '';
+let blogScrollCleanup = null;
+let currentBlogFontSize = 'normal';
+
+function toggleBlogReaderFontSize() {
+  const page = document.querySelector('.blog-reader-page');
+  const label = document.getElementById('blog-font-size-label');
+  if (currentBlogFontSize === 'normal') {
+    currentBlogFontSize = 'large';
+    if (page) {
+      page.classList.remove('font-size-xl');
+      page.classList.add('font-size-lg');
+    }
+    if (label) label.textContent = 'Large';
+  } else if (currentBlogFontSize === 'large') {
+    currentBlogFontSize = 'xl';
+    if (page) {
+      page.classList.remove('font-size-lg');
+      page.classList.add('font-size-xl');
+    }
+    if (label) label.textContent = 'X-Large';
+  } else {
+    currentBlogFontSize = 'normal';
+    if (page) {
+      page.classList.remove('font-size-lg', 'font-size-xl');
+    }
+    if (label) label.textContent = 'Standard';
+  }
+}
+
+function openSocialShare(platform, blogId, title) {
+  const url = `${window.location.origin}/#blog?id=${blogId}`;
+  let shareUrl = '';
+  if (platform === 'whatsapp') {
+    shareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(title + ' — ' + url)}`;
+  } else if (platform === 'linkedin') {
+    shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+  } else if (platform === 'twitter') {
+    shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
+  }
+  if (shareUrl) {
+    window.open(shareUrl, '_blank', 'noopener,noreferrer,width=620,height=520');
+  }
+}
 
 async function renderBlogScreen(viewport) {
+  if (blogScrollCleanup) {
+    blogScrollCleanup();
+    blogScrollCleanup = null;
+  }
+
   if (!state.blogs || state.blogs.length === 0) {
     try {
       const res = await fetch('/api/blogs');
@@ -8505,6 +9059,11 @@ async function renderBlogScreen(viewport) {
     } catch (e) {
       console.error('Failed to fetch blogs:', e);
     }
+  }
+
+  // Dedicated Full-Page Article Reader View
+  if (state.activeBlogId) {
+    return renderBlogArticleView(viewport, state.activeBlogId);
   }
 
   const allBlogs = state.blogs || [];
@@ -8539,7 +9098,7 @@ async function renderBlogScreen(viewport) {
             ${svgIcon('sparkles', '', 14)} Hospitality Knowledge Hub
           </div>
           <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--white); margin: 0; letter-spacing: -0.5px;">
-            Industry Insights & Career Blueprints
+            Industry Insights &amp; Career Blueprints
           </h1>
           <p style="font-size: 0.95rem; color: rgba(255, 255, 255, 0.65); line-height: 1.6; margin: 0;">
             Operational standards, trade test checklists, and leadership compensation benchmarks curated by seasoned 5-star hotel executives.
@@ -8588,7 +9147,7 @@ async function renderBlogScreen(viewport) {
 
       <!-- Featured Hero Article (shown when All and no search) -->
       ${featuredBlog ? `
-        <div class="blog-hero-card spotlight-card reveal-on-scroll" onclick="openBlogDetailModal('${featuredBlog.id}')" style="cursor: pointer;">
+        <div class="blog-hero-card spotlight-card reveal-on-scroll" onclick="navigateTo('blog', { id: '${featuredBlog.id}' })" style="cursor: pointer;">
           <div>
             <img src="${featuredBlog.cover_image}" alt="${escapeHtml(featuredBlog.title)}" class="blog-hero-img">
           </div>
@@ -8613,8 +9172,8 @@ async function renderBlogScreen(viewport) {
                   <div style="font-size: 0.72rem; color: rgba(255, 255, 255, 0.5);">${featuredBlog.author_title}</div>
                 </div>
               </div>
-              <button class="btn-orange" style="padding: 8px 18px; font-size: 0.82rem;" onclick="event.stopPropagation(); openBlogDetailModal('${featuredBlog.id}')">
-                <span>Read Article</span>
+              <button class="btn-orange" style="padding: 8px 18px; font-size: 0.82rem;" onclick="event.stopPropagation(); navigateTo('blog', { id: '${featuredBlog.id}' })">
+                <span>Read Blueprint</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
               </button>
             </div>
@@ -8626,7 +9185,7 @@ async function renderBlogScreen(viewport) {
       ${gridBlogs.length > 0 ? `
         <div class="blog-grid">
           ${gridBlogs.map(blog => `
-            <article class="blog-card spotlight-card reveal-on-scroll" onclick="openBlogDetailModal('${blog.id}')">
+            <article class="blog-card spotlight-card reveal-on-scroll" onclick="navigateTo('blog', { id: '${blog.id}' })">
               <img src="${blog.cover_image}" alt="${escapeHtml(blog.title)}" class="blog-card-img">
               <div class="blog-card-body">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
@@ -8665,13 +9224,258 @@ async function renderBlogScreen(viewport) {
       `}
     </div>
   `;
+}
 
-  // If URL has activeBlogId, open it
-  if (state.activeBlogId) {
-    const bId = state.activeBlogId;
-    state.activeBlogId = null;
-    openBlogDetailModal(bId);
+async function renderBlogArticleView(viewport, blogId) {
+  if (blogScrollCleanup) {
+    blogScrollCleanup();
+    blogScrollCleanup = null;
   }
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  let blog = (state.blogs || []).find(b => b.id === blogId || b.slug === blogId);
+  if (!blog) {
+    try {
+      const res = await fetch(`/api/blogs/${encodeURIComponent(blogId)}`);
+      if (res.ok) {
+        blog = await res.json();
+      }
+    } catch (e) {
+      console.error('Failed to load blog:', e);
+    }
+  }
+
+  if (!blog) {
+    viewport.innerHTML = `
+      <div style="max-width: 700px; margin: 80px auto; text-align: center; padding: 40px 20px;">
+        <div style="color: var(--orange-primary); margin-bottom: 16px;">${svgIcon('search', '', 48)}</div>
+        <h2 style="font-size: 1.5rem; color: var(--white); margin-bottom: 8px;">Article Not Found</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">The article blueprint you are looking for may have been updated or moved.</p>
+        <button class="btn-orange" onclick="navigateTo('blog')">← Return to Knowledge Hub</button>
+      </div>
+    `;
+    return;
+  }
+
+  // Related articles (other blogs)
+  const related = (state.blogs || []).filter(b => b.id !== blog.id).slice(0, 3);
+
+  let tagList = [];
+  if (Array.isArray(blog.tags)) {
+    tagList = blog.tags;
+  } else if (typeof blog.tags === 'string') {
+    try {
+      const parsed = JSON.parse(blog.tags);
+      tagList = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      tagList = blog.tags.split(',').map(t => t.trim()).filter(Boolean);
+    }
+  }
+
+  const rawWords = (blog.content || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
+  const wordCount = rawWords.length;
+  const readTime = blog.read_time || `${Math.max(1, Math.round(wordCount / 180))} min read`;
+  const formattedDate = blog.published_at 
+    ? new Date(blog.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'Recent Publication';
+
+  const canEdit = Boolean(
+    state.currentUser && (
+      state.currentUser.role === 'admin' ||
+      (blog.author_id && state.currentUser.id === blog.author_id)
+    )
+  );
+
+  viewport.innerHTML = `
+    <!-- Top Reading Progress Indicator Bar -->
+    <div class="blog-reading-progress-track">
+      <div id="blog-reading-progress" class="blog-reading-progress-bar"></div>
+    </div>
+
+    <div class="blog-reader-page ${currentBlogFontSize === 'large' ? 'font-size-lg' : (currentBlogFontSize === 'xl' ? 'font-size-xl' : '')}">
+      <!-- Sticky Editorial Navigation Bar -->
+      <nav class="blog-reader-nav">
+        <button class="blog-reader-nav-back" onclick="navigateTo('blog'); return false;" title="Return to Knowledge Hub">
+          ${svgIcon('arrowLeft', '', 14)} Back to Articles
+        </button>
+
+        <div class="blog-reader-nav-progress">
+          <span class="blog-cat-pill" style="margin: 0; font-size: 0.72rem; padding: 2px 8px;">${blog.category}</span>
+          <span style="color: rgba(255, 255, 255, 0.3);">•</span>
+          <span><span id="blog-scroll-percent" class="blog-reader-nav-progress-pct">0%</span> read</span>
+        </div>
+
+        <div class="blog-reader-nav-actions">
+          <button class="blog-font-size-toggle" onclick="toggleBlogReaderFontSize()" title="Adjust reading font size">
+            ${svgIcon('type', '', 14)} <span id="blog-font-size-label">${currentBlogFontSize === 'large' ? 'Large' : (currentBlogFontSize === 'xl' ? 'X-Large' : 'Standard')}</span>
+          </button>
+          <button class="blog-share-pill" onclick="copyBlogShareLink('${blog.id}')" title="Copy share link">
+            ${svgIcon('share', '', 13)} Share
+          </button>
+          ${canEdit ? `
+            <button class="btn-secondary" style="padding: 5px 12px; font-size: 0.78rem;" onclick="openAdminEditBlogModal('${blog.id}')" title="Edit this article">
+              ${svgIcon('edit', '', 13)} Edit
+            </button>
+          ` : ''}
+        </div>
+      </nav>
+
+      <!-- Article Header & Hero Section -->
+      <header class="blog-article-hero">
+        <div class="blog-article-meta-row">
+          <span class="blog-cat-pill" style="font-size: 0.78rem; padding: 4px 12px;">${blog.category}</span>
+          <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.82rem; display: inline-flex; align-items: center; gap: 5px;">
+            ${svgIcon('clock', '', 14)} ${readTime}
+          </span>
+          <span style="color: rgba(255, 255, 255, 0.25);">•</span>
+          <span style="color: rgba(255, 255, 255, 0.55); font-size: 0.82rem;">
+            ${formattedDate}
+          </span>
+          <span style="color: rgba(255, 255, 255, 0.25);">•</span>
+          <span style="color: rgba(255, 255, 255, 0.55); font-size: 0.82rem;">
+            ${wordCount.toLocaleString()} words
+          </span>
+        </div>
+
+        <h1 class="blog-article-title">${blog.title}</h1>
+
+        <!-- Author Byline Bar -->
+        <div class="blog-author-byline">
+          <div class="blog-author-byline-left">
+            <img src="${blog.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}" alt="${blog.author_name}" class="blog-author-avatar-img">
+            <div>
+              <div class="blog-author-name">
+                ${blog.author_name}
+                <span style="color: var(--orange-primary); margin-left: 4px; display: inline-flex; vertical-align: middle;" title="5-Star Verified Expert">
+                  ${svgIcon('shieldCheck', '', 15)}
+                </span>
+              </div>
+              <div class="blog-author-title">${blog.author_title || 'Hospitality Leadership Council'}</div>
+            </div>
+          </div>
+          <div class="blog-share-bar">
+            <button class="blog-share-pill" onclick="openSocialShare('whatsapp', '${blog.id}', '${escapeHtml(blog.title).replace(/'/g, "\\'")}')" title="Share on WhatsApp">
+              ${svgIcon('messageSquare', '', 13)} WhatsApp
+            </button>
+            <button class="blog-share-pill" onclick="openSocialShare('linkedin', '${blog.id}', '${escapeHtml(blog.title).replace(/'/g, "\\'")}')" title="Share on LinkedIn">
+              ${svgIcon('briefcase', '', 13)} LinkedIn
+            </button>
+            <button class="blog-share-pill" onclick="openSocialShare('twitter', '${blog.id}', '${escapeHtml(blog.title).replace(/'/g, "\\'")}')" title="Share on X">
+              ${svgIcon('send', '', 13)} Post
+            </button>
+          </div>
+        </div>
+
+        <!-- Featured Cover Image -->
+        <div class="blog-hero-cover-wrap">
+          <img src="${blog.cover_image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'}" alt="${escapeHtml(blog.title)}" class="blog-hero-cover-img">
+        </div>
+
+        <!-- Executive Summary Briefing Card -->
+        <div class="blog-exec-summary-box">
+          <div class="blog-exec-summary-eyebrow">
+            ${svgIcon('sparkles', '', 14)} Executive Summary • 60-Second Briefing
+          </div>
+          <p class="blog-exec-summary-text">${blog.excerpt || 'Operational overview curated for hospitality executives.'}</p>
+        </div>
+      </header>
+
+      <!-- Main Long-Form Article Body -->
+      <article class="blog-article-prose" id="blog-article-prose-container">
+        ${formatArticleContent(blog.content)}
+      </article>
+
+      <!-- Tags Section -->
+      ${tagList.length > 0 ? `
+        <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+          <div style="font-size: 0.78rem; color: rgba(255, 255, 255, 0.5); font-weight: 750; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;">
+            Article Topics &amp; Specializations
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${tagList.map(tag => `<span class="blog-tag-badge">#${escapeHtml(tag)}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Author Bio Footer Card -->
+      <div class="blog-author-bio-card">
+        <img src="${blog.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}" alt="${blog.author_name}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 107, 0, 0.5); flex-shrink: 0;">
+        <div style="flex: 1;">
+          <div style="font-size: 0.74rem; font-weight: 800; color: var(--orange-primary); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;">
+            About the Author
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: var(--white); margin-bottom: 4px;">
+            ${blog.author_name}
+          </div>
+          <div style="font-size: 0.84rem; color: rgba(255, 255, 255, 0.65); line-height: 1.55;">
+            ${blog.author_title || 'Hospitality Leader'} contributing operational benchmarks, candidate trade testing checklists, and leadership standards across Bangladesh.
+          </div>
+        </div>
+      </div>
+
+      <!-- Continue Reading Related Articles -->
+      ${related.length > 0 ? `
+        <section class="blog-related-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--white); margin: 0 0 4px 0;">
+                Continue Reading More Hospitality Insights
+              </h3>
+              <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.55); margin: 0;">
+                Recommended blueprints curated for luxury properties and career advancement.
+              </p>
+            </div>
+            <button class="btn-secondary" style="font-size: 0.82rem; padding: 6px 14px;" onclick="navigateTo('blog')">
+              View All Articles →
+            </button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;">
+            ${related.map(r => `
+              <div class="blog-card spotlight-card" onclick="navigateTo('blog', { id: '${r.id}' })" style="cursor: pointer; display: flex; flex-direction: column;">
+                <img src="${r.cover_image}" alt="${escapeHtml(r.title)}" style="width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                <div style="padding: 16px; display: flex; flex-direction: column; flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="blog-cat-pill" style="font-size: 0.68rem; padding: 2px 7px;">${r.category}</span>
+                    <span style="font-size: 0.72rem; color: rgba(255,255,255,0.45);">${r.read_time}</span>
+                  </div>
+                  <h4 style="font-size: 0.95rem; font-weight: 750; color: var(--white); line-height: 1.4; margin: 0 0 8px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                    ${r.title}
+                  </h4>
+                  <div style="margin-top: auto; padding-top: 10px; color: var(--orange-primary); font-size: 0.78rem; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                    Read Blueprint →
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      ` : ''}
+
+      <!-- Bottom Navigation Anchor -->
+      <div style="margin-top: 48px; text-align: center;">
+        <button class="btn-orange" style="padding: 12px 28px; font-weight: 750;" onclick="navigateTo('blog')">
+          ← Back to All Articles
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Attach progress scroll listener
+  const onScroll = () => {
+    const progressBar = document.getElementById('blog-reading-progress');
+    const progressPct = document.getElementById('blog-scroll-percent');
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docH > 0 ? Math.min(100, Math.max(0, Math.round((window.scrollY / docH) * 100))) : 0;
+    if (progressBar) progressBar.style.width = pct + '%';
+    if (progressPct) progressPct.textContent = pct + '%';
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  blogScrollCleanup = () => {
+    window.removeEventListener('scroll', onScroll);
+  };
 }
 
 function filterBlogsByCategory(cat) {
@@ -8730,129 +9534,15 @@ function formatArticleContent(text) {
       return b;
     }
     let rendered = escapeHtml(b).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    rendered = rendered.replace(/\*(.*?)\*/g, '<em>$1</em>');
     rendered = rendered.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 12px; margin: 12px 0; display: block;" onerror="this.style.display=\'none\'" />');
     return `<p>${rendered}</p>`;
   }).join('');
 }
 
 async function openBlogDetailModal(blogId) {
-  let blog = (state.blogs || []).find(b => b.id === blogId || b.slug === blogId);
-  if (!blog) {
-    try {
-      const res = await fetch(`/api/blogs/${blogId}`);
-      if (res.ok) blog = await res.json();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-  if (!blog) {
-    showToast('Article not found', 'warning');
-    return;
-  }
-
-  let tagList = [];
-  if (Array.isArray(blog.tags)) {
-    tagList = blog.tags;
-  } else if (typeof blog.tags === 'string') {
-    try {
-      const parsed = JSON.parse(blog.tags);
-      tagList = Array.isArray(parsed) ? parsed : [parsed];
-    } catch (e) {
-      tagList = blog.tags.split(',').map(t => t.trim()).filter(Boolean);
-    }
-  }
-
-  const container = document.getElementById('modal-container');
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="modal-backdrop open" id="modal-blog-reader" onclick="if(event.target === this) closeModal('modal-blog-reader')">
-      <div class="modal-dialog blog-reader-modal" style="position: relative;">
-        <!-- Close Button (Vector SVG Cross Icon) -->
-        <button 
-          class="modal-close" 
-          onclick="closeModal('modal-blog-reader')" 
-          aria-label="Close article" 
-          style="position: absolute; top: 16px; right: 16px; z-index: 20; background: rgba(10, 17, 40, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.15); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--white); transition: all 0.2s;"
-        >
-          ${svgIcon('x', '', 18)}
-        </button>
-
-        <!-- Cover Image -->
-        <img src="${blog.cover_image}" alt="${escapeHtml(blog.title)}" class="blog-reader-cover">
-
-        <div class="blog-reader-content">
-          <!-- Metadata Bar -->
-          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px;">
-            <span class="blog-cat-pill" style="margin-bottom: 0;">${blog.category}</span>
-            <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
-              ${svgIcon('clock', '', 14)} ${blog.read_time}
-            </span>
-            <span style="color: rgba(255, 255, 255, 0.3);">•</span>
-            <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.8rem;">
-              ${new Date(blog.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </span>
-          </div>
-
-          <!-- Article Title -->
-          <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white); line-height: 1.35; margin: 0 0 20px 0;">
-            ${blog.title}
-          </h1>
-
-          <!-- Author Info Strip -->
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; margin-bottom: 28px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <img src="${blog.author_avatar}" alt="${blog.author_name}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 107, 0, 0.4);">
-              <div>
-                <div style="font-weight: 700; font-size: 0.92rem; color: var(--white);">${blog.author_name}</div>
-                <div style="font-size: 0.76rem; color: rgba(255, 255, 255, 0.55);">${blog.author_title}</div>
-              </div>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;" onclick="copyBlogShareLink('${blog.id}')" title="Share Article">
-                ${svgIcon('share', '', 14)} Share
-              </button>
-            </div>
-          </div>
-
-          <!-- Executive Summary Callout Box -->
-          <div style="background: rgba(255, 107, 0, 0.07); border-left: 3px solid var(--orange-primary); border-radius: 0 12px 12px 0; padding: 16px 20px; margin-bottom: 28px;">
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--orange-primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-              Executive Briefing
-            </div>
-            <p style="font-size: 0.94rem; color: rgba(255, 255, 255, 0.9); line-height: 1.55; margin: 0;">
-              ${blog.excerpt}
-            </p>
-          </div>
-
-          <!-- Article Body Prose -->
-          <div class="blog-prose">
-            ${formatArticleContent(blog.content)}
-          </div>
-
-          <!-- Tags -->
-          ${tagList.length > 0 ? `
-            <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-              <div style="font-size: 0.78rem; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">Tags</div>
-              <div>
-                ${tagList.map(tag => `<span class="blog-tag-badge">#${escapeHtml(tag)}</span>`).join('')}
-              </div>
-            </div>
-          ` : ''}
-
-          <!-- Footer Actions -->
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-            <button class="btn-secondary" onclick="closeModal('modal-blog-reader')">
-              ← Back to Insights
-            </button>
-            <button class="btn-orange" onclick="closeModal('modal-blog-reader'); navigateTo('home')">
-              Browse Related Openings →
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  // Direct readers into the dedicated bespoke full-page reading experience
+  navigateTo('blog', { id: blogId });
 }
 
 function copyBlogShareLink(blogId) {
