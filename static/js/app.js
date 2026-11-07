@@ -1515,21 +1515,29 @@ function getPickerState(pickerId, defaultSelected = ['Dhaka']) {
 function renderDistrictProximityPicker(options = {}) {
   const {
     pickerId = 'district-picker',
-    selected = ['Dhaka'],
+    selected = [],
     context = 'candidate_signup',
     allowMultiple = true,
-    allowAnywhere = true
+    allowAnywhere = false
   } = options;
 
   const pState = getPickerState(pickerId, selected);
-  const isAnywhere = pState.selected.some(s => 
+  if (!allowAnywhere) {
+    pState.selected = pState.selected.filter(s => 
+      !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
+    );
+  }
+  const isAnywhere = allowAnywhere && pState.selected.some(s => 
     ['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
   );
 
-  const selectedList = isAnywhere ? ['Anywhere in Bangladesh'] : pState.selected;
+  const selectedList = allowAnywhere 
+    ? (isAnywhere ? ['Anywhere in Bangladesh'] : pState.selected)
+    : pState.selected.filter(s => !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase()));
+
   const proximityData = isAnywhere 
     ? BANGLADESH_DISTRICTS_DATA.map(d => ({ ...d, distance_km: 0.0, is_selected: false }))
-    : getDistrictsByProximity(pState.selected);
+    : getDistrictsByProximity(pState.selected.length > 0 ? pState.selected : ['Dhaka']);
 
   // Filter recommendations if search term is active
   let displayDistricts = proximityData;
@@ -1758,7 +1766,7 @@ function handleDistrictToggle(pickerId, distName, context) {
     pState.selected.push(distName);
   }
   
-  if (pState.selected.length === 0) {
+  if (context !== 'candidate_signup' && pState.selected.length === 0) {
     pState.selected = ['Dhaka'];
   }
   updatePickerContext(pickerId, context);
@@ -1767,7 +1775,7 @@ function handleDistrictToggle(pickerId, distName, context) {
 function handleDistrictRemove(pickerId, distName, context) {
   const pState = getPickerState(pickerId);
   pState.selected = pState.selected.filter(s => s.toLowerCase() !== distName.toLowerCase());
-  if (pState.selected.length === 0) {
+  if (context !== 'candidate_signup' && pState.selected.length === 0) {
     pState.selected = ['Anywhere in Bangladesh'];
   }
   updatePickerContext(pickerId, context);
@@ -1811,7 +1819,13 @@ function handleBizDistrictChange(val) {
 
 function updatePickerContext(pickerId, context) {
   const pState = getPickerState(pickerId);
-  const formattedVal = pState.selected.join(', ');
+  const actualDistricts = pState.selected.filter(s => 
+    !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
+  );
+  
+  const formattedVal = (context === 'candidate_signup' && actualDistricts.length === 0)
+    ? 'Anywhere in Bangladesh'
+    : (actualDistricts.length > 0 ? actualDistricts.join(', ') : (pState.selected.join(', ') || 'Anywhere in Bangladesh'));
   
   const hiddenInput = document.getElementById(pickerId.replace('-picker', '')) || 
                       document.getElementById('cand-pref-location');
@@ -1822,7 +1836,7 @@ function updatePickerContext(pickerId, context) {
   if (context === 'candidate_signup') {
     if (!signupState.job_preferences) signupState.job_preferences = {};
     signupState.job_preferences.preferred_location = formattedVal;
-    signupState.job_preferences.preferred_locations = [...pState.selected];
+    signupState.job_preferences.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : ['Anywhere in Bangladesh'];
   } else if (context === 'job_search') {
     state.search.location = formattedVal;
     const heroInput = document.getElementById('select-search-loc');
@@ -2050,7 +2064,7 @@ function captureCurrentSignupInputs() {
     signupState.job_preferences.expected_salary = isNegActive ? 'Negotiable' : prefSalary.value.trim();
   }
   const prefLoc = document.getElementById('cand-pref-location');
-  if (prefLoc) signupState.job_preferences.preferred_location = prefLoc.value;
+  if (prefLoc) signupState.job_preferences.preferred_location = prefLoc.value.trim() || 'Anywhere in Bangladesh';
 
   // Dynamic Education cards
   const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
@@ -10896,20 +10910,17 @@ function renderSignupPage(viewport) {
 
                 <!-- PREFERRED LOCATION: Bangladesh 64 Districts Proximity Location System -->
                 <div class="auth-field" style="margin-top: 10px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <label class="auth-label" style="margin: 0;">Preferred Location</label>
-                    <span style="font-size: 0.74rem; color: var(--text-dim);">Pick 1 or more districts, or Anywhere in BD</span>
-                  </div>
+                  <label class="auth-label" style="margin-bottom: 6px;">Preferred Location</label>
                   <div id="cand-location-picker-wrapper">
                     ${renderDistrictProximityPicker({
                       pickerId: 'cand-pref-location-picker',
-                      selected: signupState.job_preferences?.preferred_locations || (signupState.job_preferences?.preferred_location ? signupState.job_preferences.preferred_location.split(',').map(s => s.trim()).filter(Boolean) : ['Dhaka']),
+                      selected: (signupState.job_preferences?.preferred_locations || (signupState.job_preferences?.preferred_location ? signupState.job_preferences.preferred_location.split(',').map(s => s.trim()).filter(s => !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(s.toLowerCase())) : [])),
                       context: 'candidate_signup',
                       allowMultiple: true,
-                      allowAnywhere: true
+                      allowAnywhere: false
                     })}
                   </div>
-                  <input type="hidden" id="cand-pref-location" value="${escapeHtml(signupState.job_preferences?.preferred_location || 'Dhaka')}">
+                  <input type="hidden" id="cand-pref-location" value="${escapeHtml(signupState.job_preferences?.preferred_location || 'Anywhere in Bangladesh')}">
                 </div>
               </div>
 
@@ -13647,7 +13658,7 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
   const prefShift = document.getElementById('cand-pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
   const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
   const prefSalary = isNegActive ? 'Negotiable' : ((document.getElementById('cand-pref-salary')?.value || '').trim() || 'Negotiable');
-  const prefLoc = (document.getElementById('cand-pref-location')?.value || '').trim() || 'Dhaka';
+  const prefLoc = (document.getElementById('cand-pref-location')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Anywhere in Bangladesh';
 
   signupState.bio = bioVal;
   signupState.job_preferences = {
@@ -13759,7 +13770,7 @@ async function handleCandidateCompleteProfile(event) {
     cv_url: signupState.cv_data || signupState.cv_url || '',
     department: signupState.job_preferences?.department || 'Front Office & Guest Services',
     designation: signupState.job_preferences?.desired_role || signupState.designation || 'Front Desk Agent',
-    location: signupState.job_preferences?.preferred_location || 'Dhaka',
+    location: signupState.job_preferences?.preferred_location || (document.getElementById('cand-pref-location')?.value || '').trim() || 'Anywhere in Bangladesh',
     expected_salary: signupState.job_preferences?.expected_salary || 'Negotiable',
     job_preferences: signupState.job_preferences,
     education: signupState.education || [],

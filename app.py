@@ -2464,7 +2464,7 @@ def register_candidate(payload: CandidateRegisterPayload):
     prefs_data = {
         "designation": effective_role,
         "target_roles": [effective_role] if effective_role else [],
-        "locations": [payload.location] if payload.location else ["Dhaka"],
+        "locations": [payload.location] if payload.location else ["Anywhere in Bangladesh"],
         "expected_salary": payload.expected_salary or "Negotiable",
         "work_type": payload.work_type or "Full-time",
         "notice_period": payload.notice_period or "1 Month",
