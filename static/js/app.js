@@ -5285,19 +5285,35 @@ async function renderProfileScreen(viewport) {
         <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px;">
           <div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white);">${escapeHtml(profile.name || 'Candidate')}</h1>
+              <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--white); margin: 0;">
+                ${escapeHtml(profile.name || 'Candidate')}
+                ${profile.name_bangla ? `<span style="font-size: 1.05rem; color: #cbd5e1; font-weight: 600; margin-left: 8px;">(${escapeHtml(profile.name_bangla)})</span>` : ''}
+              </h1>
               <span class="verified-badge" title="Verified">${svgIcon('shieldCheck', '', 14)} Verified</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap;">
               ${(profile.designation || profile.current_position) ? `
                 <span class="profile-designation-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 800; padding: 4px 12px; border-radius: 6px; background: rgba(255, 107, 0, 0.14); border: 1.5px solid var(--orange-primary); color: var(--orange-primary); letter-spacing: 0.3px;">
                   ${svgIcon('briefcase', '', 14)} ${escapeHtml(profile.designation || profile.current_position)}
                 </span>
               ` : ''}
+              ${(profile.department || profile.preferences?.department) ? `
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #f1f5f9;">
+                  ${svgIcon('hotel', '', 14)} ${escapeHtml(profile.department || profile.preferences?.department)}
+                </span>
+              ` : ''}
               <span style="font-size: 1.02rem; color: #cbd5e1; font-weight: 600;">${escapeHtml(profile.headline || profile.designation || profile.current_position || 'Hospitality Specialist')}</span>
             </div>
-            <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 6px;">
-              ${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || 'Dhaka, Bangladesh')} • ${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')} • ${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}
+            <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+              <span>${svgIcon('mapPin', '', 14)} ${escapeHtml(profile.location || profile.preferences?.preferred_location || 'Dhaka, Bangladesh')}</span>
+              <span>${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone || '')}</span>
+              ${(profile.phone_secondary || profile.preferences?.phone_secondary) ? `
+                <span>${svgIcon('phone', '', 14)} ${escapeHtml(profile.phone_secondary || profile.preferences?.phone_secondary)} <span style="font-size: 0.74rem; color: var(--text-muted);">(Alt)</span></span>
+              ` : ''}
+              <span>${svgIcon('mail', '', 14)} ${escapeHtml(profile.email || '')}</span>
+              ${profile.dob ? `
+                <span>${svgIcon('calendar', '', 14)} Born: ${escapeHtml(profile.dob)}</span>
+              ` : ''}
             </div>
           </div>
 
@@ -5313,10 +5329,10 @@ async function renderProfileScreen(viewport) {
             <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); padding: 8px 14px; border-radius: var(--radius-md); font-size: 0.78rem;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <span style="color: var(--text-muted);">Profile Completion</span>
-                <span style="font-weight: 800; color: var(--orange-primary);">${profile.profile_completion}%</span>
+                <span style="font-weight: 800; color: var(--orange-primary);">${profile.profile_completion || 85}%</span>
               </div>
               <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: var(--radius-full); overflow: hidden;">
-                <div style="width: ${profile.profile_completion}%; height: 100%; background: linear-gradient(90deg, #2563eb, #f97316);"></div>
+                <div style="width: ${profile.profile_completion || 85}%; height: 100%; background: linear-gradient(90deg, #ff7a18, #ff6b00);"></div>
               </div>
             </div>
           </div>
@@ -5379,23 +5395,89 @@ async function renderProfileScreen(viewport) {
             <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Summary</h2>
             <button class="btn-icon" onclick="openEditSummaryModal()" title="Edit Summary">${svgIcon('edit', '', 14)}</button>
           </div>
-          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">${profile.summary || 'No professional summary added yet.'}</p>
+          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">${escapeHtml(profile.summary || 'No professional summary added yet.')}</p>
+        </div>
+
+        <!-- Education & Academic Degrees -->
+        <div class="profile-section-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Education &amp; Academic Degrees</h2>
+              <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">School certificates, diplomas, and university degrees</div>
+            </div>
+            <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditEducationModal()">+ Add / Edit</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${(!profile.education || profile.education.length === 0) ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem; padding: 14px; text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
+                No academic degrees or hospitality certificates listed. Click '+ Add / Edit' to add your credentials.
+              </div>
+            ` : profile.education.map(edu => `
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); padding: 12px 16px; border-radius: var(--radius-md);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+                  <div>
+                    <div style="font-weight: 800; font-size: 0.96rem; color: var(--white);">${escapeHtml(edu.degree || edu.institution || 'Hospitality Degree')}</div>
+                    <div style="font-size: 0.84rem; color: var(--orange-primary); font-weight: 700; margin-top: 3px;">
+                      ${escapeHtml(edu.institution || '')} ${edu.country ? `• <span style="color: var(--text-muted); font-weight: 500;">${escapeHtml(edu.country)}</span>` : ''}
+                    </div>
+                  </div>
+                  ${edu.gpa ? `
+                    <span style="background: rgba(255, 107, 0, 0.12); border: 1px solid rgba(255, 107, 0, 0.3); color: #ff9d42; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700;">
+                      GPA: ${escapeHtml(edu.gpa)}
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
 
         <!-- Experience Timeline -->
         <div class="profile-section-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Experience</h2>
+            <div>
+              <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Work Experience</h2>
+              <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">Professional hospitality and operational history</div>
+            </div>
             <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditExperienceModal()">+ Add / Edit</button>
           </div>
           <div style="display: flex; flex-direction: column; gap: 16px;">
-            ${(profile.experience || []).length === 0 ? `
-              <div style="color: var(--text-dim); font-size: 0.85rem;">No previous hospitality experience listed.</div>
-            ` : (profile.experience || []).map(exp => `
-              <div style="border-left: 3px solid var(--blue-primary); padding-left: 16px;">
-                <div style="font-size: 1.05rem; font-weight: 800; color: var(--white);">${exp.role}</div>
-                <div style="font-size: 0.88rem; color: var(--orange-primary); font-weight: 600;">${exp.hotel} • ${exp.period}</div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">${exp.description || ''}</p>
+            ${(!profile.experience || profile.experience.length === 0) ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem; padding: 14px; text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
+                No previous hospitality experience listed.
+              </div>
+            ` : profile.experience.map(exp => `
+              <div style="border-left: 3px solid var(--orange-primary); padding-left: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+                  <div>
+                    <div style="font-size: 1.02rem; font-weight: 800; color: var(--white);">${escapeHtml(exp.role || exp.title || 'Role')}</div>
+                    <div style="font-size: 0.88rem; color: var(--orange-primary); font-weight: 600; margin-top: 2px;">
+                      ${escapeHtml(exp.company || exp.hotel || 'Hospitality Organization')}
+                      ${exp.period ? ` • <span style="color: var(--text-dim);">${escapeHtml(exp.period)}</span>` : (exp.worked_years ? ` • <span style="color: var(--text-dim);">${escapeHtml(exp.worked_years)} yrs</span>` : '')}
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    ${exp.department ? `
+                      <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-subtle); color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">
+                        ${escapeHtml(exp.department)}
+                      </span>
+                    ` : ''}
+                    ${exp.is_hospitality !== false ? `
+                      <span style="background: rgba(255, 107, 0, 0.1); border: 1px solid rgba(255, 107, 0, 0.25); color: #ff9d42; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;">
+                        ✓ Hospitality
+                      </span>
+                    ` : `
+                      <span style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); color: var(--text-dim); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem;">
+                        Other Industry
+                      </span>
+                    `}
+                  </div>
+                </div>
+                ${(exp.skills_acquired || exp.description) ? `
+                  <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5; margin-bottom: 0;">
+                    ${escapeHtml(exp.skills_acquired || exp.description)}
+                  </p>
+                ` : ''}
               </div>
             `).join('')}
           </div>
@@ -5404,21 +5486,31 @@ async function renderProfileScreen(viewport) {
         <!-- Certifications -->
         <div class="profile-section-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Certifications</h2>
+            <div>
+              <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Certifications &amp; Accreditations</h2>
+              <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">Accredited licenses and professional credentials</div>
+            </div>
             <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openEditCredentialsModal()">+ Add / Edit</button>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${(profile.certifications || []).length === 0 ? `
-              <div style="color: var(--text-dim); font-size: 0.85rem;">No certificates or accreditations added.</div>
-            ` : (profile.certifications || []).map(c => `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: var(--radius-md);">
-                <div>
-                  <div style="font-weight: 700; font-size: 0.9rem; color: var(--white);">${svgIcon('award', '', 14)} ${c.title}</div>
-                  <div style="font-size: 0.78rem; color: var(--text-dim);">${c.issuer}</div>
-                </div>
-                <span class="badge-featured">${c.year}</span>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            ${(!profile.certifications || profile.certifications.length === 0) ? `
+              <div style="color: var(--text-dim); font-size: 0.85rem; padding: 14px; text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
+                No certificates or accreditations added yet.
               </div>
-            `).join('')}
+            ` : profile.certifications.map(c => {
+              const cTitle = c.title || c.name || (typeof c === 'string' ? c : 'Certification');
+              const cIssuer = c.issuer || c.issued_by || '';
+              const cYear = c.year || c.year_obtained || '';
+              return `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <div>
+                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--white);">${svgIcon('award', '', 14)} ${escapeHtml(cTitle)}</div>
+                    ${cIssuer ? `<div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">${escapeHtml(cIssuer)}</div>` : ''}
+                  </div>
+                  ${cYear ? `<span class="badge-featured">${escapeHtml(cYear)}</span>` : ''}
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -5451,20 +5543,37 @@ async function renderProfileScreen(viewport) {
 
         <!-- Career Preferences -->
         <div class="profile-section-card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--white); margin: 0;">Job Preferences</h3>
             <button class="btn-icon" onclick="openEditJobPreferencesModal()" title="Edit Career Preferences">${svgIcon('edit', '', 14)}</button>
           </div>
-          <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
-            ${(profile.designation || profile.current_position) ? `
-              <div>${svgIcon('briefcase', '', 15)} <strong>Designation:</strong> <span style="color: var(--white); font-weight: 700;">${escapeHtml(profile.designation || profile.current_position)}</span></div>
+          <div style="font-size: 0.84rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 10px;">
+            <div>
+              ${svgIcon('hotel', '', 15)} <strong>Department:</strong> 
+              <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.department || profile.preferences?.department || 'Front Office & Guest Services')}</span>
+            </div>
+            <div>
+              ${svgIcon('briefcase', '', 15)} <strong>Desired Role:</strong> 
+              <span style="color: var(--white); font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.desired_role || profile.designation || profile.current_position || 'Front Desk Agent')}</span>
+            </div>
+            <div>
+              ${svgIcon('clock', '', 15)} <strong>Preferred Shift:</strong> 
+              <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences?.shift || 'Rotational')}</span>
+            </div>
+            <div>
+              ${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> 
+              <span style="color: #ff9d42; font-weight: 700; margin-left: 4px;">${escapeHtml(profile.preferences?.expected_salary || profile.expected_salary || 'Negotiable')}</span>
+            </div>
+            <div>
+              ${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> 
+              <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences?.preferred_location || (profile.preferences?.locations || []).join(', ') || profile.location || 'Anywhere in Bangladesh')}</span>
+            </div>
+            ${profile.preferences?.notice_period ? `
+              <div>
+                ${svgIcon('clock', '', 15)} <strong>Notice Period:</strong> 
+                <span style="color: #cbd5e1; margin-left: 4px;">${escapeHtml(profile.preferences.notice_period)}</span>
+              </div>
             ` : ''}
-            ${profile.department ? `
-              <div>${svgIcon('hotel', '', 15)} <strong>Department:</strong> <span>${escapeHtml(profile.department)}</span></div>
-            ` : ''}
-            <div>${svgIcon('dollar', '', 15)} <strong>Expected Salary:</strong> ${profile.preferences?.expected_salary || 'Negotiable'}</div>
-            <div>${svgIcon('mapPin', '', 15)} <strong>Target Locations:</strong> ${(profile.preferences?.locations || []).join(', ') || 'Dhaka'}</div>
-            <div>${svgIcon('clock', '', 15)} <strong>Notice Period:</strong> ${profile.preferences?.notice_period || 'Immediate'}</div>
           </div>
         </div>
       </aside>
@@ -17353,7 +17462,178 @@ async function handleSaveSummaryModal(e) {
   await saveProfileField({ summary });
 }
 
-// 2. Edit Experience Modal
+// 2. Edit Education Modal (Degrees, Country, GPA Obtained & Out of, Other degree)
+let editEducationList = [];
+
+function openEditEducationModal() {
+  editEducationList = JSON.parse(JSON.stringify(state.profile?.education || []));
+  renderEducationModalDOM();
+}
+
+function renderEducationModalDOM() {
+  const container = document.getElementById('modal-container');
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-edit-education">
+      <div class="modal-dialog" style="max-width: 680px;">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Education &amp; Academic Degrees</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage your certificates, diplomas, and degrees</div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-edit-education')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
+        </div>
+        <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+          <div id="education-entries-modal-list" style="display: flex; flex-direction: column; gap: 14px;">
+            ${editEducationList.map((edu, idx) => {
+              const isOther = isOtherDegree(edu.degree_select || edu.degree);
+              const gpaObt = edu.gpa_obtained !== undefined ? edu.gpa_obtained : (edu.gpa && !edu.gpa.includes('/') ? edu.gpa : (edu.gpa ? edu.gpa.split('/')[0].trim() : ''));
+              const gpaSc = edu.gpa_scale !== undefined ? edu.gpa_scale : (edu.gpa && edu.gpa.includes('/') ? edu.gpa.split('/')[1].trim() : '4.00');
+
+              return `
+                <div class="dynamic-entry-card" style="position: relative;" data-edu-idx="${idx}">
+                  <div class="dynamic-entry-header">
+                    <span class="dynamic-entry-title">Degree / Certificate #${idx + 1}</span>
+                    <button type="button" class="dynamic-remove-btn" onclick="removeEduModalEntry(${idx})" title="Remove degree entry">
+                      ${svgIcon('x', '', 13)} Remove
+                    </button>
+                  </div>
+
+                  <div class="auth-field" style="margin-bottom: 10px;">
+                    <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name *</label>
+                    <input type="text" class="auth-input modal-edu-inst" placeholder="Enter school, college, or training institute name"
+                      value="${escapeHtml(edu.institution || '')}" onchange="updateEduModalEntry(${idx}, 'institution', this.value)">
+                  </div>
+
+                  <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px; gap: 10px;">
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
+                      <select class="auth-input modal-edu-deg" onchange="handleEduModalDegreeChange(${idx}, this.value)">
+                        ${BANGLADESH_DEGREES.map(deg => {
+                          const selected = (edu.degree_select === deg || edu.degree === deg || (isOther && deg.toLowerCase().includes('other')));
+                          return `<option value="${deg}" ${selected ? 'selected' : ''}>${deg}</option>`;
+                        }).join('')}
+                      </select>
+                    </div>
+
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <label class="auth-label" style="font-size: 0.76rem;">Country</label>
+                      <select class="auth-input modal-edu-country" onchange="updateEduModalEntry(${idx}, 'country', this.value)">
+                        ${EDUCATION_COUNTRIES.map(c => `
+                          <option value="${c}" ${(edu.country || 'Bangladesh') === c ? 'selected' : ''}>${c}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="auth-field modal-edu-other-wrap" style="${isOther ? 'display: block;' : 'display: none;'} margin-bottom: 10px;">
+                    <label class="auth-label" style="font-size: 0.76rem;">Degree Name *</label>
+                    <input type="text" class="auth-input modal-edu-other-deg" placeholder="Enter degree or certificate name"
+                      value="${escapeHtml(edu.other_degree || (isOther && !isOtherDegree(edu.degree) ? edu.degree : ''))}"
+                      onchange="updateEduModalEntry(${idx}, 'other_degree', this.value)">
+                  </div>
+
+                  <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <label class="auth-label" style="font-size: 0.76rem;">GPA Obtained</label>
+                      <input type="text" class="auth-input modal-edu-gpa-obt" placeholder="e.g. 3.80"
+                        value="${escapeHtml(gpaObt)}" onchange="updateEduModalEntry(${idx}, 'gpa_obtained', this.value)">
+                    </div>
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <label class="auth-label" style="font-size: 0.76rem;">Out of</label>
+                      <input type="text" class="auth-input modal-edu-gpa-sc" placeholder="e.g. 4.00 or 5.00"
+                        value="${escapeHtml(gpaSc)}" onchange="updateEduModalEntry(${idx}, 'gpa_scale', this.value)">
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+            ${editEducationList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 18px; border: 1px dashed var(--border-subtle); border-radius: 6px;">No academic degrees or certificates added yet. Click below to add.</div>' : ''}
+          </div>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addEduModalEntry()">+ Add Another Degree / Certificate</button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-education')">Cancel</button>
+          <button type="button" class="btn-orange" onclick="saveEducationModalChanges()">Save Education</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addEduModalEntry() {
+  editEducationList.push({
+    institution: '',
+    degree: 'Bachelor of Hotel Management (BHM)',
+    degree_select: 'Bachelor of Hotel Management (BHM)',
+    other_degree: '',
+    country: 'Bangladesh',
+    gpa_obtained: '',
+    gpa_scale: '4.00',
+    gpa: ''
+  });
+  renderEducationModalDOM();
+}
+
+function removeEduModalEntry(idx) {
+  editEducationList.splice(idx, 1);
+  renderEducationModalDOM();
+}
+
+function updateEduModalEntry(idx, field, val) {
+  if (editEducationList[idx]) {
+    editEducationList[idx][field] = val;
+    if (field === 'gpa_obtained' || field === 'gpa_scale') {
+      const obt = editEducationList[idx].gpa_obtained || '';
+      const sc = editEducationList[idx].gpa_scale || '4.00';
+      editEducationList[idx].gpa = obt ? `${obt} / ${sc}` : '';
+    }
+  }
+}
+
+function handleEduModalDegreeChange(idx, val) {
+  if (editEducationList[idx]) {
+    editEducationList[idx].degree_select = val;
+    const isOther = isOtherDegree(val);
+    if (!isOther) {
+      editEducationList[idx].degree = val;
+    }
+    renderEducationModalDOM();
+  }
+}
+
+async function saveEducationModalChanges() {
+  const container = document.getElementById('modal-edit-education');
+  if (container) {
+    const cards = container.querySelectorAll('.dynamic-entry-card');
+    editEducationList = Array.from(cards).map(c => {
+      const inst = (c.querySelector('.modal-edu-inst')?.value || '').trim();
+      const degSel = c.querySelector('.modal-edu-deg')?.value || 'Bachelor of Hotel Management (BHM)';
+      const isOther = isOtherDegree(degSel);
+      const otherInput = (c.querySelector('.modal-edu-other-deg')?.value || '').trim();
+      const effectiveDeg = (isOther && otherInput) ? otherInput : degSel;
+      const country = c.querySelector('.modal-edu-country')?.value || 'Bangladesh';
+      const gpaObt = (c.querySelector('.modal-edu-gpa-obt')?.value || '').trim();
+      const gpaSc = (c.querySelector('.modal-edu-gpa-sc')?.value || '4.00').trim();
+      const comb = gpaObt ? `${gpaObt} / ${gpaSc}` : '';
+
+      return {
+        institution: inst,
+        degree: effectiveDeg,
+        degree_select: degSel,
+        other_degree: otherInput,
+        country: country,
+        gpa_obtained: gpaObt,
+        gpa_scale: gpaSc,
+        gpa: comb || gpaObt
+      };
+    }).filter(e => e.institution);
+  }
+
+  closeModal('modal-edit-education');
+  await saveProfileField({ education: editEducationList });
+}
+
+// 3. Edit Experience Modal (Modernized with Sector Toggle, Dept, Calendar Pickers & Duration Calc)
 let editExperienceList = [];
 
 function openEditExperienceModal() {
@@ -17363,41 +17643,121 @@ function openEditExperienceModal() {
 
 function renderExperienceModalDOM() {
   const container = document.getElementById('modal-container');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const defaultDept = state.profile?.department || state.profile?.preferences?.department || 'Front Office & Guest Services';
+
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-experience">
-      <div class="modal-dialog" style="max-width: 650px;">
+      <div class="modal-dialog" style="max-width: 680px;">
         <div class="modal-header">
-          <h2 class="modal-title">Hospitality Experience</h2>
+          <div>
+            <h2 class="modal-title">Work Experience</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage your hospitality and employment background</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-edit-experience')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
-        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
           <div id="experience-entries-list" style="display: flex; flex-direction: column; gap: 14px;">
-            ${editExperienceList.map((exp, idx) => `
-              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; position: relative;">
-                <button type="button" onclick="removeExpEntry(${idx})" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #f87171; cursor: pointer;" title="Remove Entry">${svgIcon('x', '', 14)}</button>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
-                  <div>
-                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Role / Position</label>
-                    <input type="text" value="${exp.role || ''}" onchange="updateExpEntry(${idx}, 'role', this.value)" placeholder="Your Designation" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+            ${editExperienceList.map((exp, idx) => {
+              const isHosp = exp.is_hospitality !== false;
+              const currentDept = exp.department || defaultDept;
+              const isCurrent = !!exp.is_current;
+              const calcYears = getEntryWorkedYears(exp);
+
+              return `
+                <div class="dynamic-entry-card" data-exp-modal-idx="${idx}" style="position: relative;">
+                  <div class="dynamic-entry-header">
+                    <span class="dynamic-entry-title">Experience #${idx + 1}</span>
+                    <button type="button" class="dynamic-remove-btn" onclick="removeExpModalEntry(${idx})" title="Remove experience entry">
+                      ${svgIcon('x', '', 13)} Remove
+                    </button>
                   </div>
-                  <div>
-                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Hotel / Property</label>
-                    <input type="text" value="${exp.hotel || ''}" onchange="updateExpEntry(${idx}, 'hotel', this.value)" placeholder="Your Previous Employer" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+
+                  <div class="auth-field-grid">
+                    <div class="auth-field">
+                      <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name *</label>
+                      <input type="text" class="auth-input modal-exp-comp" placeholder="Enter hotel, resort, or organization name"
+                        value="${escapeHtml(exp.company || exp.hotel || '')}">
+                    </div>
+                    <div class="auth-field">
+                      <label class="auth-label" style="font-size: 0.76rem;">Role / Designation *</label>
+                      <input type="text" class="auth-input modal-exp-role" placeholder="Enter your job title or designation"
+                        value="${escapeHtml(exp.role || exp.title || '')}">
+                    </div>
+                  </div>
+
+                  <!-- Hospitality Experience Toggle -->
+                  <div class="auth-field" style="margin-top: 6px; margin-bottom: 8px;">
+                    <div class="exp-toggle-group">
+                      <button type="button" class="exp-toggle-btn ${isHosp ? 'active' : ''}" onclick="setExpModalHospitality(${idx}, true)">
+                        ${svgIcon('check', '', 12)} Hospitality Experience
+                      </button>
+                      <button type="button" class="exp-toggle-btn ${!isHosp ? 'active' : ''}" onclick="setExpModalHospitality(${idx}, false)">
+                        Non-Hospitality / Other
+                      </button>
+                    </div>
+                  </div>
+
+                  ${isHosp ? `
+                    <div class="auth-field" style="margin-bottom: 10px;">
+                      <label class="auth-label" style="font-size: 0.76rem;">Hospitality Department</label>
+                      <select class="auth-input modal-exp-dept">
+                        ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+                      </select>
+                    </div>
+                  ` : ''}
+
+                  <!-- Calendar mechanism: Year From and Year To -->
+                  <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <label class="auth-label" style="font-size: 0.76rem; display: flex; align-items: center; gap: 4px;">
+                        ${svgIcon('calendar', '', 12)} Year From
+                      </label>
+                      <input type="date" class="auth-input modal-exp-date-from"
+                        value="${escapeHtml(exp.date_from || '')}"
+                        max="${todayStr}"
+                        onchange="onExpModalDateChange(${idx})"
+                        oninput="onExpModalDateChange(${idx})">
+                    </div>
+
+                    <div class="auth-field" style="margin-bottom: 0;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label class="auth-label" style="font-size: 0.76rem; margin: 0; display: flex; align-items: center; gap: 4px;">
+                          ${svgIcon('calendar', '', 12)} Year To
+                        </label>
+                        <label style="font-size: 0.72rem; color: ${isCurrent ? 'var(--orange-primary)' : 'var(--text-dim)'}; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                          <input type="checkbox" class="modal-exp-current-check" ${isCurrent ? 'checked' : ''} onchange="toggleExpModalCurrent(${idx}, this.checked)"> Present
+                        </label>
+                      </div>
+                      <input type="date" class="auth-input modal-exp-date-to"
+                        value="${escapeHtml(exp.date_to || '')}"
+                        max="${todayStr}"
+                        ${isCurrent ? 'disabled style="opacity: 0.45; cursor: not-allowed;"' : ''}
+                        onchange="onExpModalDateChange(${idx})"
+                        oninput="onExpModalDateChange(${idx})">
+                    </div>
+                  </div>
+
+                  <!-- Calculated Duration Badge -->
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; margin-bottom: 10px;">
+                    <span style="font-size: 0.75rem; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px;">
+                      ${svgIcon('clock', '', 13)} Experience Duration:
+                    </span>
+                    <span style="font-size: 0.78rem; font-weight: 700; color: #ff9d42;" id="modal-exp-calc-badge-${idx}">
+                      <strong id="modal-exp-calc-val-${idx}">${calcYears}</strong> yrs
+                    </span>
+                  </div>
+
+                  <div class="auth-field" style="margin-top: 8px;">
+                    <label class="auth-label" style="font-size: 0.76rem;">Key Responsibilities &amp; Tools</label>
+                    <textarea rows="2" class="auth-input modal-exp-skills" placeholder="Opera PMS, guest relations, VIP check-in, operations..." style="height: auto; min-height: 60px;">${escapeHtml(exp.skills_acquired || exp.description || '')}</textarea>
                   </div>
                 </div>
-                <div style="margin-bottom: 8px;">
-                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Period</label>
-                  <input type="text" value="${exp.period || ''}" onchange="updateExpEntry(${idx}, 'period', this.value)" placeholder="Years in Service" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
-                </div>
-                <div>
-                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Key Responsibilities &amp; Tools</label>
-                  <textarea rows="2" onchange="updateExpEntry(${idx}, 'description', this.value)" placeholder="Opera PMS, VIP guest relations, check-in operations..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.82rem; line-height: 1.4;">${exp.description || ''}</textarea>
-                </div>
-              </div>
-            `).join('')}
-            ${editExperienceList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No experience added yet. Click below to add.</div>' : ''}
+              `;
+            }).join('')}
+            ${editExperienceList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 18px; border: 1px dashed var(--border-subtle); border-radius: 6px;">No experience added yet. Click below to add.</div>' : ''}
           </div>
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addExpEntry()">+ Add Another Experience</button>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addExpModalEntry()">+ Add Another Experience</button>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-experience')">Cancel</button>
@@ -17408,27 +17768,116 @@ function renderExperienceModalDOM() {
   `;
 }
 
-function addExpEntry() {
-  editExperienceList.push({ role: '', hotel: '', period: '', description: '' });
+function addExpModalEntry() {
+  captureExpModalInputs();
+  const defaultDept = state.profile?.department || 'Front Office & Guest Services';
+  editExperienceList.push({
+    company: '',
+    hotel: '',
+    role: '',
+    is_hospitality: true,
+    department: defaultDept,
+    date_from: '',
+    date_to: '',
+    is_current: false,
+    worked_years: '0',
+    period: '',
+    skills_acquired: '',
+    description: ''
+  });
   renderExperienceModalDOM();
 }
 
-function removeExpEntry(idx) {
+function removeExpModalEntry(idx) {
+  captureExpModalInputs();
   editExperienceList.splice(idx, 1);
   renderExperienceModalDOM();
 }
 
-function updateExpEntry(idx, field, val) {
-  if (editExperienceList[idx]) editExperienceList[idx][field] = val;
+function setExpModalHospitality(idx, isHosp) {
+  captureExpModalInputs();
+  if (editExperienceList[idx]) {
+    editExperienceList[idx].is_hospitality = isHosp;
+    renderExperienceModalDOM();
+  }
+}
+
+function captureExpModalInputs() {
+  const container = document.getElementById('modal-edit-experience');
+  if (!container) return;
+  const cards = container.querySelectorAll('.dynamic-entry-card');
+  editExperienceList = Array.from(cards).map(c => {
+    const isHosp = c.querySelector('.exp-toggle-btn.active')?.textContent.includes('Hospitality') || false;
+    const comp = (c.querySelector('.modal-exp-comp')?.value || '').trim();
+    const role = (c.querySelector('.modal-exp-role')?.value || '').trim();
+    const dept = isHosp ? (c.querySelector('.modal-exp-dept')?.value || 'Front Office & Guest Services') : '';
+    const dateFrom = c.querySelector('.modal-exp-date-from')?.value || '';
+    const dateTo = c.querySelector('.modal-exp-date-to')?.value || '';
+    const isCurrent = !!c.querySelector('.modal-exp-current-check')?.checked;
+    const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+    const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+    const skills = (c.querySelector('.modal-exp-skills')?.value || '').trim();
+
+    return {
+      company: comp,
+      hotel: comp,
+      role: role,
+      title: role,
+      is_hospitality: isHosp,
+      department: dept,
+      date_from: dateFrom,
+      date_to: dateTo,
+      is_current: isCurrent,
+      worked_years: calcYears > 0 ? calcYears.toString() : '0',
+      period: period || (calcYears > 0 ? `${calcYears} yrs` : ''),
+      skills_acquired: skills,
+      description: skills
+    };
+  });
+}
+
+function onExpModalDateChange(idx) {
+  const card = document.querySelector(`.dynamic-entry-card[data-exp-modal-idx="${idx}"]`);
+  if (!card) return;
+  const dateFrom = card.querySelector('.modal-exp-date-from')?.value || '';
+  const dateTo = card.querySelector('.modal-exp-date-to')?.value || '';
+  const isCurrent = !!card.querySelector('.modal-exp-current-check')?.checked;
+  const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+
+  if (editExperienceList[idx]) {
+    editExperienceList[idx].date_from = dateFrom;
+    editExperienceList[idx].date_to = dateTo;
+    editExperienceList[idx].is_current = isCurrent;
+    editExperienceList[idx].worked_years = calcYears.toString();
+    editExperienceList[idx].period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+  }
+
+  const valEl = document.getElementById(`modal-exp-calc-val-${idx}`);
+  if (valEl) valEl.textContent = calcYears.toString();
+}
+
+function toggleExpModalCurrent(idx, isChecked) {
+  const card = document.querySelector(`.dynamic-entry-card[data-exp-modal-idx="${idx}"]`);
+  if (card) {
+    const toInput = card.querySelector('.modal-exp-date-to');
+    if (toInput) {
+      toInput.disabled = isChecked;
+      toInput.style.opacity = isChecked ? '0.45' : '1';
+      toInput.style.cursor = isChecked ? 'not-allowed' : 'pointer';
+    }
+  }
+  if (editExperienceList[idx]) editExperienceList[idx].is_current = isChecked;
+  onExpModalDateChange(idx);
 }
 
 async function saveExperienceChanges() {
-  const filtered = editExperienceList.filter(e => e.role && e.hotel);
+  captureExpModalInputs();
+  const filtered = editExperienceList.filter(e => e.role && (e.company || e.hotel));
   closeModal('modal-edit-experience');
   await saveProfileField({ experience: filtered });
 }
 
-// 3. Edit Credentials Modal
+// 4. Edit Credentials / Certifications Modal
 let editCredentialsList = [];
 
 function openEditCredentialsModal() {
@@ -17442,37 +17891,45 @@ function renderCredentialsModalDOM() {
     <div class="modal-backdrop open" id="modal-edit-credentials">
       <div class="modal-dialog" style="max-width: 600px;">
         <div class="modal-header">
-          <h2 class="modal-title">Credentials &amp; Accreditations</h2>
+          <div>
+            <h2 class="modal-title">Certifications &amp; Accreditations</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Hospitality licenses, food safety, and certifications</div>
+          </div>
           <button class="modal-close" onclick="closeModal('modal-edit-credentials')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
         <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
           <div id="credentials-entries-list" style="display: flex; flex-direction: column; gap: 12px;">
             ${editCredentialsList.map((c, idx) => `
-              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; position: relative;">
-                <button type="button" onclick="removeCredEntry(${idx})" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #f87171; cursor: pointer;" title="Remove">${svgIcon('x', '', 14)}</button>
-                <div style="margin-bottom: 8px;">
-                  <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Certification Title</label>
-                  <input type="text" value="${c.title || ''}" onchange="updateCredEntry(${idx}, 'title', this.value)" placeholder="Certificate" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+              <div class="dynamic-entry-card" style="position: relative;" data-cred-idx="${idx}">
+                <div class="dynamic-entry-header">
+                  <span class="dynamic-entry-title">Certification #${idx + 1}</span>
+                  <button type="button" class="dynamic-remove-btn" onclick="removeCredEntry(${idx})" title="Remove certification">
+                    ${svgIcon('x', '', 13)} Remove
+                  </button>
                 </div>
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
-                  <div>
-                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Issuing Organization</label>
-                    <input type="text" value="${c.issuer || ''}" onchange="updateCredEntry(${idx}, 'issuer', this.value)" placeholder="Issued By" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                <div class="auth-field" style="margin-bottom: 10px;">
+                  <label class="auth-label" style="font-size: 0.76rem;">Certification Name *</label>
+                  <input type="text" class="auth-input modal-cred-title" value="${escapeHtml(c.title || c.name || '')}" placeholder="e.g. ServSafe Food Protection Manager, WSET Level 2">
+                </div>
+                <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0;">
+                  <div class="auth-field" style="margin-bottom: 0;">
+                    <label class="auth-label" style="font-size: 0.76rem;">Issued by *</label>
+                    <input type="text" class="auth-input modal-cred-issuer" value="${escapeHtml(c.issuer || c.issued_by || '')}" placeholder="e.g. AHLEI, NRA, WSET">
                   </div>
-                  <div>
-                    <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px;">Year</label>
-                    <input type="text" value="${c.year || ''}" onchange="updateCredEntry(${idx}, 'year', this.value)" placeholder="Year Obtained" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: 6px; color: var(--white); font-size: 0.85rem;">
+                  <div class="auth-field" style="margin-bottom: 0;">
+                    <label class="auth-label" style="font-size: 0.76rem;">Year Obtained *</label>
+                    <input type="text" inputmode="numeric" maxlength="4" class="auth-input modal-cred-year" value="${escapeHtml(c.year || c.year_obtained || '')}" placeholder="e.g. 2024" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                   </div>
                 </div>
               </div>
             `).join('')}
-            ${editCredentialsList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 12px;">No credentials added yet. Click below to add.</div>' : ''}
+            ${editCredentialsList.length === 0 ? '<div style="color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 16px; border: 1px dashed var(--border-subtle); border-radius: 6px;">No certifications added yet. Click below to add.</div>' : ''}
           </div>
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addCredEntry()">+ Add Another Credential</button>
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.85rem;" onclick="addCredEntry()">+ Add Another Certification</button>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-credentials')">Cancel</button>
-          <button type="button" class="btn-orange" onclick="saveCredentialsChanges()">Save Credentials</button>
+          <button type="button" class="btn-orange" onclick="saveCredentialsChanges()">Save Certifications</button>
         </div>
       </div>
     </div>
@@ -17480,21 +17937,39 @@ function renderCredentialsModalDOM() {
 }
 
 function addCredEntry() {
-  editCredentialsList.push({ title: '', issuer: '', year: '' });
+  captureCredModalInputs();
+  editCredentialsList.push({ title: '', name: '', issuer: '', issued_by: '', year: '', year_obtained: '' });
   renderCredentialsModalDOM();
 }
 
 function removeCredEntry(idx) {
+  captureCredModalInputs();
   editCredentialsList.splice(idx, 1);
   renderCredentialsModalDOM();
 }
 
-function updateCredEntry(idx, field, val) {
-  if (editCredentialsList[idx]) editCredentialsList[idx][field] = val;
+function captureCredModalInputs() {
+  const container = document.getElementById('modal-edit-credentials');
+  if (!container) return;
+  const cards = container.querySelectorAll('.dynamic-entry-card');
+  editCredentialsList = Array.from(cards).map(c => {
+    const title = (c.querySelector('.modal-cred-title')?.value || '').trim();
+    const issuer = (c.querySelector('.modal-cred-issuer')?.value || '').trim();
+    const year = (c.querySelector('.modal-cred-year')?.value || '').trim();
+    return {
+      title: title,
+      name: title,
+      issuer: issuer,
+      issued_by: issuer,
+      year: year,
+      year_obtained: year
+    };
+  });
 }
 
 async function saveCredentialsChanges() {
-  const filtered = editCredentialsList.filter(c => c.title);
+  captureCredModalInputs();
+  const filtered = editCredentialsList.filter(c => c.title || c.name);
   closeModal('modal-edit-credentials');
   await saveProfileField({ certifications: filtered });
 }
@@ -17846,42 +18321,101 @@ function updatePrefLocationsModalDOM() {
   }
 }
 
+function handlePrefModalDepartmentChange(dept) {
+  const titles = getJobTitlesForDepartment(dept);
+  const roleSelect = document.getElementById('edit-pref-role');
+  if (roleSelect && titles.length > 0) {
+    roleSelect.innerHTML = titles.map(t => `<option value="${t}">${t}</option>`).join('');
+  }
+}
+window.handlePrefModalDepartmentChange = handlePrefModalDepartmentChange;
+
 function openEditJobPreferencesModal() {
   const prefs = state.profile?.preferences || {};
+  const currentDept = state.profile?.department || prefs.department || 'Front Office & Guest Services';
+  const currentRole = state.profile?.designation || state.profile?.current_position || prefs.desired_role || prefs.designation || '';
+  const currentShift = prefs.shift || 'Rotational';
+  const currentSalary = prefs.expected_salary || state.profile?.expected_salary || '৳55,000';
+  const isNegotiable = currentSalary === 'Negotiable';
+  const currentLocations = (prefs.preferred_locations && prefs.preferred_locations.length) 
+    ? prefs.preferred_locations 
+    : (prefs.locations && prefs.locations.length ? prefs.locations : (prefs.preferred_location ? prefs.preferred_location.split(',').map(s => s.trim()).filter(Boolean) : ['Dhaka']));
+
   window.editPrefLocState = {
-    selected: [...(prefs.locations || ['Dhaka'])],
+    selected: [...currentLocations],
     query: '',
     customPool: []
   };
 
+  const deptJobTitles = getJobTitlesForDepartment(currentDept);
+
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-preferences">
-      <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-dialog" style="max-width: 600px;">
         <div class="modal-header">
           <div>
             <h2 class="modal-title">Edit Job Preferences</h2>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Set desired salary, target locations, and joining timeline</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Configure career department, target roles, shift, salary, and locations</div>
           </div>
           <button class="modal-close" onclick="closeModal('modal-edit-preferences')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
         <form onsubmit="handleSavePreferencesModal(event)">
           <div class="modal-body">
+            <!-- Department and Desired Role Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Department *</label>
+                <select id="edit-pref-dept" onchange="handlePrefModalDepartmentChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${currentDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Target Job Title (Designation) *</label>
+                <select id="edit-pref-role" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${deptJobTitles.map(t => `<option value="${t}" ${(currentRole === t || (!deptJobTitles.includes(currentRole) && t === deptJobTitles[0])) ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Preferred Shift & Notice Period Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Preferred Shift</label>
+                <select id="edit-pref-shift" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <option value="Rotational" ${currentShift === 'Rotational' ? 'selected' : ''}>Rotational</option>
+                  <option value="Morning" ${currentShift === 'Morning' ? 'selected' : ''}>Morning</option>
+                  <option value="Evening" ${currentShift === 'Evening' ? 'selected' : ''}>Evening</option>
+                  <option value="Night" ${currentShift === 'Night' ? 'selected' : ''}>Night</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Notice Period</label>
+                <select id="edit-pref-notice" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <option value="Immediate" ${prefs.notice_period === 'Immediate' ? 'selected' : ''}>Immediate</option>
+                  <option value="15 Days" ${prefs.notice_period === '15 Days' ? 'selected' : ''}>15 Days</option>
+                  <option value="1 Month" ${prefs.notice_period === '1 Month' ? 'selected' : ''}>1 Month</option>
+                  <option value="2 Months" ${prefs.notice_period === '2 Months' ? 'selected' : ''}>2 Months</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Expected Monthly Salary -->
             <div style="margin-bottom: 14px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 0;">Expected Monthly Salary</label>
                 <button type="button" id="edit-salary-neg-btn" 
-                        class="btn-salary-neg-pill ${(prefs.expected_salary === 'Negotiable') ? 'active' : ''}" 
+                        class="btn-salary-neg-pill ${isNegotiable ? 'active' : ''}" 
                         onclick="toggleCandidateSalaryNegotiable(this, 'edit-pref-salary')">
                   Negotiable
                 </button>
               </div>
               <input type="text" id="edit-pref-salary" 
-                     value="${prefs.expected_salary || '৳55,000'}" 
+                     value="${currentSalary}" 
                      placeholder="e.g. ৳55,000" 
                      oninput="handleExpectedSalaryInput(this, 'edit-salary-neg-btn')"
                      onkeydown="handleExpectedSalaryKeydown(event)"
-                     ${(prefs.expected_salary === 'Negotiable') ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 9px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.88rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;"'}>
+                     ${isNegotiable ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 9px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.88rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;"'}>
             </div>
 
             <!-- Target Locations Schema Select -->
@@ -17933,16 +18467,6 @@ function openEditJobPreferencesModal() {
                 </div>
               </div>
             </div>
-
-            <div style="margin-bottom: 12px;">
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Notice Period</label>
-              <select id="edit-pref-notice" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                <option value="Immediate" ${prefs.notice_period === 'Immediate' ? 'selected' : ''}>Immediate</option>
-                <option value="15 Days" ${prefs.notice_period === '15 Days' ? 'selected' : ''}>15 Days</option>
-                <option value="1 Month" ${prefs.notice_period === '1 Month' ? 'selected' : ''}>1 Month</option>
-                <option value="2 Months" ${prefs.notice_period === '2 Months' ? 'selected' : ''}>2 Months</option>
-              </select>
-            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-preferences')">Cancel</button>
@@ -17956,19 +18480,39 @@ function openEditJobPreferencesModal() {
 
 async function handleSavePreferencesModal(e) {
   e.preventDefault();
+  const dept = document.getElementById('edit-pref-dept')?.value || 'Front Office & Guest Services';
+  const desiredRole = document.getElementById('edit-pref-role')?.value || 'Front Desk Agent';
+  const shift = document.getElementById('edit-pref-shift')?.value || 'Rotational';
+  const notice = document.getElementById('edit-pref-notice')?.value || 'Immediate';
   const isNegActive = document.getElementById('edit-salary-neg-btn')?.classList.contains('active');
   const salaryRaw = (document.getElementById('edit-pref-salary')?.value || '').trim();
   const salary = isNegActive ? 'Negotiable' : (salaryRaw || 'Negotiable');
-  const locs = window.editPrefLocState ? window.editPrefLocState.selected : ((document.getElementById('edit-pref-loc')?.value || '').split(',').map(s => s.trim()).filter(Boolean));
-  const notice = document.getElementById('edit-pref-notice')?.value || 'Immediate';
+  
+  const rawLocs = window.editPrefLocState ? window.editPrefLocState.selected : [];
+  const locs = rawLocs.length > 0 ? rawLocs : ['Anywhere in Bangladesh'];
+  const formattedLoc = locs.join(', ');
+
+  const currentPrefs = state.profile?.preferences || {};
+  const updatedPrefs = {
+    ...currentPrefs,
+    department: dept,
+    desired_role: desiredRole,
+    designation: desiredRole,
+    shift: shift,
+    expected_salary: salary,
+    notice_period: notice,
+    locations: locs,
+    preferred_locations: locs,
+    preferred_location: formattedLoc
+  };
 
   closeModal('modal-edit-preferences');
   await saveProfileField({
-    preferences: {
-      expected_salary: salary,
-      locations: locs,
-      notice_period: notice
-    }
+    department: dept,
+    designation: desiredRole,
+    current_position: desiredRole,
+    location: formattedLoc,
+    preferences: updatedPrefs
   });
 }
 
@@ -18056,6 +18600,15 @@ function updateCompEditSkillsDOM() {
   }
 }
 
+function handleCompEditDepartmentChange(dept) {
+  const titles = getJobTitlesForDepartment(dept);
+  const desigInput = document.getElementById('edit-comp-designation');
+  if (desigInput && titles.length > 0 && (!desigInput.value || !titles.includes(desigInput.value))) {
+    desigInput.value = titles[0];
+  }
+}
+window.handleCompEditDepartmentChange = handleCompEditDepartmentChange;
+
 // Edit Profile Modal
 async function openComprehensiveEditProfileModal() {
   const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
@@ -18083,14 +18636,20 @@ async function openComprehensiveEditProfileModal() {
     crop: null
   };
 
+  const prefs = profile.preferences || {};
+  const currentDept = profile.department || prefs.department || 'Front Office & Guest Services';
+  const currentSalary = prefs.expected_salary || profile.expected_salary || '৳55,000';
+  const isNegotiable = currentSalary === 'Negotiable';
+  const currentShift = prefs.shift || 'Rotational';
+
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-profile-comp">
       <div class="modal-dialog" style="max-width: 720px;">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title">Edit Profile</h2>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Changing phone or email requires OTP verification</div>
+            <h2 class="modal-title">Edit Candidate Profile</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Update personal identity, contact details, hospitality roles &amp; preferences</div>
           </div>
           <button class="modal-close" onclick="closeModal('modal-edit-profile-comp')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
@@ -18098,7 +18657,7 @@ async function openComprehensiveEditProfileModal() {
         <form id="form-edit-profile-comp" onsubmit="handleSaveComprehensiveProfile(event)">
           <div class="modal-body">
             <!-- Avatar / PFP Section -->
-            <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
               <div style="position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--orange-primary); flex-shrink: 0; background: #070d1e;">
                 <img id="edit-cand-pfp-img" src="${profile.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="Profile avatar" style="width: 100%; height: 100%; object-fit: cover;">
               </div>
@@ -18120,47 +18679,58 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Basic Details -->
+            <!-- Basic Details (First, Middle, Last) -->
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">First Name *</label>
-                <input type="text" name="first_name" value="${profile.first_name || ''}" required placeholder="First name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="first_name" value="${escapeHtml(profile.first_name || '')}" required placeholder="First name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Middle Name <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
-                <input type="text" name="middle_name" value="${profile.middle_name || ''}" placeholder="Middle name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="middle_name" value="${escapeHtml(profile.middle_name || '')}" placeholder="Middle name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Last Name *</label>
-                <input type="text" name="last_name" value="${profile.last_name || ''}" required placeholder="Last name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <input type="text" name="last_name" value="${escapeHtml(profile.last_name || '')}" required placeholder="Last name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
-            <div>
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Experience (Years)</label>
-              <input type="number" name="experience_years" value="${profile.experience_years || 5}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+            <!-- Bangla Name & Date of Birth (DOB) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Bangla Name <span style="font-weight: 400; color: var(--text-dim);">(বাংলা নাম - ঐচ্ছিক)</span></label>
+                <input type="text" name="name_bangla" value="${escapeHtml(profile.name_bangla || '')}" placeholder="যেমন: মোঃ রহিম আহমেদ" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Date of Birth (DOB)</label>
+                <input type="date" name="dob" value="${profile.dob || ''}" style="width: 100%; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
             </div>
 
-            <!-- Contact Credentials -->
-            <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.3); padding: 14px; border-radius: var(--radius-md);">
+            <!-- Contact Credentials (Primary Mobile, Secondary Mobile, Email) -->
+            <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.1); padding: 14px; border-radius: var(--radius-md); margin-top: 14px;">
               <div style="font-size: 0.85rem; font-weight: 700; color: var(--white); margin-bottom: 8px;">
-                Contact Information
+                Verified Contact Information
               </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                 <div>
-                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Phone Number</label>
-                  <input type="tel" id="edit-phone" name="phone" value="${profile.phone || ''}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Primary Mobile *</label>
+                  <input type="tel" id="edit-phone" name="phone" value="${profile.phone || ''}" required placeholder="01XXXXXXXXX" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
                 </div>
                 <div>
-                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Email Address</label>
-                  <input type="email" id="edit-email" name="email" value="${profile.email || ''}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Secondary Mobile <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
+                  <input type="tel" name="phone_secondary" value="${profile.phone_secondary || prefs.phone_secondary || ''}" placeholder="01XXXXXXXXX" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Email Address *</label>
+                  <input type="email" id="edit-email" name="email" value="${profile.email || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
                 </div>
               </div>
 
               <!-- Inline OTP Box -->
               <div id="contact-otp-box" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
                 <div style="font-size: 0.8rem; color: #fdba74; margin-bottom: 6px;">
-                  Enter 6-digit OTP code sent to confirm:
+                  Enter 6-digit OTP code sent to confirm phone/email change:
                 </div>
                 <div style="display: flex; gap: 10px;">
                   <input type="text" id="contact-otp-code" maxlength="6" placeholder="123456" style="width: 130px; background: var(--bg-input); border: 2px solid var(--orange-primary); padding: 6px 10px; border-radius: var(--radius-md); color: var(--white); font-weight: 800; text-align: center;">
@@ -18171,34 +18741,72 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Designation (Job Title) & Professional Headline -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <!-- Hospitality Department & Designation (Job Title) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Designation (Job Title) *</label>
-                <input type="text" name="designation" value="${profile.designation || profile.current_position || ''}" required placeholder="e.g. Front Desk Agent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Hospitality Department *</label>
+                <select name="department" id="edit-comp-department" onchange="handleCompEditDepartmentChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${currentDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+                </select>
               </div>
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Headline *</label>
-                <input type="text" name="headline" value="${profile.headline || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Designation (Job Title) *</label>
+                <input type="text" name="designation" id="edit-comp-designation" value="${escapeHtml(profile.designation || profile.current_position || '')}" required placeholder="e.g. Front Desk Agent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
+            <!-- Professional Headline & Preferred Shift -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px;">
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Headline *</label>
+                <input type="text" name="headline" value="${escapeHtml(profile.headline || '')}" required placeholder="e.g. Front Office Associate • 5-Star Hotel Guest Relations" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Preferred Shift</label>
+                <select name="shift" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                  <option value="Rotational" ${currentShift === 'Rotational' ? 'selected' : ''}>Rotational</option>
+                  <option value="Morning" ${currentShift === 'Morning' ? 'selected' : ''}>Morning</option>
+                  <option value="Evening" ${currentShift === 'Evening' ? 'selected' : ''}>Evening</option>
+                  <option value="Night" ${currentShift === 'Night' ? 'selected' : ''}>Night</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Expected Monthly Salary -->
+            <div style="margin-top: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 0;">Expected Monthly Salary</label>
+                <button type="button" id="comp-salary-neg-btn" 
+                        class="btn-salary-neg-pill ${isNegotiable ? 'active' : ''}" 
+                        onclick="toggleCandidateSalaryNegotiable(this, 'comp-edit-salary')">
+                  Negotiable
+                </button>
+              </div>
+              <input type="text" id="comp-edit-salary" name="expected_salary"
+                     value="${escapeHtml(currentSalary)}" 
+                     placeholder="e.g. ৳55,000" 
+                     oninput="handleExpectedSalaryInput(this, 'comp-salary-neg-btn')"
+                     onkeydown="handleExpectedSalaryKeydown(event)"
+                     ${isNegotiable ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 9px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.88rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;"'}>
+            </div>
+
             <!-- Bio / Summary -->
-            <div>
+            <div style="margin-top: 12px;">
               <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0; color: var(--white);">Summary / Bio</label>
                 <span id="full-profile-summary-word-count" style="font-size: 0.76rem; color: var(--text-dim);">${countWords(profile.summary || '')} / 100 words</span>
               </div>
               <textarea name="summary" rows="3" 
                 oninput="const c = countWords(this.value); const el = document.getElementById('full-profile-summary-word-count'); if(el){ el.textContent = c + ' / 100 words'; el.style.color = c > 100 ? '#f87171' : 'var(--text-dim)'; el.style.fontWeight = c > 100 ? '700' : 'normal'; }"
-                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${profile.summary || ''}</textarea>
+                placeholder="Highlight your hotel department, guest service philosophy, and core hospitality strengths (maximum 100 words)..."
+                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${escapeHtml(profile.summary || '')}</textarea>
             </div>
 
             <!-- Location & Visibility -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px;">
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Location</label>
-                <input type="text" name="location" value="${profile.location || ''}" placeholder="Location" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Preferred / Current Location</label>
+                <input type="text" name="location" value="${escapeHtml(profile.location || prefs.preferred_location || 'Dhaka, Bangladesh')}" placeholder="Location" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
               </div>
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Visibility</label>
@@ -18211,16 +18819,16 @@ async function openComprehensiveEditProfileModal() {
             </div>
 
             <!-- Open to Work Status Switch -->
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between;">
+            <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; margin-top: 14px;">
               <div>
                 <label style="font-weight: 700; font-size: 0.85rem; color: var(--white); display: block; margin-bottom: 2px;">Open to Work</label>
                 <span style="font-size: 0.78rem; color: var(--text-dim);">Let 5-star hotel recruiters know you are actively seeking hospitality roles.</span>
               </div>
-              <input type="checkbox" name="open_to_work" ${(profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === undefined) ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--blue-primary); cursor: pointer;">
+              <input type="checkbox" name="open_to_work" ${(profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === undefined) ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--orange-primary); cursor: pointer;">
             </div>
 
-            <!-- Skills (Unified Schema Select System - Business Part 2 Style) -->
-            <div>
+            <!-- Skills (Unified Schema Select System) -->
+            <div style="margin-top: 14px;">
               <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
                 Hospitality Skills &amp; Operational Competencies
               </label>
@@ -18274,7 +18882,7 @@ async function openComprehensiveEditProfileModal() {
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-profile-comp')">Cancel</button>
-            <button type="submit" class="btn-primary">Save Changes</button>
+            <button type="submit" class="btn-orange">Save Changes</button>
           </div>
         </form>
       </div>
@@ -18338,6 +18946,17 @@ async function handleSaveComprehensiveProfile(event) {
   const middleName = (form.middle_name?.value || '').trim();
   const lastName = (form.last_name?.value || '').trim();
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
+  const nameBangla = (form.name_bangla?.value || '').trim();
+  const dobVal = form.dob?.value || '';
+  const phoneSec = (form.phone_secondary?.value || '').replace(/[^0-9]/g, '').slice(0, 11);
+
+  const dept = form.department?.value || 'Front Office & Guest Services';
+  const designation = (form.designation?.value || '').trim();
+  const headline = (form.headline?.value || '').trim();
+  const shift = form.shift?.value || 'Rotational';
+
+  const isNeg = document.getElementById('comp-salary-neg-btn')?.classList.contains('active');
+  const expSalary = isNeg ? 'Negotiable' : ((document.getElementById('comp-edit-salary')?.value || '').trim() || 'Negotiable');
 
   const summaryVal = (form.summary?.value || '').trim();
   const summaryWords = countWords(summaryVal);
@@ -18347,23 +18966,95 @@ async function handleSaveComprehensiveProfile(event) {
     return;
   }
 
+  const currentPrefs = state.profile?.preferences || {};
+  const updatedPrefs = {
+    ...currentPrefs,
+    department: dept,
+    desired_role: designation,
+    designation: designation,
+    shift: shift,
+    expected_salary: expSalary,
+    phone_secondary: phoneSec
+  };
+
   const payload = {
     user_id: userId,
     name: fullName,
     first_name: firstName,
     middle_name: middleName,
     last_name: lastName,
+    name_bangla: nameBangla,
+    dob: dobVal,
+    phone_secondary: phoneSec,
+    department: dept,
     email: newEmail,
     phone: newPhone,
     otp_code: otpCode,
     avatar_url: avatarUrl,
-    designation: (form.designation?.value || '').trim(),
-    current_position: (form.designation?.value || '').trim(),
-    headline: form.headline.value,
+    designation: designation,
+    current_position: designation,
+    headline: headline,
     summary: summaryVal,
     location: form.location.value,
-    experience_years: parseInt(form.experience_years.value),
     visibility: form.visibility.value,
+    open_to_work: form.open_to_work ? form.open_to_work.checked : (state.profile?.open_to_work ? true : false),
+    skills: skillsArr,
+    preferences: updatedPrefs
+  };
+
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.requires_otp) {
+      document.getElementById('contact-otp-box').style.display = 'block';
+      showToast(data.detail, 'orange');
+      requestContactChangeOtp();
+      return;
+    }
+
+    if (!res.ok) throw new Error(data.detail || 'Profile update failed');
+
+    if (state.currentUser) {
+      state.currentUser.avatar = avatarUrl || DEFAULT_AVATAR_PREVIEW;
+      state.currentUser.name = payload.name;
+      if (payload.designation) state.currentUser.designation = payload.designation;
+    }
+    if (state.profile) {
+      state.profile.avatar_url = avatarUrl;
+      state.profile.name = payload.name;
+      state.profile.first_name = firstName;
+      state.profile.middle_name = middleName;
+      state.profile.last_name = lastName;
+      state.profile.name_bangla = nameBangla;
+      state.profile.dob = dobVal;
+      state.profile.phone = newPhone;
+      state.profile.phone_secondary = phoneSec;
+      state.profile.department = dept;
+      state.profile.designation = designation;
+      state.profile.current_position = designation;
+      state.profile.headline = headline;
+      state.profile.summary = summaryVal;
+      state.profile.location = payload.location;
+      state.profile.visibility = payload.visibility;
+      state.profile.open_to_work = payload.open_to_work;
+      state.profile.skills = skillsArr;
+      state.profile.preferences = updatedPrefs;
+    }
+
+    updateNavigation();
+    closeModal('modal-edit-profile-comp');
+    showToast('Candidate profile updated successfully!', 'success');
+    await loadInitialData();
+    renderProfileScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
     open_to_work: form.open_to_work ? form.open_to_work.checked : (state.profile?.open_to_work ? true : false),
     skills: skillsArr
   };

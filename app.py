@@ -3478,7 +3478,8 @@ def get_profile(user_id: str = "user_rahim"):
                COALESCE(NULLIF(p.first_name, ''), u.first_name, '') as first_name,
                COALESCE(NULLIF(p.middle_name, ''), u.middle_name, '') as middle_name,
                COALESCE(NULLIF(p.last_name, ''), u.last_name, '') as last_name,
-               COALESCE(NULLIF(p.name_bangla, ''), u.name_bangla, '') as name_bangla
+               COALESCE(NULLIF(p.name_bangla, ''), u.name_bangla, '') as name_bangla,
+               COALESCE(NULLIF(p.dob, ''), u.dob, '') as dob
         FROM users u
         LEFT JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -3494,6 +3495,8 @@ def get_profile(user_id: str = "user_rahim"):
     profile["preferences"] = json.loads(profile["preferences"]) if profile.get("preferences") else {}
     profile["can_post_blog"] = bool(row["can_post_blog"] or row.get("user_role") == "admin")
     profile["designation"] = (profile.get("designation") or profile.get("current_position") or "").strip()
+    profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department", "Front Office & Guest Services")
+    profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary", "")
 
     conn.close()
     return profile
@@ -3507,8 +3510,11 @@ class ProfileUpdatePayload(BaseModel):
     name_bangla: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    phone_secondary: Optional[str] = None
+    dob: Optional[str] = None
     avatar_url: Optional[str] = None
     designation: Optional[str] = None
+    department: Optional[str] = None
     otp_code: Optional[str] = None
     headline: Optional[str] = None
     location: Optional[str] = None
@@ -3591,8 +3597,37 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
         cursor.execute("UPDATE users SET designation = ? WHERE id = ?", (payload.designation, effective_user_id))
         cursor.execute("UPDATE business_memberships SET org_role = ? WHERE user_id = ?", (payload.designation, effective_user_id))
 
+    if payload.dob is not None:
+        cursor.execute("UPDATE users SET dob = ? WHERE id = ?", (payload.dob, effective_user_id))
+        cursor.execute("UPDATE employee_profiles SET dob = ? WHERE user_id = ?", (payload.dob, effective_user_id))
+
+    # Merge preferences cleanly
+    cursor.execute("SELECT preferences FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
+    pref_row = cursor.fetchone()
+    curr_prefs = {}
+    if pref_row and pref_row["preferences"]:
+        try:
+            curr_prefs = json.loads(pref_row["preferences"])
+        except Exception:
+            pass
+
+    has_pref_update = False
+    if payload.preferences is not None:
+        if isinstance(payload.preferences, dict):
+            curr_prefs.update(payload.preferences)
+        has_pref_update = True
+    if payload.phone_secondary is not None:
+        curr_prefs["phone_secondary"] = payload.phone_secondary
+        has_pref_update = True
+    if payload.department is not None:
+        curr_prefs["department"] = payload.department
+        has_pref_update = True
+
     updates = []
     params = []
+    if has_pref_update:
+        updates.append("preferences = ?")
+        params.append(json.dumps(curr_prefs))
     if payload.headline is not None:
         updates.append("headline = ?")
         params.append(payload.headline)
@@ -3635,9 +3670,6 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.education is not None:
         updates.append("education = ?")
         params.append(json.dumps(payload.education))
-    if payload.preferences is not None:
-        updates.append("preferences = ?")
-        params.append(json.dumps(payload.preferences))
     if payload.cv_list is not None:
         updates.append("cv_list = ?")
         params.append(json.dumps(payload.cv_list))
