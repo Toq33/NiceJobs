@@ -4461,6 +4461,7 @@ class ApplicationStatusUpdatePayload(BaseModel):
     status: str
     recruiter_notes: Optional[str] = None
     interview_time: Optional[str] = None
+    interview_notes: Optional[str] = None
     actor_name: Optional[str] = "Hotel Recruiter"
 
 @app.post("/api/applications/{app_id}/status")
@@ -4483,6 +4484,16 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
         updates.append("interview_time = ?")
         params.append(payload.interview_time)
 
+    if payload.interview_notes is not None:
+        updates.append("interview_notes = ?")
+        params.append(payload.interview_notes)
+
+    if payload.status == "interview_scheduled":
+        updates.append("interview_status = 'scheduled'")
+        updates.append("interview_reschedule_reason = ''")
+        updates.append("interview_reschedule_suggestion = ''")
+        updates.append("interview_response_at = ''")
+
     params.append(app_id)
     cursor.execute(f"UPDATE applications SET {', '.join(updates)} WHERE id = ?", params)
 
@@ -4497,6 +4508,8 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
         "withdrawn": "Candidate Withdrew Application"
     }
     event_note = status_labels.get(payload.status, f"Status updated to {payload.status}")
+    if payload.status == "interview_scheduled" and payload.interview_notes:
+        event_note += f" ({payload.interview_notes})"
 
     cursor.execute("""
         INSERT INTO application_events (application_id, status, actor_name, note, timestamp)
@@ -4516,16 +4529,21 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
 
     if app_meta:
         status_title = payload.status.replace('_', ' ').title()
-        msg = f"{app_meta['brand_name']} updated your application for {app_meta['title']} to '{status_title}'."
-        if payload.interview_time:
-            msg += f" Interview Scheduled: {payload.interview_time}."
-        if payload.recruiter_notes:
-            msg += f" Note: {payload.recruiter_notes}"
+        if payload.status == "interview_scheduled":
+            notif_title = f"Interview Scheduled: {app_meta['title']}"
+            msg = f"{app_meta['brand_name']} invited you for an interview for {app_meta['title']}: {payload.interview_time or 'Details shared'}. Please review and confirm your attendance."
+        else:
+            notif_title = f"Application Status: {status_title}"
+            msg = f"{app_meta['brand_name']} updated your application for {app_meta['title']} to '{status_title}'."
+            if payload.interview_time:
+                msg += f" Interview Scheduled: {payload.interview_time}."
+            if payload.recruiter_notes:
+                msg += f" Note: {payload.recruiter_notes}"
 
         # In-App Notification with Real-Time Push to Candidate
         dispatch_realtime_notification(
             user_id=app_meta["user_id"],
-            title=f"Application Status: {status_title}",
+            title=notif_title,
             message=msg,
             notif_type="application",
             link="#applications",
@@ -4540,9 +4558,10 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
 
 - New Status: {status_title}
 {f'- Scheduled Interview: {payload.interview_time}' if payload.interview_time else ''}
+{f'- Instructions / Location: {payload.interview_notes}' if payload.interview_notes else ''}
 {f'- Recruiter Message: {payload.recruiter_notes}' if payload.recruiter_notes else ''}
 
-To view full status timeline, interview details, or prepare for next steps, visit your applications dashboard:
+To view full status timeline, interview details, or confirm/reschedule interview, visit your applications dashboard:
 https://nicejobs.bd/#applications
 
 Best regards,
@@ -4558,6 +4577,197 @@ NiceJobs Career Support Desk"""
 
     conn.commit()
     conn.close()
+
+    if app_meta:
+        notify_realtime(
+            "application_status_updated",
+            {
+                "application_id": app_id,
+                "status": payload.status,
+                "job_title": app_meta["title"],
+                "brand_name": app_meta["brand_name"],
+                "candidate_name": app_meta["candidate_name"],
+                "interview_time": payload.interview_time,
+                "interview_notes": payload.interview_notes,
+                "recruiter_notes": payload.recruiter_notes,
+                "updated_at": now
+            },
+            target_user=app_meta["user_id"]
+        )
+        if app_meta.get("business_id"):
+            notify_realtime(
+                "ats_updated",
+                {
+                    "application_id": app_id,
+                    "status": payload.status,
+                    "candidate_name": app_meta["candidate_name"],
+                    "job_title": app_meta["title"],
+                    "interview_time": payload.interview_time,
+                    "updated_at": now
+                },
+                target_business=app_meta["business_id"]
+            )
+
+    return {"success": True, "message": f"Status updated to {payload.status}"}
+
+class InterviewResponsePayload(BaseModel):
+    response: str  # 'accept' or 'reschedule'
+    reason: Optional[str] = None
+    suggested_time: Optional[str] = None
+    actor_name: Optional[str] = None
+
+@app.post("/api/applications/{app_id}/interview-response")
+def respond_to_interview(app_id: str, payload: InterviewResponsePayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    cursor.execute("""
+        SELECT a.*, 
+               j.title as job_title, j.business_id,
+               b.brand_name, b.admin_user_id,
+               u.id as candidate_user_id, u.name as candidate_name, u.email as candidate_email
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        JOIN businesses b ON j.business_id = b.id
+        JOIN users u ON a.user_id = u.id
+        WHERE a.id = ?
+    """, (app_id,))
+    app_meta = cursor.fetchone()
+    if not app_meta:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate_name = payload.actor_name or app_meta["candidate_name"] or "Candidate"
+    resp_type = (payload.response or "").strip().lower()
+
+    if resp_type == "accept":
+        cursor.execute("""
+            UPDATE applications
+            SET interview_status = 'accepted',
+                interview_response_at = ?,
+                updated_at = ?
+            WHERE id = ?
+        """, (now, now, app_id))
+
+        event_note = f"Candidate accepted scheduled interview ({app_meta['interview_time'] or 'Scheduled Time'})."
+        cursor.execute("""
+            INSERT INTO application_events (application_id, status, actor_name, note, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (app_id, "interview_accepted", candidate_name, event_note, now))
+
+        notif_title = f"Interview Confirmed: {candidate_name}"
+        notif_msg = f"{candidate_name} has accepted the interview schedule for {app_meta['job_title']} ({app_meta['interview_time'] or 'Scheduled Time'})."
+        chat_msg = f"✓ I have confirmed and accepted the interview scheduled for: {app_meta['interview_time']}."
+
+    elif resp_type == "reschedule":
+        reason = (payload.reason or "").strip()
+        suggestion = (payload.suggested_time or "").strip()
+        if not reason:
+            conn.close()
+            raise HTTPException(status_code=400, detail="A reason is required to request a reschedule.")
+
+        cursor.execute("""
+            UPDATE applications
+            SET interview_status = 'reschedule_requested',
+                interview_reschedule_reason = ?,
+                interview_reschedule_suggestion = ?,
+                interview_response_at = ?,
+                updated_at = ?
+            WHERE id = ?
+        """, (reason, suggestion, now, now, app_id))
+
+        event_note = f"Candidate requested reschedule. Reason: {reason}. Suggested Time: {suggestion or 'Flexible'}"
+        cursor.execute("""
+            INSERT INTO application_events (application_id, status, actor_name, note, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (app_id, "interview_reschedule_requested", candidate_name, event_note, now))
+
+        notif_title = f"Interview Reschedule Request: {candidate_name}"
+        notif_msg = f"{candidate_name} requested to reschedule the interview for {app_meta['job_title']}. Reason: {reason}. Proposed: {suggestion or 'Flexible'}."
+        chat_msg = f"⏳ I would like to request rescheduling the interview.\nReason: {reason}\nSuggested availability: {suggestion or 'Flexible'}"
+    else:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Invalid response type. Must be 'accept' or 'reschedule'.")
+
+    # Business recipients: admin_user_id and all business members
+    business_id = app_meta["business_id"]
+    cursor.execute("""
+        SELECT user_id FROM business_memberships WHERE business_id = ?
+    """, (business_id,))
+    member_rows = cursor.fetchall()
+    recruiter_user_ids = {r["user_id"] for r in member_rows if r["user_id"]}
+    if app_meta.get("admin_user_id"):
+        recruiter_user_ids.add(app_meta["admin_user_id"])
+
+    for uid in recruiter_user_ids:
+        dispatch_realtime_notification(
+            user_id=uid,
+            title=notif_title,
+            message=notif_msg,
+            notif_type="interview_response",
+            link="#ats",
+            business_id=business_id,
+            cursor=cursor
+        )
+
+    # Broadcast realtime event to business
+    notify_realtime(
+        "interview_response",
+        {
+            "application_id": app_id,
+            "response": resp_type,
+            "interview_status": "accepted" if resp_type == "accept" else "reschedule_requested",
+            "candidate_name": candidate_name,
+            "candidate_user_id": app_meta["candidate_user_id"],
+            "job_title": app_meta["job_title"],
+            "job_id": app_meta["job_id"],
+            "reason": payload.reason if resp_type == "reschedule" else None,
+            "suggested_time": payload.suggested_time if resp_type == "reschedule" else None,
+            "interview_time": app_meta["interview_time"],
+            "timestamp": now
+        },
+        target_business=business_id
+    )
+
+    # Post message into candidate-recruiter conversation
+    try:
+        cursor.execute("""
+            SELECT id FROM conversations WHERE business_id = ? AND user_id = ?
+            ORDER BY last_message_time DESC LIMIT 1
+        """, (business_id, app_meta["candidate_user_id"]))
+        conv_row = cursor.fetchone()
+        conv_id = conv_row["id"] if conv_row else None
+
+        if not conv_id:
+            conv_id = f"conv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+            cursor.execute("""
+                INSERT INTO conversations (id, user_id, business_id, job_id, last_message, last_message_time, unread_for_user, unread_for_business, is_demo)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 1, 0)
+            """, (conv_id, app_meta["candidate_user_id"], business_id, app_meta["job_id"], chat_msg, now))
+        else:
+            cursor.execute("""
+                UPDATE conversations
+                SET last_message = ?, last_message_time = ?, unread_for_business = unread_for_business + 1
+                WHERE id = ?
+            """, (chat_msg, now, conv_id))
+
+        msg_id = f"msg_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+        cursor.execute("""
+            INSERT INTO messages (id, conversation_id, sender_id, sender_role, sender_name, content, is_action_prompt, timestamp)
+            VALUES (?, ?, ?, 'user', ?, ?, 0, ?)
+        """, (msg_id, conv_id, app_meta["candidate_user_id"], candidate_name, chat_msg, now))
+    except Exception as chat_err:
+        print(f"[INTERVIEW CHAT LOG ERROR] {chat_err}")
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "interview_status": "accepted" if resp_type == "accept" else "reschedule_requested",
+        "message": "Your interview response has been recorded and sent to the employer."
+    }
 
     if app_meta:
         notify_realtime(

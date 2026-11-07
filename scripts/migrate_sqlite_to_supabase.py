@@ -269,6 +269,10 @@ CREATE TABLE IF NOT EXISTS applications (
     recruiter_notes TEXT,
     interview_time TEXT,
     interview_notes TEXT,
+    interview_status TEXT DEFAULT '',
+    interview_reschedule_reason TEXT DEFAULT '',
+    interview_reschedule_suggestion TEXT DEFAULT '',
+    interview_response_at TEXT DEFAULT '',
     is_demo INTEGER DEFAULT 0,
     FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

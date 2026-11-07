@@ -5151,14 +5151,66 @@ async function renderApplicationsScreen(viewport) {
             </div>
 
             <!-- Interview Details Banner if scheduled -->
-            ${app.interview_time ? `
-              <div style="background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(37, 99, 235, 0.4); padding: 14px 20px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                  <div style="color: var(--white); font-weight: 800; font-size: 0.95rem;">${svgIcon('calendar', '', 15)} Interview Scheduled</div>
-                  <div style="color: var(--white); font-size: 0.88rem; margin-top: 2px;">${app.interview_time}</div>
-                  <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">${app.interview_notes || 'Please arrive 15 minutes before the scheduled time.'}</div>
+            ${(app.interview_time || app.status === 'interview_scheduled') ? `
+              <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 107, 0, 0.35); padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                  <div>
+                    <div style="color: var(--orange-primary); font-weight: 800; font-size: 0.92rem; display: flex; align-items: center; gap: 8px;">
+                      ${svgIcon('calendar', '', 16)} Interview Invitation
+                    </div>
+                    <div style="color: var(--white); font-size: 1.05rem; font-weight: 800; margin-top: 4px;">
+                      ${escapeHtml(app.interview_time || 'Schedule shared by employer')}
+                    </div>
+                    ${app.interview_notes ? `
+                      <div style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px;">
+                        ${escapeHtml(app.interview_notes)}
+                      </div>
+                    ` : ''}
+                  </div>
+
+                  <!-- Interview Response Controls -->
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    ${(!app.interview_status || app.interview_status === 'scheduled') ? `
+                      <button class="btn-orange" style="padding: 7px 14px; font-size: 0.82rem; font-weight: 700;" onclick="respondToInterview('${app.id}', 'accept')">
+                        ${svgIcon('check', '', 14)} Accept Interview Time
+                      </button>
+                      <button class="btn-secondary" style="padding: 7px 14px; font-size: 0.82rem;" onclick="openInterviewRescheduleModal('${app.id}', '${escapeHtml(app.interview_time || '')}')">
+                        ${svgIcon('clock', '', 14)} Request Reschedule
+                      </button>
+                    ` : app.interview_status === 'accepted' ? `
+                      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <span style="background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-size: 0.78rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">
+                          ${svgIcon('check', '', 13)} Accepted by You
+                        </span>
+                        <button class="btn-secondary" style="padding: 2px 8px; font-size: 0.72rem; margin-top: 2px;" onclick="openInterviewRescheduleModal('${app.id}', '${escapeHtml(app.interview_time || '')}')">
+                          Need to reschedule?
+                        </button>
+                      </div>
+                    ` : app.interview_status === 'reschedule_requested' ? `
+                      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <span style="background: rgba(249, 115, 22, 0.18); border: 1px solid rgba(249, 115, 22, 0.4); color: #fb923c; font-size: 0.78rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">
+                          ${svgIcon('clock', '', 13)} Reschedule Requested
+                        </span>
+                        <div style="display: flex; gap: 6px; margin-top: 4px;">
+                          <button class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;" onclick="openInterviewRescheduleModal('${app.id}', '${escapeHtml(app.interview_time || '')}', '${escapeHtml(app.interview_reschedule_reason || '')}', '${escapeHtml(app.interview_reschedule_suggestion || '')}')">
+                            Edit Request
+                          </button>
+                          <button class="btn-orange" style="padding: 3px 8px; font-size: 0.72rem;" onclick="respondToInterview('${app.id}', 'accept')">
+                            Accept Original
+                          </button>
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>
                 </div>
-                <button class="btn-orange" style="padding: 6px 14px; font-size: 0.82rem;" onclick="navigateTo('inbox')">Confirm Interview →</button>
+
+                ${app.interview_status === 'reschedule_requested' ? `
+                  <div style="margin-top: 12px; padding: 10px 14px; background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: 6px; font-size: 0.82rem; color: #cbd5e1;">
+                    <div><strong>Your Reason:</strong> ${escapeHtml(app.interview_reschedule_reason || 'Not specified')}</div>
+                    ${app.interview_reschedule_suggestion ? `<div style="margin-top: 3px;"><strong>Your Suggested Time:</strong> <span style="color: #fde047; font-weight: 700;">${escapeHtml(app.interview_reschedule_suggestion)}</span></div>` : ''}
+                    <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 4px;">The employer has received your request and will review your proposed availability.</div>
+                  </div>
+                ` : ''}
               </div>
             ` : ''}
 
@@ -6009,6 +6061,27 @@ function renderCandidatesTableHTML(apps) {
                 <span class="status-pill status-${app.status}">
                   ${formatStatusLabel(app.status)}
                 </span>
+                ${app.status === 'interview_scheduled' ? (
+                  app.interview_status === 'accepted' ? `
+                    <div style="margin-top: 4px;">
+                      <span style="background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="Accepted on ${escapeHtml(app.interview_response_at || '')}">
+                        ${svgIcon('check', '', 11)} Accepted
+                      </span>
+                    </div>
+                  ` : app.interview_status === 'reschedule_requested' ? `
+                    <div style="margin-top: 4px;">
+                      <span style="background: rgba(249, 115, 22, 0.2); border: 1px solid rgba(249, 115, 22, 0.4); color: #fb923c; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="Reason: ${escapeHtml(app.interview_reschedule_reason || '')}">
+                        ${svgIcon('clock', '', 11)} Reschedule Req.
+                      </span>
+                    </div>
+                  ` : `
+                    <div style="margin-top: 4px;">
+                      <span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; font-size: 0.68rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">
+                        ${svgIcon('clock', '', 11)} Awaiting Reply
+                      </span>
+                    </div>
+                  `
+                ) : ''}
               </td>
               <td style="font-size: 0.8rem; color: var(--text-dim);">${formatDisplayDate(app.applied_at)}</td>
               <td>
@@ -16438,7 +16511,21 @@ function setCandidateReviewStatus(status) {
       btn.classList.remove('active');
     }
   });
+
+  const interviewSection = document.getElementById('cand-review-interview-section');
+  if (interviewSection) {
+    if (status === 'interview_scheduled' || status === 'interview') {
+      interviewSection.style.display = 'block';
+      const timeInp = document.getElementById('input-interview-time');
+      if (timeInp && !timeInp.value) {
+        timeInp.focus();
+      }
+    } else {
+      interviewSection.style.display = 'none';
+    }
+  }
 }
+window.setCandidateReviewStatus = setCandidateReviewStatus;
 
 function setInterviewPreset(val) {
   const inp = document.getElementById('input-interview-time');
@@ -16447,6 +16534,7 @@ function setInterviewPreset(val) {
     inp.focus();
   }
 }
+window.setInterviewPreset = setInterviewPreset;
 
 async function openCandidateReviewModal(appId) {
   try {
@@ -16551,11 +16639,12 @@ async function openCandidateReviewModal(appId) {
     const statusOptions = [
       { id: 'under_review', label: 'Under Review' },
       { id: 'shortlisted', label: 'Shortlisted' },
-      { id: 'interview_scheduled', label: 'Interview Scheduled' },
+      { id: 'interview_scheduled', label: 'Interview' },
       { id: 'offer', label: 'Extend Offer' },
       { id: 'hired', label: 'Hired' },
       { id: 'rejected', label: 'Rejected' }
     ];
+    const isInterview = currentStatus === 'interview_scheduled' || currentStatus === 'interview';
 
     const container = document.getElementById('modal-container');
     if (!container) return;
@@ -16712,7 +16801,7 @@ async function openCandidateReviewModal(appId) {
                     <label style="font-weight: 700; font-size: 0.82rem; color: var(--white); margin: 0;">
                       Pipeline Stage <span style="color: var(--orange-primary);">*</span>
                     </label>
-                    <span style="font-size: 0.72rem; color: var(--text-dim);">Click to select</span>
+                    <span style="font-size: 0.72rem; color: var(--text-dim);">Click stage to change</span>
                   </div>
                   
                   <div class="cand-status-pills-grid">
@@ -16725,6 +16814,12 @@ async function openCandidateReviewModal(appId) {
                     `).join('')}
                   </div>
 
+                  <!-- Candidate will be notified notification badge -->
+                  <div style="font-size: 0.72rem; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-top: 8px; background: rgba(255, 255, 255, 0.03); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.07);">
+                    <span style="color: var(--orange-primary); flex-shrink: 0;">${svgIcon('bell', '', 13)}</span>
+                    <span>Candidate will be notified automatically once you save this pipeline change.</span>
+                  </div>
+
                   <!-- Hidden native select for form serialization -->
                   <select id="select-cand-status" style="display: none;">
                     ${statusOptions.map(opt => `
@@ -16733,13 +16828,55 @@ async function openCandidateReviewModal(appId) {
                   </select>
                 </div>
 
-                <!-- 2. Interview Details -->
-                <div class="cand-review-card">
+                <!-- 2. Interview Details (Conditionally appears only when Interview is selected) -->
+                <div id="cand-review-interview-section" class="cand-review-card" style="display: ${isInterview ? 'block' : 'none'}; border-color: rgba(255, 107, 0, 0.35);">
+                  
+                  <!-- Candidate Interview Response Banner (if candidate responded) -->
+                  ${app.interview_status === 'accepted' ? `
+                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); padding: 8px 12px; border-radius: 6px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #34d399; font-weight: 700; font-size: 0.8rem; display: flex; align-items: center; gap: 5px;">
+                          ${svgIcon('check', '', 13)} Candidate Accepted Interview
+                        </span>
+                        <span style="font-size: 0.7rem; color: #94a3b8;">${escapeHtml(app.interview_response_at || '')}</span>
+                      </div>
+                      <div style="font-size: 0.76rem; color: #cbd5e1; margin-top: 3px;">
+                        Candidate agreed to attend on <strong>${escapeHtml(app.interview_time || '')}</strong>.
+                      </div>
+                    </div>
+                  ` : app.interview_status === 'reschedule_requested' ? `
+                    <div style="background: rgba(249, 115, 22, 0.12); border: 1px solid rgba(249, 115, 22, 0.4); padding: 10px 12px; border-radius: 6px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #fb923c; font-weight: 800; font-size: 0.82rem; display: flex; align-items: center; gap: 5px;">
+                          ${svgIcon('clock', '', 13)} Candidate Requested Reschedule
+                        </span>
+                        <span style="font-size: 0.7rem; color: #fdba74;">${escapeHtml(app.interview_response_at || '')}</span>
+                      </div>
+                      <div style="font-size: 0.78rem; color: #e2e8f0; margin-top: 4px; line-height: 1.4;">
+                        <div><strong>Reason:</strong> ${escapeHtml(app.interview_reschedule_reason || 'Personal schedule conflict')}</div>
+                        <div style="margin-top: 2px;"><strong>Candidate's Proposed Time:</strong> <span style="color: #fde047; font-weight: 700;">${escapeHtml(app.interview_reschedule_suggestion || 'Flexible')}</span></div>
+                      </div>
+                      ${app.interview_reschedule_suggestion ? `
+                        <button type="button" class="btn-orange" style="padding: 3px 8px; font-size: 0.72rem; font-weight: 700; margin-top: 6px;"
+                                onclick="setInterviewPreset('${escapeHtml(app.interview_reschedule_suggestion)}')">
+                          Use Candidate's Proposed Time
+                        </button>
+                      ` : ''}
+                    </div>
+                  ` : (app.interview_time ? `
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                      <span style="font-size: 0.74rem; color: #cbd5e1; display: flex; align-items: center; gap: 4px;">
+                        ${svgIcon('clock', '', 12)} Awaiting candidate acceptance
+                      </span>
+                      <span style="font-size: 0.7rem; color: var(--text-dim);">${escapeHtml(app.interview_time)}</span>
+                    </div>
+                  ` : '')}
+
                   <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px; color: var(--white);">
-                    Interview Schedule (Visible to Candidate)
+                    Interview Schedule (Date &amp; Time) <span style="color: var(--orange-primary);">*</span>
                   </label>
                   <input type="text" id="input-interview-time" value="${escapeHtml(app.interview_time || '')}" 
-                         placeholder="e.g. Next Sunday 02:30 PM at Executive Lounge"
+                         placeholder="e.g. Tomorrow at 10:00 AM or Next Sunday 02:30 PM"
                          style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
                   
                   <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
@@ -16755,7 +16892,18 @@ async function openCandidateReviewModal(appId) {
                             onclick="setInterviewPreset('Online Video Interview via Microsoft Teams')">
                       Teams Video Call
                     </button>
+                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
+                            onclick="setInterviewPreset('Phone Screening Interview')">
+                      Phone Call
+                    </button>
                   </div>
+
+                  <label style="display: block; font-weight: 700; font-size: 0.78rem; margin-top: 8px; margin-bottom: 3px; color: #94a3b8;">
+                    Location / Meeting Link / Notes (Optional)
+                  </label>
+                  <input type="text" id="input-interview-notes" value="${escapeHtml(app.interview_notes || '')}"
+                         placeholder="e.g. 2nd Floor Executive Office, or meeting link"
+                         style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.78rem;">
                 </div>
 
                 <!-- 3. Private Recruiter Notes -->
@@ -16798,8 +16946,16 @@ window.openCandidateReviewModal = openCandidateReviewModal;
 async function saveCandidateStatus(appId) {
   const status = document.getElementById('select-cand-status')?.value || 'under_review';
   const interviewTime = document.getElementById('input-interview-time')?.value || '';
+  const interviewNotes = document.getElementById('input-interview-notes')?.value || '';
   const notes = document.getElementById('cand-private-notes')?.value || '';
   const actorName = state.currentUser?.name ? `${state.currentUser.name} (${state.currentUser.title || 'Recruiter'})` : 'Hotel Recruiter';
+
+  if (status === 'interview_scheduled' && !interviewTime.trim()) {
+    showToast('Please specify an interview schedule time before saving.', 'warning');
+    const timeInp = document.getElementById('input-interview-time');
+    timeInp?.focus();
+    return;
+  }
 
   try {
     const res = await fetch(`/api/applications/${appId}/status`, {
@@ -16807,13 +16963,18 @@ async function saveCandidateStatus(appId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: status,
-        interview_time: interviewTime,
+        interview_time: (status === 'interview_scheduled' || status === 'interview') ? interviewTime : '',
+        interview_notes: (status === 'interview_scheduled' || status === 'interview') ? interviewNotes : '',
         recruiter_notes: notes,
         actor_name: actorName
       })
     });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to update pipeline status');
+    }
     closeModal('modal-cand-review');
-    showToast(`Status updated to '${status.replace('_', ' ')}'`, 'success');
+    showToast(`Pipeline updated to '${formatStatusLabel(status)}'. Candidate has been notified.`, 'success');
     if (state.currentScreen === 'recruiter-dashboard') {
       renderRecruiterDashboard(document.getElementById('app-viewport'));
     } else {
@@ -16823,6 +16984,138 @@ async function saveCandidateStatus(appId) {
     showToast(err.message, 'danger');
   }
 }
+window.saveCandidateStatus = saveCandidateStatus;
+
+// Candidate Interview Response: Accept
+async function respondToInterview(appId, responseType) {
+  const actorName = state.currentUser?.name || 'Candidate';
+  try {
+    const res = await fetch(`/api/applications/${appId}/interview-response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        response: responseType,
+        actor_name: actorName
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to submit interview response');
+    closeModal('modal-interview-reschedule');
+    showToast('Interview confirmed and accepted! The employer has been notified.', 'success');
+    await renderApplicationsScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.respondToInterview = respondToInterview;
+
+// Candidate Interview Response: Open Reschedule Modal
+function openInterviewRescheduleModal(appId, originalTime, existingReason = '', existingSuggestion = '') {
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="modal is-open" id="modal-interview-reschedule">
+      <div class="modal-backdrop" onclick="closeModal('modal-interview-reschedule')"></div>
+      <div class="modal-dialog" style="max-width: 480px; width: 92%; background: #0a1128; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: var(--radius-lg); box-shadow: 0 20px 50px rgba(0,0,0,0.7); overflow: hidden;">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--white); margin: 0; display: flex; align-items: center; gap: 8px;">
+            ${svgIcon('clock', '', 18)} Request Interview Reschedule
+          </h3>
+          <button class="modal-close" onclick="closeModal('modal-interview-reschedule')">&times;</button>
+        </div>
+        
+        <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          ${originalTime ? `
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 14px; border-radius: var(--radius-md);">
+              <div style="font-size: 0.74rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Current Scheduled Time</div>
+              <div style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-top: 2px;">${escapeHtml(originalTime)}</div>
+            </div>
+          ` : ''}
+
+          <div>
+            <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
+              Reason for Reschedule <span style="color: var(--orange-primary);">*</span>
+            </label>
+            <textarea id="reschedule-reason-input" rows="3" placeholder="Please state your reason (e.g. Prior academic exam, out of town on personal emergency, etc.)..."
+                      style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem; resize: none;">${escapeHtml(existingReason)}</textarea>
+          </div>
+
+          <div>
+            <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
+              Suggested Alternative Date &amp; Time (Optional)
+            </label>
+            <input type="text" id="reschedule-suggestion-input" value="${escapeHtml(existingSuggestion)}"
+                   placeholder="e.g. Next Tuesday after 3:00 PM, or Wednesday morning"
+                   style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
+                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Tomorrow same time';">
+                Tomorrow same time
+              </button>
+              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
+                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Next Monday morning';">
+                Next Monday morning
+              </button>
+              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
+                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Any afternoon next week';">
+                Any afternoon next week
+              </button>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4;">
+            The hiring team will receive your reason and suggested alternative time immediately so they can update the schedule.
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-secondary" onclick="closeModal('modal-interview-reschedule')">Cancel</button>
+          <button class="btn-orange" onclick="submitInterviewReschedule('${appId}')">
+            ${svgIcon('check', '', 14)} Send Reschedule Request
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.openInterviewRescheduleModal = openInterviewRescheduleModal;
+
+// Candidate Interview Response: Submit Reschedule Request
+async function submitInterviewReschedule(appId) {
+  const reasonInput = document.getElementById('reschedule-reason-input');
+  const suggestionInput = document.getElementById('reschedule-suggestion-input');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+  const suggestion = suggestionInput ? suggestionInput.value.trim() : '';
+
+  if (!reason) {
+    showToast('Please state a reason for requesting to reschedule.', 'warning');
+    reasonInput?.focus();
+    return;
+  }
+
+  const actorName = state.currentUser?.name || 'Candidate';
+
+  try {
+    const res = await fetch(`/api/applications/${appId}/interview-response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        response: 'reschedule',
+        reason: reason,
+        suggested_time: suggestion,
+        actor_name: actorName
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to submit reschedule request');
+    closeModal('modal-interview-reschedule');
+    showToast('Reschedule request sent to employer! They have been notified.', 'success');
+    await renderApplicationsScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.submitInterviewReschedule = submitInterviewReschedule;
 
 // Download original user-uploaded CV directly with original filename
 function downloadOriginalCvFile(downloadUrl, fileName) {
@@ -19054,50 +19347,6 @@ async function handleSaveComprehensiveProfile(event) {
       state.profile.open_to_work = payload.open_to_work;
       state.profile.skills = skillsArr;
       state.profile.preferences = updatedPrefs;
-    }
-
-    updateNavigation();
-    closeModal('modal-edit-profile-comp');
-    showToast('Candidate profile updated successfully!', 'success');
-    await loadInitialData();
-    renderProfileScreen(document.getElementById('app-viewport'));
-  } catch (err) {
-    showToast(err.message, 'danger');
-  }
-}
-    open_to_work: form.open_to_work ? form.open_to_work.checked : (state.profile?.open_to_work ? true : false),
-    skills: skillsArr
-  };
-
-  try {
-    const res = await fetch('/api/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-
-    if (data.requires_otp) {
-      document.getElementById('contact-otp-box').style.display = 'block';
-      showToast(data.detail, 'orange');
-      requestContactChangeOtp();
-      return;
-    }
-
-    if (!res.ok) throw new Error(data.detail || 'Profile update failed');
-
-    if (state.currentUser) {
-      state.currentUser.avatar = avatarUrl || DEFAULT_AVATAR_PREVIEW;
-      state.currentUser.name = payload.name;
-      if (payload.designation) state.currentUser.designation = payload.designation;
-    }
-    if (state.profile) {
-      state.profile.avatar_url = avatarUrl;
-      state.profile.name = payload.name;
-      if (payload.designation) {
-        state.profile.designation = payload.designation;
-        state.profile.current_position = payload.designation;
-      }
     }
 
     updateNavigation();

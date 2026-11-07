@@ -567,6 +567,145 @@ class TestNiceJobsAPI(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_pipeline_status_update_and_interview_response_flow(self):
+        """Verifies candidate notification on pipeline change, interview scheduling, and candidate accept/reschedule replies."""
+        import database
+        import uuid
+
+        suffix = uuid.uuid4().hex[:6]
+        recruiter_id = f"user_rec_{suffix}"
+        biz_id = f"biz_{suffix}"
+        candidate_id = f"user_cand_{suffix}"
+        job_id = f"job_{suffix}"
+        app_id = f"app_{suffix}"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+
+        # Create recruiter & business
+        cursor.execute("""
+            INSERT INTO users (id, name, email, phone, role, status, terms_accepted, profile_completed)
+            VALUES (?, ?, ?, ?, 'recruiter', 'active', 1, 1)
+        """, (recruiter_id, "Hotel Recruiter", f"rec_{suffix}@hotel.com", f"01711{suffix[:6]}"))
+
+        cursor.execute("""
+            INSERT INTO businesses (id, brand_name, legal_name, property_type, district, city, address, admin_user_id, verification_status)
+            VALUES (?, ?, ?, '5_star_hotel', 'Dhaka', 'Dhaka', 'Gulshan 2', ?, 'verified')
+        """, (biz_id, f"Grand Hotel {suffix}", f"Grand Corp {suffix}", recruiter_id))
+
+        cursor.execute("""
+            INSERT INTO business_memberships (id, business_id, user_id, org_role, membership_role, approval_status)
+            VALUES (?, ?, ?, 'HR Director', 'admin', 'approved')
+        """, (f"mem_{suffix}", biz_id, recruiter_id))
+
+        # Create candidate
+        cursor.execute("""
+            INSERT INTO users (id, name, email, phone, role, status, terms_accepted, profile_completed)
+            VALUES (?, ?, ?, ?, 'jobseeker', 'active', 1, 1)
+        """, (candidate_id, "Candidate User", f"cand_{suffix}@test.com", f"01811{suffix[:6]}"))
+
+        conn.commit()
+        conn.close()
+
+        # Create job via API
+        job_resp = self.client.post("/api/jobs", json={
+            "business_id": biz_id,
+            "title": "Front Desk Executive",
+            "department": "Front Office",
+            "property_location": "Gulshan 2, Dhaka",
+            "shift": "Morning Shift",
+            "employment_type": "Full-time",
+            "experience_level": "1-3 Years",
+            "description": "Handle guest check-ins.",
+            "benefits": [],
+            "deadline": "2026-12-31"
+        })
+        self.assertEqual(job_resp.status_code, 200)
+        job_id = job_resp.json()["job_id"]
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+
+        # Create application
+        cursor.execute("""
+            INSERT INTO applications (id, job_id, user_id, status, applied_at, updated_at, selected_cv)
+            VALUES (?, ?, ?, 'under_review', '2026-11-07 10:15', '2026-11-07 10:15', 'Candidate_Resume.pdf')
+        """, (app_id, job_id, candidate_id))
+
+        conn.commit()
+        conn.close()
+
+        # 1. Recruiter updates pipeline status to Interview Scheduled
+        status_payload = {
+            "status": "interview_scheduled",
+            "interview_time": "Next Sunday at 02:30 PM",
+            "interview_notes": "2nd Floor Executive HR Office",
+            "recruiter_notes": "Strong front office background",
+            "actor_name": "Hotel Recruiter"
+        }
+        res = self.client.post(f"/api/applications/{app_id}/status", json=status_payload)
+        self.assertEqual(res.status_code, 200)
+
+        # Verify candidate received notification
+        notif_res = self.client.get(f"/api/notifications?user_id={candidate_id}")
+        self.assertEqual(notif_res.status_code, 200)
+        notifs = notif_res.json()
+        self.assertTrue(any("Interview Scheduled" in n["title"] or "Next Sunday at 02:30 PM" in n["message"] for n in notifs))
+
+        # 2. Candidate requests reschedule with reason and suggestion
+        reschedule_payload = {
+            "response": "reschedule",
+            "reason": "University final exam conflict on Sunday",
+            "suggested_time": "Next Tuesday at 3:00 PM",
+            "actor_name": "Candidate User"
+        }
+        resch_res = self.client.post(f"/api/applications/{app_id}/interview-response", json=reschedule_payload)
+        self.assertEqual(resch_res.status_code, 200)
+        self.assertEqual(resch_res.json()["interview_status"], "reschedule_requested")
+
+        # Verify recruiter received notification about reschedule
+        rec_notif_res = self.client.get(f"/api/notifications?user_id={recruiter_id}")
+        self.assertEqual(rec_notif_res.status_code, 200)
+        rec_notifs = rec_notif_res.json()
+        self.assertTrue(any("Reschedule Request" in n["title"] and "University final exam conflict" in n["message"] for n in rec_notifs))
+
+        # Verify application record contains candidate reply
+        app_res = self.client.get(f"/api/applications/{app_id}")
+        self.assertEqual(app_res.status_code, 200)
+        app_data = app_res.json()
+        self.assertEqual(app_data.get("interview_status"), "reschedule_requested")
+        self.assertEqual(app_data.get("interview_reschedule_reason"), "University final exam conflict on Sunday")
+        self.assertEqual(app_data.get("interview_reschedule_suggestion"), "Next Tuesday at 3:00 PM")
+
+        # 3. Candidate accepts interview
+        accept_payload = {
+            "response": "accept",
+            "actor_name": "Candidate User"
+        }
+        acc_res = self.client.post(f"/api/applications/{app_id}/interview-response", json=accept_payload)
+        self.assertEqual(acc_res.status_code, 200)
+        self.assertEqual(acc_res.json()["interview_status"], "accepted")
+
+        # Verify application record reflects acceptance
+        app_res2 = self.client.get(f"/api/applications/{app_id}")
+        self.assertEqual(app_res2.status_code, 200)
+        self.assertEqual(app_res2.json().get("interview_status"), "accepted")
+
+        # Cleanup
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE business_id = ?)", (biz_id,))
+        cursor.execute("DELETE FROM conversations WHERE business_id = ?", (biz_id,))
+        cursor.execute("DELETE FROM notifications WHERE user_id IN (?, ?)", (candidate_id, recruiter_id))
+        cursor.execute("DELETE FROM application_events WHERE application_id = ?", (app_id,))
+        cursor.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+        cursor.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (biz_id,))
+        cursor.execute("DELETE FROM businesses WHERE id = ?", (biz_id,))
+        cursor.execute("DELETE FROM users WHERE id IN (?, ?)", (candidate_id, recruiter_id))
+        conn.commit()
+        conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 
