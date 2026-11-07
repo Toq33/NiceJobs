@@ -2588,6 +2588,7 @@ class CompleteProfilePayload(BaseModel):
     skills: Optional[List[str]] = None
     languages: Optional[Any] = None
     experience: Optional[Any] = None
+    experience_years: Optional[int] = None
     job_preferences: Optional[Dict[str, Any]] = None
     designation: Optional[str] = None
     department: Optional[str] = None
@@ -2672,12 +2673,22 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     skills_data = payload.skills if isinstance(payload.skills, list) else []
     langs_data = payload.languages if isinstance(payload.languages, list) else []
 
+    exp_years = payload.experience_years
+    if exp_years is None and exp_list:
+        try:
+            exp_years = round(sum(float(e.get("worked_years", 0)) for e in exp_list if isinstance(e, dict)))
+        except Exception:
+            exp_years = 0
+    if exp_years is None:
+        exp_years = 0
+
     if p_row:
         cursor.execute("""
             UPDATE employee_profiles SET
                 headline = ?,
                 summary = ?,
                 current_position = ?,
+                experience_years = ?,
                 location = ?,
                 preferences = ?,
                 skills = ?,
@@ -2694,6 +2705,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             headline_text,
             bio_text,
             cand_role,
+            exp_years,
             payload.location or "",
             json.dumps(prefs_data),
             json.dumps(skills_data),
@@ -2719,7 +2731,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             payload.location or "Dhaka, Bangladesh",
             bio_text,
             cand_role,
-            1,
+            exp_years,
             json.dumps(skills_data),
             json.dumps(langs_data),
             json.dumps(cert_list),
@@ -3467,7 +3479,8 @@ def get_profile(user_id: str = "user_rahim"):
                COALESCE(NULLIF(p.middle_name, ''), u.middle_name, '') as middle_name,
                COALESCE(NULLIF(p.last_name, ''), u.last_name, '') as last_name,
                COALESCE(NULLIF(p.name_bangla, ''), u.name_bangla, '') as name_bangla,
-               COALESCE(NULLIF(p.dob, ''), u.dob, '') as dob
+               COALESCE(NULLIF(p.dob, ''), u.dob, '') as dob,
+               COALESCE(NULLIF(p.nid_passport, ''), u.nid_passport, '') as nid_passport
         FROM users u
         LEFT JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -3486,6 +3499,19 @@ def get_profile(user_id: str = "user_rahim"):
     profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
     profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
 
+    # Synthetic CV entry if cv_list is empty but cv_name or cv_url is present
+    if not profile["cv_list"] and (profile.get("cv_name") or profile.get("cv_url")):
+        profile["cv_list"] = [{
+            "id": "cv_primary",
+            "name": profile.get("cv_name") or "Primary_CV.pdf",
+            "title": profile.get("cv_name") or "Primary Hospitality Resume",
+            "size": "Original Upload",
+            "uploaded_at": profile.get("cv_updated_at") or "Verified",
+            "is_default": True,
+            "url": profile.get("cv_url") or "",
+            "file_data": profile.get("cv_url") or ""
+        }]
+
     conn.close()
     return profile
 
@@ -3500,6 +3526,7 @@ class ProfileUpdatePayload(BaseModel):
     phone: Optional[str] = None
     phone_secondary: Optional[str] = None
     dob: Optional[str] = None
+    nid_passport: Optional[str] = None
     avatar_url: Optional[str] = None
     designation: Optional[str] = None
     department: Optional[str] = None
@@ -3588,6 +3615,10 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.dob is not None:
         cursor.execute("UPDATE users SET dob = ? WHERE id = ?", (payload.dob, effective_user_id))
         cursor.execute("UPDATE employee_profiles SET dob = ? WHERE user_id = ?", (payload.dob, effective_user_id))
+
+    if payload.nid_passport is not None:
+        cursor.execute("UPDATE users SET nid_passport = ? WHERE id = ?", (payload.nid_passport, effective_user_id))
+        cursor.execute("UPDATE employee_profiles SET nid_passport = ? WHERE user_id = ?", (payload.nid_passport, effective_user_id))
 
     # Merge preferences cleanly
     cursor.execute("SELECT preferences FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
@@ -3695,9 +3726,20 @@ class CvCreatePayload(BaseModel):
 def get_profile_cvs(user_id: str = "user_rahim"):
     conn = database.get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT cv_list, cv_name, cv_url, cv_updated_at FROM employee_profiles WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
+    if not cv_list and row and (row["cv_name"] or row["cv_url"]):
+        cv_list = [{
+            "id": "cv_primary",
+            "name": row["cv_name"] or "Primary_CV.pdf",
+            "title": row["cv_name"] or "Primary Hospitality Resume",
+            "size": "Original Upload",
+            "uploaded_at": row["cv_updated_at"] or "Verified",
+            "is_default": True,
+            "url": row["cv_url"] or "",
+            "file_data": row["cv_url"] or ""
+        }]
     conn.close()
     return {"success": True, "cvs": cv_list, "cv_list": cv_list}
 

@@ -5344,24 +5344,30 @@ async function renderProfileScreen(viewport) {
     `;
     return;
   }
-  let profile = (state.profile && (state.profile.user_id === userId || state.profile.id === userId)) ? state.profile : null;
-  if (!profile) {
+  // Always fetch fresh profile to ensure all newly filled profile creation & edit data displays immediately
+  let profile = state.profile;
+  try {
     const res = await fetch(`/api/profile?user_id=${userId}`);
-    if (!res.ok) {
-      viewport.innerHTML = `
-        <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
-          <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
-            ${svgIcon('user', '', 30)}
-          </div>
-          <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
-          <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
-          <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
-        </div>
-      `;
-      return;
+    if (res.ok) {
+      profile = await res.json();
+      state.profile = profile;
     }
-    profile = await res.json();
-    state.profile = profile;
+  } catch (e) {
+    console.warn('Profile fetch error:', e);
+  }
+
+  if (!profile) {
+    viewport.innerHTML = `
+      <div class="empty-state-card" style="padding: 60px 20px; text-align: center;">
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--orange-primary);">
+          ${svgIcon('user', '', 30)}
+        </div>
+        <h2 style="font-weight: 800; color: var(--white); margin-bottom: 8px;">Candidate Profile Not Found</h2>
+        <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 20px;">The requested profile could not be loaded.</p>
+        <button class="btn-orange" onclick="startSignupFlow('candidate')">Create Candidate Profile</button>
+      </div>
+    `;
+    return;
   }
 
   const isOpen = (profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === '1' || profile.open_to_work === undefined);
@@ -5422,6 +5428,9 @@ async function renderProfileScreen(viewport) {
               ` : ''}
               ${profile.dob ? `
                 <span>${svgIcon('calendar', '', 14)} Born: ${escapeHtml(profile.dob)}</span>
+              ` : ''}
+              ${profile.nid_passport ? `
+                <span>${svgIcon('shieldCheck', '', 14)} NID/Passport: ${escapeHtml(profile.nid_passport)}</span>
               ` : ''}
             </div>
           </div>
@@ -5504,7 +5513,7 @@ async function renderProfileScreen(viewport) {
             <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--white); margin: 0;">Summary</h2>
             <button class="btn-icon" onclick="openEditSummaryModal()" title="Edit Summary">${svgIcon('edit', '', 14)}</button>
           </div>
-          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">${escapeHtml(profile.summary || 'No professional summary added yet.')}</p>
+          <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">${escapeHtml(profile.summary || profile.bio || 'No professional summary added yet.')}</p>
         </div>
 
         <!-- Education & Academic Degrees -->
@@ -5521,23 +5530,27 @@ async function renderProfileScreen(viewport) {
               <div style="color: var(--text-dim); font-size: 0.85rem; padding: 14px; text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
                 No academic degrees or hospitality certificates listed. Click '+ Add / Edit' to add your credentials.
               </div>
-            ` : profile.education.map(edu => `
+            ` : profile.education.map(edu => {
+              const isOther = isOtherDegree(edu.degree_select || edu.degree);
+              const degTitle = (isOther && edu.other_degree) ? edu.other_degree : (edu.degree || edu.other_degree || edu.degree_select || edu.institution || 'Hospitality Degree');
+              const gpaText = edu.gpa || (edu.gpa_obtained ? `${edu.gpa_obtained} / ${edu.gpa_scale || '4.00'}` : '');
+              return `
               <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); padding: 12px 16px; border-radius: var(--radius-md);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
                   <div>
-                    <div style="font-weight: 800; font-size: 0.96rem; color: var(--white);">${escapeHtml(edu.degree || edu.institution || 'Hospitality Degree')}</div>
+                    <div style="font-weight: 800; font-size: 0.96rem; color: var(--white);">${escapeHtml(degTitle)}</div>
                     <div style="font-size: 0.84rem; color: var(--orange-primary); font-weight: 700; margin-top: 3px;">
                       ${escapeHtml(edu.institution || '')} ${edu.country ? `• <span style="color: var(--text-muted); font-weight: 500;">${escapeHtml(edu.country)}</span>` : ''}
                     </div>
                   </div>
-                  ${edu.gpa ? `
+                  ${gpaText ? `
                     <span style="background: rgba(255, 107, 0, 0.12); border: 1px solid rgba(255, 107, 0, 0.3); color: #ff9d42; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700;">
-                      GPA: ${escapeHtml(edu.gpa)}
+                      GPA: ${escapeHtml(gpaText)}
                     </span>
                   ` : ''}
                 </div>
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
 
@@ -5555,14 +5568,18 @@ async function renderProfileScreen(viewport) {
               <div style="color: var(--text-dim); font-size: 0.85rem; padding: 14px; text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
                 No previous hospitality experience listed.
               </div>
-            ` : profile.experience.map(exp => `
+            ` : profile.experience.map(exp => {
+              const datesRange = (exp.date_from ? `${exp.date_from} – ${exp.is_current ? 'Present' : (exp.date_to || 'Present')}` : '');
+              const expDuration = exp.worked_years ? `${exp.worked_years} yrs` : '';
+              const expTimeDisplay = datesRange ? (expDuration ? `${datesRange} (${expDuration})` : datesRange) : (exp.period || expDuration);
+              return `
               <div style="border-left: 3px solid var(--orange-primary); padding-left: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
                   <div>
                     <div style="font-size: 1.02rem; font-weight: 800; color: var(--white);">${escapeHtml(exp.role || exp.title || 'Role')}</div>
                     <div style="font-size: 0.88rem; color: var(--orange-primary); font-weight: 600; margin-top: 2px;">
                       ${escapeHtml(exp.company || exp.hotel || 'Hospitality Organization')}
-                      ${exp.period ? ` • <span style="color: var(--text-dim);">${escapeHtml(exp.period)}</span>` : (exp.worked_years ? ` • <span style="color: var(--text-dim);">${escapeHtml(exp.worked_years)} yrs</span>` : '')}
+                      ${expTimeDisplay ? ` • <span style="color: var(--text-dim);">${escapeHtml(expTimeDisplay)}</span>` : ''}
                     </div>
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
@@ -5588,7 +5605,7 @@ async function renderProfileScreen(viewport) {
                   </p>
                 ` : ''}
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
 
@@ -14331,12 +14348,17 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
 
   saveSignupProgress();
 
+  const totalExpYears = (signupState.experience || []).reduce((acc, e) => {
+    return acc + (parseFloat(e.worked_years) || 0);
+  }, 0);
+
   const payload = {
     user_id: state.currentUser.id,
     avatar_url: signupState.pfp,
     summary: signupState.bio || '',
     headline: `${prefRole} • ${prefDept}`,
     current_position: prefRole,
+    experience_years: Math.round(totalExpYears),
     location: prefLoc,
     preferences: signupState.job_preferences,
     education: signupState.education,
@@ -14394,6 +14416,10 @@ async function handleCandidateCompleteProfile(event) {
     btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Completing Onboarding...`;
   }
 
+  const totalExpYears = (signupState.experience || []).reduce((acc, e) => {
+    return acc + (parseFloat(e.worked_years) || 0);
+  }, 0);
+
   const payload = {
     user_id: state.currentUser.id,
     avatar_url: signupState.pfp || DEFAULT_AVATAR_PREVIEW,
@@ -14410,7 +14436,8 @@ async function handleCandidateCompleteProfile(event) {
     certifications: signupState.certifications || [],
     skills: signupState.skills || [],
     languages: signupState.languages || [],
-    experience: signupState.experience || []
+    experience: signupState.experience || [],
+    experience_years: Math.round(totalExpYears)
   };
 
   try {
@@ -19060,8 +19087,8 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Bangla Name & Date of Birth (DOB) -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+            <!-- Bangla Name, Date of Birth (DOB) & NID / Passport -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Bangla Name <span style="font-weight: 400; color: var(--text-dim);">(বাংলা নাম - ঐচ্ছিক)</span></label>
                 <input type="text" name="name_bangla" value="${escapeHtml(profile.name_bangla || '')}" placeholder="যেমন: মোঃ রহিম আহমেদ" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
@@ -19069,6 +19096,10 @@ async function openComprehensiveEditProfileModal() {
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Date of Birth (DOB)</label>
                 <input type="date" name="dob" value="${profile.dob || ''}" style="width: 100%; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">NID / Passport No.</label>
+                <input type="text" name="nid_passport" value="${escapeHtml(profile.nid_passport || '')}" placeholder="NID or Passport No." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
@@ -19313,6 +19344,7 @@ async function handleSaveComprehensiveProfile(event) {
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
   const nameBangla = (form.name_bangla?.value || '').trim();
   const dobVal = form.dob?.value || '';
+  const nidPassport = (form.nid_passport?.value || '').trim();
   const phoneSec = (form.phone_secondary?.value || '').replace(/[^0-9]/g, '').slice(0, 11);
 
   const dept = form.department?.value || 'Front Office & Guest Services';
@@ -19339,7 +19371,8 @@ async function handleSaveComprehensiveProfile(event) {
     designation: designation,
     shift: shift,
     expected_salary: expSalary,
-    phone_secondary: phoneSec
+    phone_secondary: phoneSec,
+    preferred_location: form.location.value
   };
 
   const payload = {
@@ -19350,6 +19383,7 @@ async function handleSaveComprehensiveProfile(event) {
     last_name: lastName,
     name_bangla: nameBangla,
     dob: dobVal,
+    nid_passport: nidPassport,
     phone_secondary: phoneSec,
     department: dept,
     email: newEmail,
@@ -19397,6 +19431,7 @@ async function handleSaveComprehensiveProfile(event) {
       state.profile.last_name = lastName;
       state.profile.name_bangla = nameBangla;
       state.profile.dob = dobVal;
+      state.profile.nid_passport = nidPassport;
       state.profile.phone = newPhone;
       state.profile.phone_secondary = phoneSec;
       state.profile.department = dept;
