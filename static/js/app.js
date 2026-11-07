@@ -677,6 +677,37 @@ const BANGLADESH_DEGREES = [
   "Other Hospitality / University Degree"
 ];
 
+const EDUCATION_COUNTRIES = [
+  "Bangladesh",
+  "Switzerland",
+  "United Kingdom",
+  "United States",
+  "Canada",
+  "Australia",
+  "Malaysia",
+  "India",
+  "Singapore",
+  "United Arab Emirates",
+  "Thailand",
+  "Germany",
+  "France",
+  "Italy",
+  "Netherlands",
+  "Maldives",
+  "Saudi Arabia",
+  "Qatar",
+  "China",
+  "Japan",
+  "Other Country"
+];
+
+function isOtherDegree(deg) {
+  if (!deg) return false;
+  const d = String(deg).trim().toLowerCase();
+  return d.startsWith('other') || d.includes('other degree') || d.includes('other hospitality');
+}
+window.isOtherDegree = isOtherDegree;
+
 const HOTEL_SKILLS_SCHEMA = [
   // Front Office & Concierge
   "Opera PMS", "Amadeus CRS", "Front Desk Administration", "Check-in / Check-out", "Guest Relations",
@@ -2069,11 +2100,29 @@ function captureCurrentSignupInputs() {
   // Dynamic Education cards
   const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
   if (eduCards.length > 0) {
-    signupState.education = Array.from(eduCards).map(card => ({
-      institution: card.querySelector('.edu-inst')?.value || '',
-      degree: card.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)',
-      gpa: card.querySelector('.edu-gpa')?.value || ''
-    }));
+    signupState.education = Array.from(eduCards).map(card => {
+      const degSelect = card.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)';
+      const otherInput = (card.querySelector('.edu-other-deg')?.value || '').trim();
+      const isOther = isOtherDegree(degSelect);
+      const effectiveDegree = (isOther && otherInput) ? otherInput : degSelect;
+      const country = card.querySelector('.edu-country')?.value || 'Bangladesh';
+      const gpaObtained = (card.querySelector('.edu-gpa-obtained')?.value || card.querySelector('.edu-gpa')?.value || '').trim();
+      const gpaScale = (card.querySelector('.edu-gpa-scale')?.value || '4.00').trim();
+      const combinedGpa = gpaObtained ? `${gpaObtained} / ${gpaScale}` : '';
+
+      return {
+        institution: (card.querySelector('.edu-inst')?.value || '').trim(),
+        degree: effectiveDegree,
+        degree_select: degSelect,
+        other_degree: otherInput,
+        country: country,
+        gpa_obtained: gpaObtained,
+        gpa_scale: gpaScale,
+        gpa: combinedGpa || gpaObtained
+      };
+    });
+  } else if (document.getElementById('edu-dynamic-container')) {
+    signupState.education = [];
   }
 
   // Dynamic Experience cards
@@ -6115,7 +6164,7 @@ async function openCandidateTalentDossierModal(candidateId) {
                   ${eduList.map(edu => `
                     <div style="margin-bottom: 8px;">
                       <div style="font-weight: 700; font-size: 0.88rem; color: var(--white);">${escapeHtml(edu.degree || edu.institution || '')}</div>
-                      <div style="font-size: 0.78rem; color: var(--text-dim);">${escapeHtml(edu.institution || '')} ${edu.year ? `(${escapeHtml(edu.year)})` : ''}</div>
+                      <div style="font-size: 0.78rem; color: var(--text-dim);">${escapeHtml(edu.institution || '')}${edu.country ? ` • ${escapeHtml(edu.country)}` : ''}${edu.gpa ? ` • GPA: ${escapeHtml(edu.gpa)}` : ''}${edu.year ? ` (${escapeHtml(edu.year)})` : ''}</div>
                     </div>
                   `).join('')}
                   ${Array.isArray(cand.certifications) && cand.certifications.length > 0 ? `
@@ -10932,40 +10981,11 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <div class="dynamic-list-container" id="edu-dynamic-container">
-                  ${signupState.education.length === 0 ? `
+                  ${(!signupState.education || signupState.education.length === 0) ? `
                     <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
                       No degrees or certificates added yet. Click below to add.
                     </div>
-                  ` : signupState.education.map((edu, idx) => `
-                    <div class="dynamic-entry-card">
-                      <div class="dynamic-entry-header">
-                        <span class="dynamic-entry-title">Education #${idx + 1}</span>
-                        ${signupState.education.length > 1 ? `
-                          <button type="button" class="dynamic-remove-btn" onclick="removeEducationEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
-                        ` : ''}
-                      </div>
-                      <div class="auth-field">
-                        <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
-                        <input type="text" class="auth-input edu-inst" placeholder="Enter school, college, or training institute name" 
-                          value="${edu.institution || ''}" required>
-                      </div>
-                      <div class="auth-field-grid">
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
-                          <select class="auth-input edu-deg">
-                            ${BANGLADESH_DEGREES.map(deg => `
-                              <option value="${deg}" ${edu.degree === deg ? 'selected' : ''}>${deg}</option>
-                            `).join('')}
-                          </select>
-                        </div>
-                        <div class="auth-field">
-                          <label class="auth-label" style="font-size: 0.76rem;">GPA / Result</label>
-                          <input type="text" class="auth-input edu-gpa" placeholder="Enter GPA, division, or grade" 
-                            value="${edu.gpa || ''}">
-                        </div>
-                      </div>
-                    </div>
-                  `).join('')}
+                  ` : signupState.education.map((edu, idx) => renderSingleEducationCardHtml(edu, idx)).join('')}
                 </div>
 
                 <button type="button" class="dynamic-add-btn" onclick="addEducationEntry()">
@@ -12090,6 +12110,88 @@ function handleCvFileSelected(event) {
   reader.readAsDataURL(file);
 }
 
+function renderSingleEducationCardHtml(edu, idx) {
+  const isOther = isOtherDegree(edu.degree_select || edu.degree);
+  const gpaObt = edu.gpa_obtained !== undefined ? edu.gpa_obtained : (edu.gpa && !edu.gpa.includes('/') ? edu.gpa : (edu.gpa ? edu.gpa.split('/')[0].trim() : ''));
+  const gpaSc = edu.gpa_scale !== undefined ? edu.gpa_scale : (edu.gpa && edu.gpa.includes('/') ? edu.gpa.split('/')[1].trim() : '4.00');
+
+  return `
+    <div class="dynamic-entry-card" data-edu-index="${idx}">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Education #${idx + 1}</span>
+        <button type="button" class="dynamic-remove-btn" onclick="removeEducationEntry(${idx})" title="Remove education entry">
+          ${svgIcon('x', '', 13)} Remove
+        </button>
+      </div>
+
+      <div class="auth-field" style="margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
+        <input type="text" class="auth-input edu-inst" placeholder="Enter school, college, or training institute name" 
+          value="${escapeHtml(edu.institution || '')}" required>
+      </div>
+
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px; gap: 10px;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
+          <select class="auth-input edu-deg" onchange="handleDegreeChange(this, ${idx})">
+            ${BANGLADESH_DEGREES.map(deg => {
+              const selected = (edu.degree_select === deg || edu.degree === deg || (isOther && deg.toLowerCase().includes('other')));
+              return `<option value="${deg}" ${selected ? 'selected' : ''}>${deg}</option>`;
+            }).join('')}
+          </select>
+        </div>
+
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Country</label>
+          <select class="auth-input edu-country">
+            ${EDUCATION_COUNTRIES.map(c => `
+              <option value="${c}" ${(edu.country || 'Bangladesh') === c ? 'selected' : ''}>${c}</option>
+            `).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- Text box when Other degree is selected -->
+      <div class="auth-field edu-other-deg-wrap" style="${isOther ? 'display: block;' : 'display: none;'} margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Degree Name *</label>
+        <input type="text" class="auth-input edu-other-deg" placeholder="Enter degree or certificate name" 
+          value="${escapeHtml(edu.other_degree || (isOther && !isOtherDegree(edu.degree) ? edu.degree : ''))}">
+      </div>
+
+      <!-- GPA: GPA Obtained and Out of -->
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">GPA Obtained</label>
+          <input type="text" class="auth-input edu-gpa-obtained" placeholder="e.g. 3.80" 
+            value="${escapeHtml(gpaObt)}">
+        </div>
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Out of</label>
+          <input type="text" class="auth-input edu-gpa-scale" placeholder="e.g. 4.00 or 5.00" 
+            value="${escapeHtml(gpaSc)}">
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.renderSingleEducationCardHtml = renderSingleEducationCardHtml;
+
+function handleDegreeChange(selectEl, idx) {
+  if (!selectEl) return;
+  const card = selectEl.closest('.dynamic-entry-card');
+  if (!card) return;
+  const otherWrap = card.querySelector('.edu-other-deg-wrap');
+  if (otherWrap) {
+    const isOther = isOtherDegree(selectEl.value);
+    otherWrap.style.display = isOther ? 'block' : 'none';
+    if (isOther) {
+      const input = otherWrap.querySelector('.edu-other-deg');
+      if (input) input.focus();
+    }
+  }
+}
+window.handleDegreeChange = handleDegreeChange;
+
 // Education dynamic in-place DOM render
 function renderEducationCardsDOM() {
   const container = document.getElementById('edu-dynamic-container');
@@ -12102,36 +12204,7 @@ function renderEducationCardsDOM() {
     `;
     return;
   }
-  container.innerHTML = signupState.education.map((edu, idx) => `
-    <div class="dynamic-entry-card">
-      <div class="dynamic-entry-header">
-        <span class="dynamic-entry-title">Education #${idx + 1}</span>
-        ${signupState.education.length > 1 ? `
-          <button type="button" class="dynamic-remove-btn" onclick="removeEducationEntry(${idx})">${svgIcon('x', '', 13)} Remove</button>
-        ` : ''}
-      </div>
-      <div class="auth-field">
-        <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
-        <input type="text" class="auth-input edu-inst" placeholder="Enter school, college, or training institute name" 
-          value="${escapeHtml(edu.institution || '')}">
-      </div>
-      <div class="auth-field-grid">
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
-          <select class="auth-input edu-deg">
-            ${BANGLADESH_DEGREES.map(deg => `
-              <option value="${deg}" ${edu.degree === deg ? 'selected' : ''}>${deg}</option>
-            `).join('')}
-          </select>
-        </div>
-        <div class="auth-field">
-          <label class="auth-label" style="font-size: 0.76rem;">GPA / Result</label>
-          <input type="text" class="auth-input edu-gpa" placeholder="Enter GPA, division, or grade" 
-            value="${escapeHtml(edu.gpa || '')}">
-        </div>
-      </div>
-    </div>
-  `).join('');
+  container.innerHTML = signupState.education.map((edu, idx) => renderSingleEducationCardHtml(edu, idx)).join('');
 }
 window.renderEducationCardsDOM = renderEducationCardsDOM;
 
@@ -12141,6 +12214,11 @@ function addEducationEntry() {
   signupState.education.push({
     institution: '',
     degree: 'Bachelor of Hotel Management (BHM)',
+    degree_select: 'Bachelor of Hotel Management (BHM)',
+    other_degree: '',
+    country: 'Bangladesh',
+    gpa_obtained: '',
+    gpa_scale: '4.00',
     gpa: ''
   });
   renderEducationCardsDOM();
@@ -12152,13 +12230,6 @@ function removeEducationEntry(idx) {
   captureCurrentSignupInputs();
   if (!signupState.education) signupState.education = [];
   signupState.education.splice(idx, 1);
-  if (signupState.education.length === 0) {
-    signupState.education.push({
-      institution: '',
-      degree: 'Bachelor of Hotel Management (BHM)',
-      gpa: ''
-    });
-  }
   renderEducationCardsDOM();
   saveSignupProgress();
 }
@@ -13674,11 +13745,29 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
   // Education entries
   const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
   if (eduCards.length > 0) {
-    signupState.education = Array.from(eduCards).map(c => ({
-      institution: (c.querySelector('.edu-inst')?.value || '').trim(),
-      degree: c.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)',
-      gpa: (c.querySelector('.edu-gpa')?.value || '').trim()
-    })).filter(e => e.institution);
+    signupState.education = Array.from(eduCards).map(c => {
+      const degSelect = c.querySelector('.edu-deg')?.value || 'Bachelor of Hotel Management (BHM)';
+      const otherInput = (c.querySelector('.edu-other-deg')?.value || '').trim();
+      const isOther = isOtherDegree(degSelect);
+      const effectiveDegree = (isOther && otherInput) ? otherInput : degSelect;
+      const country = c.querySelector('.edu-country')?.value || 'Bangladesh';
+      const gpaObtained = (c.querySelector('.edu-gpa-obtained')?.value || c.querySelector('.edu-gpa')?.value || '').trim();
+      const gpaScale = (c.querySelector('.edu-gpa-scale')?.value || '4.00').trim();
+      const combinedGpa = gpaObtained ? `${gpaObtained} / ${gpaScale}` : '';
+
+      return {
+        institution: (c.querySelector('.edu-inst')?.value || '').trim(),
+        degree: effectiveDegree,
+        degree_select: degSelect,
+        other_degree: otherInput,
+        country: country,
+        gpa_obtained: gpaObtained,
+        gpa_scale: gpaScale,
+        gpa: combinedGpa || gpaObtained
+      };
+    }).filter(e => e.institution);
+  } else if (document.getElementById('edu-dynamic-container')) {
+    signupState.education = [];
   }
 
   // Experience entries
