@@ -150,5 +150,17 @@ class TestAdminDeleteBusiness(unittest.TestCase):
         self.cursor.execute("SELECT COUNT(*) FROM users WHERE id = ?", (candidate_id,))
         self.assertEqual(self.cursor.fetchone()[0], 1)
 
+        # Cleanup candidate user account to avoid leftover test data
+        self.cursor.execute("DELETE FROM users WHERE id = ?", (candidate_id,))
+        self.conn.commit()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            from scripts.cleanup_test_data import cleanup_test_data
+            cleanup_test_data(dry_run=False)
+        except Exception:
+            pass
+
 if __name__ == "__main__":
     unittest.main()

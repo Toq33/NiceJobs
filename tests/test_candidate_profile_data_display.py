@@ -42,6 +42,7 @@ class TestCandidateProfileDataDisplay(unittest.TestCase):
         self.assertEqual(reg_res.status_code, 200, f"Registration failed: {reg_res.text}")
         reg_data = reg_res.json()
         user_id = reg_data["user_id"]
+        self.user_id = user_id
         self.assertTrue(user_id)
 
         # 3. Accept Terms
@@ -237,6 +238,28 @@ class TestCandidateProfileDataDisplay(unittest.TestCase):
         self.assertEqual(profile2["designation"], "Assistant F&B Manager")
         self.assertEqual(profile2["summary"], "Promoted hospitality professional with advanced wine knowledge and team leadership.")
         self.assertEqual(profile2["location"], "Dhaka, Bangladesh")
+
+    def tearDown(self):
+        if hasattr(self, 'user_id') and self.user_id:
+            try:
+                conn = database.get_db()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM notifications WHERE user_id = ?", (self.user_id,))
+                cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (self.user_id,))
+                cursor.execute("DELETE FROM users WHERE id = ?", (self.user_id,))
+                cursor.execute("DELETE FROM otp_verifications WHERE identifier IN (?, ?)", (self.email, self.phone))
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"tearDown cleanup notice: {e}")
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            from scripts.cleanup_test_data import cleanup_test_data
+            cleanup_test_data(dry_run=False)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     unittest.main()

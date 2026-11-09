@@ -84,6 +84,13 @@ Run all commands from the repository root:
   python3 scripts/migrate_sqlite_to_supabase.py --dry-run
   ```
 
+- **Purge leftover test and fixture data (Postgres & SQLite)**:
+  ```bash
+  python3 scripts/cleanup_test_data.py
+  # dry-run mode:
+  python3 scripts/cleanup_test_data.py --dry-run
+  ```
+
 ---
 
 ## 4. Critical Architecture & Business Rules
@@ -116,6 +123,11 @@ Run all commands from the repository root:
 
 8. **Dual-Engine DB Support**:
    - When modifying queries in `database.py`, write standard ANSI SQL or use `adapt_sql_for_postgres()` so both SQLite and PostgreSQL handle the query identically.
+
+9. **Mandatory Test Data Cleanup Policy**:
+   - **Never leave test or demo records in the database after testing**.
+   - Every automated test method and test suite must clean up any records it creates (via `tearDown`, `tearDownClass`, or `finally` blocks).
+   - After testing, run `python3 scripts/cleanup_test_data.py` to ensure zero test users, test businesses, test applications, or test OTP fixtures remain in either SQLite or Supabase PostgreSQL.
 
 ---
 

@@ -11,6 +11,14 @@ class TestSharedEmailAuth(unittest.TestCase):
         cls.client = TestClient(app.app)
         database.init_db()
 
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            from scripts.cleanup_test_data import cleanup_test_data
+            cleanup_test_data(dry_run=False)
+        except Exception:
+            pass
+
     def test_shared_email_candidate_and_business_rep(self):
         uid = uuid.uuid4().hex[:6]
         shared_email = f"tanvir.{uid}@luxurybd.test"
@@ -20,6 +28,13 @@ class TestSharedEmailAuth(unittest.TestCase):
         shared_phone_rep = f"0181{uid[:7]}"
         if len(shared_phone_rep) < 11:
             shared_phone_rep = shared_phone_rep.ljust(11, '0')
+
+        self.shared_email = shared_email
+        self.shared_phone_cand = shared_phone_cand
+        self.shared_phone_rep = shared_phone_rep
+        self.cand_user_id = None
+        self.rep_user_id = None
+        self.business_id = None
 
         # 1. Register Candidate with shared_email
         cand_payload = {
@@ -38,6 +53,7 @@ class TestSharedEmailAuth(unittest.TestCase):
         self.assertEqual(cand_res.status_code, 200, f"Candidate registration failed: {cand_res.text}")
         cand_data = cand_res.json()
         cand_user_id = cand_data.get("user_id") or cand_data.get("user", {}).get("id")
+        self.cand_user_id = cand_user_id
         self.assertEqual(cand_data.get("role") or cand_data.get("user", {}).get("role"), "jobseeker")
 
         # 2. Check Candidate Availability for same email -> should be unavailable for another candidate
@@ -81,6 +97,8 @@ class TestSharedEmailAuth(unittest.TestCase):
         self.assertTrue(biz_data.get("success"))
         rep_user_id = biz_data["user_id"]
         business_id = biz_data["business_id"]
+        self.rep_user_id = rep_user_id
+        self.business_id = business_id
 
         # 6. Verify distinct user records & no data sharing
         self.assertNotEqual(cand_user_id, rep_user_id, "Candidate and Recruiter must have distinct user IDs")
@@ -159,6 +177,26 @@ class TestSharedEmailAuth(unittest.TestCase):
             "role": "recruiter"
         })
         self.assertEqual(fail_rep.status_code, 401, "Recruiter login with wrong password must fail")
+
+    def tearDown(self):
+        try:
+            conn = database.get_db()
+            cursor = conn.cursor()
+            if hasattr(self, 'business_id') and self.business_id:
+                cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (self.business_id,))
+                cursor.execute("DELETE FROM businesses WHERE id = ?", (self.business_id,))
+            uids = [u for u in [getattr(self, 'cand_user_id', None), getattr(self, 'rep_user_id', None)] if u]
+            if uids:
+                seq = ','.join([f"'{u}'" for u in uids])
+                cursor.execute(f"DELETE FROM employee_profiles WHERE user_id IN ({seq})")
+                cursor.execute(f"DELETE FROM notifications WHERE user_id IN ({seq})")
+                cursor.execute(f"DELETE FROM users WHERE id IN ({seq})")
+            if hasattr(self, 'shared_email'):
+                cursor.execute("DELETE FROM otp_verifications WHERE identifier IN (?, ?, ?)", (self.shared_email, getattr(self, 'shared_phone_cand', ''), getattr(self, 'shared_phone_rep', '')))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Cleanup error in test_shared_email_auth: {e}")
 
 if __name__ == "__main__":
     unittest.main()

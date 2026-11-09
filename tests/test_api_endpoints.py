@@ -8,6 +8,14 @@ class TestNiceJobsAPI(unittest.TestCase):
     def setUpClass(cls):
         cls.client = TestClient(app)
 
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            from scripts.cleanup_test_data import cleanup_test_data
+            cleanup_test_data(dry_run=False)
+        except Exception as e:
+            print(f"tearDownClass cleanup notice: {e}")
+
     def test_health_check(self):
         """Verifies health check endpoint returns 200 and ok status."""
         response = self.client.get("/api/health")
@@ -84,62 +92,75 @@ class TestNiceJobsAPI(unittest.TestCase):
         # Ensure a test candidate exists
         unique_suffix = uuid.uuid4().hex[:6]
         test_user_id = f"user_test_cv_{unique_suffix}"
-        conn = database.get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (id, name, email, phone, role, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (test_user_id, "Test Candidate CV", f"test_cv_{unique_suffix}@example.com", f"01711{unique_suffix[:6]}", "jobseeker", "active"))
-        cursor.execute("""
-            INSERT INTO employee_profiles (user_id, headline, cv_list, cv_url)
-            VALUES (?, ?, ?, ?)
-        """, (test_user_id, "Front Desk Professional", "[]", ""))
-        cursor.execute("SELECT id FROM jobs LIMIT 1")
-        job_row = cursor.fetchone()
-        job_id = job_row["id"] if job_row else "job_fo_sup"
-        conn.commit()
-        conn.close()
+        app_id = None
+        try:
+            conn = database.get_db()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO users (id, name, email, phone, role, status)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (test_user_id, "Test Candidate CV", f"test_cv_{unique_suffix}@example.com", f"01711{unique_suffix[:6]}", "jobseeker", "active"))
+            cursor.execute("""
+                INSERT INTO employee_profiles (user_id, headline, cv_list, cv_url)
+                VALUES (?, ?, ?, ?)
+            """, (test_user_id, "Front Desk Professional", "[]", ""))
+            cursor.execute("SELECT id FROM jobs LIMIT 1")
+            job_row = cursor.fetchone()
+            job_id = job_row["id"] if job_row else "job_fo_sup"
+            conn.commit()
+            conn.close()
 
-        # 1. Upload/Add a CV to profile
-        upload_resp = self.client.post("/api/profile/cvs", json={
-            "user_id": test_user_id,
-            "title": "Front Office Specialist Executive CV",
-            "name": "Candidate_Front_Office_CV.pdf",
-            "size": "210 KB",
-            "is_default": True,
-            "file_data": sample_cv_b64
-        })
-        self.assertEqual(upload_resp.status_code, 200)
-        upload_data = upload_resp.json()
-        self.assertTrue(upload_data.get("success"))
-        
-        # 2. Check profile returns the uploaded CV with file_data
-        prof_resp = self.client.get(f"/api/profile?user_id={test_user_id}")
-        self.assertEqual(prof_resp.status_code, 200)
-        prof_data = prof_resp.json()
-        cv_names = [c["name"] for c in prof_data.get("cv_list", [])]
-        self.assertIn("Candidate_Front_Office_CV.pdf", cv_names)
-        self.assertEqual(prof_data.get("cv_url"), sample_cv_b64)
+            # 1. Upload/Add a CV to profile
+            upload_resp = self.client.post("/api/profile/cvs", json={
+                "user_id": test_user_id,
+                "title": "Front Office Specialist Executive CV",
+                "name": "Candidate_Front_Office_CV.pdf",
+                "size": "210 KB",
+                "is_default": True,
+                "file_data": sample_cv_b64
+            })
+            self.assertEqual(upload_resp.status_code, 200)
+            upload_data = upload_resp.json()
+            self.assertTrue(upload_data.get("success"))
+            
+            # 2. Check profile returns the uploaded CV with file_data
+            prof_resp = self.client.get(f"/api/profile?user_id={test_user_id}")
+            self.assertEqual(prof_resp.status_code, 200)
+            prof_data = prof_resp.json()
+            cv_names = [c["name"] for c in prof_data.get("cv_list", [])]
+            self.assertIn("Candidate_Front_Office_CV.pdf", cv_names)
+            self.assertEqual(prof_data.get("cv_url"), sample_cv_b64)
 
-        # 3. Submit an application with this CV
-        app_resp = self.client.post("/api/applications", json={
-            "job_id": job_id,
-            "user_id": test_user_id,
-            "cover_letter": "Application with real uploaded CV document.",
-            "selected_cv": "Candidate_Front_Office_CV.pdf",
-            "selected_cv_url": sample_cv_b64
-        })
-        self.assertEqual(app_resp.status_code, 200)
-        app_data = app_resp.json()
-        app_id = app_data.get("application_id")
+            # 3. Submit an application with this CV
+            app_resp = self.client.post("/api/applications", json={
+                "job_id": job_id,
+                "user_id": test_user_id,
+                "cover_letter": "Application with real uploaded CV document.",
+                "selected_cv": "Candidate_Front_Office_CV.pdf",
+                "selected_cv_url": sample_cv_b64
+            })
+            self.assertEqual(app_resp.status_code, 200)
+            app_data = app_resp.json()
+            app_id = app_data.get("application_id")
 
-        # 4. Check the application CV endpoint as recruiter/admin
-        app_cv_resp = self.client.get(f"/api/applications/{app_id}/cv?viewer_role=admin")
-        self.assertEqual(app_cv_resp.status_code, 200)
-        app_cv_data = app_cv_resp.json()
-        self.assertEqual(app_cv_data.get("selected_cv_url"), sample_cv_b64)
-        self.assertEqual(app_cv_data.get("cv_url"), sample_cv_b64)
-        self.assertEqual(app_cv_data.get("selected_cv"), "Candidate_Front_Office_CV.pdf")
+            # 4. Check the application CV endpoint as recruiter/admin
+            app_cv_resp = self.client.get(f"/api/applications/{app_id}/cv?viewer_role=admin")
+            self.assertEqual(app_cv_resp.status_code, 200)
+            app_cv_data = app_cv_resp.json()
+            self.assertEqual(app_cv_data.get("selected_cv_url"), sample_cv_b64)
+            self.assertEqual(app_cv_data.get("cv_url"), sample_cv_b64)
+            self.assertEqual(app_cv_data.get("selected_cv"), "Candidate_Front_Office_CV.pdf")
+        finally:
+            conn = database.get_db()
+            cursor = conn.cursor()
+            if app_id:
+                cursor.execute("DELETE FROM application_events WHERE application_id = ?", (app_id,))
+                cursor.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+            cursor.execute("DELETE FROM notifications WHERE user_id = ?", (test_user_id,))
+            cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (test_user_id,))
+            cursor.execute("DELETE FROM users WHERE id = ?", (test_user_id,))
+            conn.commit()
+            conn.close()
 
     def test_blog_posting_admin_approval_and_db_storage(self):
         """Verifies silent admin approval required to post blogs, blog storage, and inline images."""
