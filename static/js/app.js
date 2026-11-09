@@ -1535,7 +1535,7 @@ function getDistrictsByProximity(preferredInputs, maxDistanceKm = null) {
 // ==========================================================================
 window._districtPickerStates = window._districtPickerStates || {};
 
-function getPickerState(pickerId, defaultSelected = ['Dhaka']) {
+function getPickerState(pickerId, defaultSelected = []) {
   if (!window._districtPickerStates[pickerId]) {
     window._districtPickerStates[pickerId] = {
       selected: Array.isArray(defaultSelected) ? [...defaultSelected] : [defaultSelected].filter(Boolean),
@@ -1569,9 +1569,11 @@ function renderDistrictProximityPicker(options = {}) {
     ? (isAnywhere ? ['Anywhere in Bangladesh'] : pState.selected)
     : pState.selected.filter(s => !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase()));
 
-  const proximityData = isAnywhere 
-    ? BANGLADESH_DISTRICTS_DATA.map(d => ({ ...d, distance_km: 0.0, is_selected: false }))
-    : getDistrictsByProximity(pState.selected.length > 0 ? pState.selected : ['Dhaka']);
+  const hasSelectedDistrict = selectedList.length > 0 && !isAnywhere;
+
+  const proximityData = (isAnywhere || !hasSelectedDistrict) 
+    ? BANGLADESH_DISTRICTS_DATA.map(d => ({ ...d, distance_km: 0.0, is_selected: selectedList.includes(d.name) }))
+    : getDistrictsByProximity(pState.selected);
 
   // Filter recommendations if search term is active
   let displayDistricts = proximityData;
@@ -1592,23 +1594,23 @@ function renderDistrictProximityPicker(options = {}) {
   let regional = [];
   let nationwide = [];
 
-  if (isAnywhere) {
-    adjacent = unselected;
-  } else {
+  if (hasSelectedDistrict) {
     adjacent = unselected.filter(d => d.distance_km < 60);
     regional = unselected.filter(d => d.distance_km >= 60 && d.distance_km < 150);
     nationwide = unselected.filter(d => d.distance_km >= 150);
+  } else if (isAnywhere) {
+    adjacent = unselected;
   }
 
   const totalCount = unselected.length;
   const initialCap = 14;
-  const isCapped = !pState.isExpanded && !pState.searchTerm && unselected.length > initialCap;
+  const isCapped = hasSelectedDistrict && !pState.isExpanded && !pState.searchTerm && unselected.length > initialCap;
   
   let visibleAdjacent = adjacent;
   let visibleRegional = regional;
   let visibleNationwide = nationwide;
 
-  if (isCapped) {
+  if (hasSelectedDistrict && isCapped) {
     if (adjacent.length >= initialCap) {
       visibleAdjacent = adjacent.slice(0, initialCap);
       visibleRegional = [];
@@ -1660,7 +1662,7 @@ function renderDistrictProximityPicker(options = {}) {
       <!-- Selected District Chips Container -->
       <div class="district-chips-container">
         ${selectedList.length === 0 ? `
-          <span style="font-size: 0.78rem; color: var(--text-dim);">No district selected. Pick from suggestions below.</span>
+          <span style="font-size: 0.78rem; color: var(--text-dim);">No district selected. Select a district below or search.</span>
         ` : selectedList.map(name => `
           <span class="district-chip ${name === 'Anywhere in Bangladesh' ? 'is-anywhere' : ''}">
             ${svgIcon(name === 'Anywhere in Bangladesh' ? 'globe' : 'mapPin', '', 12)}
@@ -1686,7 +1688,7 @@ function renderDistrictProximityPicker(options = {}) {
                 onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')">
                 <span>${d.name}</span>
                 <span class="proximity-dist-tag">(${d.division})</span>
-                ${!isAnywhere && !d.is_selected ? `<span class="proximity-dist-tag" style="color: #ff9d42; font-weight: 600;">${d.distance_km} km</span>` : ''}
+                ${hasSelectedDistrict && !isAnywhere && !d.is_selected ? `<span class="proximity-dist-tag" style="color: #ff9d42; font-weight: 600;">${d.distance_km} km</span>` : ''}
               </button>
             `).join('')}
           </div>
@@ -1703,6 +1705,35 @@ function renderDistrictProximityPicker(options = {}) {
                 <span class="proximity-dist-tag">${d.division}</span>
               </button>
             `).join('')}
+          </div>
+        ` : !hasSelectedDistrict ? `
+          <div class="proximity-tier-group">
+            <div class="proximity-tier-header">
+              <span class="proximity-tier-title">
+                ${svgIcon('mapPin', '', 12)} Select a District to See Nearby Suggestions
+              </span>
+              <span class="proximity-tier-badge">${unselected.length} districts</span>
+            </div>
+            <div style="font-size: 0.74rem; color: var(--text-dim); margin-bottom: 8px;">
+              Choose your primary district. Nearby and regional district suggestions will appear automatically.
+            </div>
+            <div class="proximity-districts-grid">
+              ${(pState.isExpanded ? unselected : unselected.slice(0, 14)).map(d => `
+                <button type="button" class="proximity-district-btn" 
+                  onclick="handleDistrictToggle('${pickerId}', '${d.name.replace(/'/g, "\\'")}', '${context}')"
+                  title="Click to select ${d.name} (${d.division})">
+                  <span>${d.name}</span>
+                  <span class="proximity-dist-tag">(${d.division})</span>
+                </button>
+              `).join('')}
+            </div>
+            ${unselected.length > 14 ? `
+              <button type="button" class="district-expand-btn" onclick="handleDistrictExpandToggle('${pickerId}')" style="margin-top: 8px;">
+                ${pState.isExpanded 
+                  ? `${svgIcon('chevronUp', '', 13)} Show fewer districts` 
+                  : `${svgIcon('chevronDown', '', 13)} Show all 64 districts (${unselected.length - 14} more)`}
+              </button>
+            ` : ''}
           </div>
         ` : `
           <!-- Tier 1: Adjacent / Immediate Proximity (< 60 km) -->
@@ -1801,7 +1832,7 @@ function handleDistrictToggle(pickerId, distName, context) {
   }
   
   if (context !== 'candidate_signup' && context !== 'comp_edit_profile' && pState.selected.length === 0) {
-    pState.selected = ['Dhaka'];
+    pState.selected = [];
   }
   updatePickerContext(pickerId, context);
 }
@@ -1810,7 +1841,7 @@ function handleDistrictRemove(pickerId, distName, context) {
   const pState = getPickerState(pickerId);
   pState.selected = pState.selected.filter(s => s.toLowerCase() !== distName.toLowerCase());
   if (context !== 'candidate_signup' && context !== 'comp_edit_profile' && pState.selected.length === 0) {
-    pState.selected = ['Anywhere in Bangladesh'];
+    pState.selected = [];
   }
   updatePickerContext(pickerId, context);
 }
@@ -1821,7 +1852,7 @@ function handleDistrictAnywhereToggle(pickerId, context) {
     ['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
   );
   if (isAnywhere) {
-    pState.selected = ['Dhaka'];
+    pState.selected = [];
   } else {
     pState.selected = ['Anywhere in Bangladesh'];
   }
@@ -1857,9 +1888,9 @@ function updatePickerContext(pickerId, context) {
     !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
   );
   
-  const formattedVal = ((context === 'candidate_signup' || context === 'comp_edit_profile') && actualDistricts.length === 0)
-    ? 'Anywhere in Bangladesh'
-    : (actualDistricts.length > 0 ? actualDistricts.join(', ') : (pState.selected.join(', ') || 'Anywhere in Bangladesh'));
+  const formattedVal = actualDistricts.length > 0 
+    ? actualDistricts.join(', ') 
+    : (pState.selected.join(', ') || '');
   
   const hiddenInput = document.getElementById(pickerId.replace('-picker', '')) || 
                       document.getElementById('comp-pref-location') ||
@@ -1871,11 +1902,11 @@ function updatePickerContext(pickerId, context) {
   if (context === 'candidate_signup') {
     if (!signupState.job_preferences) signupState.job_preferences = {};
     signupState.job_preferences.preferred_location = formattedVal;
-    signupState.job_preferences.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : ['Anywhere in Bangladesh'];
+    signupState.job_preferences.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : [];
   } else if (context === 'comp_edit_profile') {
     if (window.compEditProfileState) {
       window.compEditProfileState.preferred_location = formattedVal;
-      window.compEditProfileState.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : ['Anywhere in Bangladesh'];
+      window.compEditProfileState.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : [];
     }
   } else if (context === 'job_search') {
     state.search.location = formattedVal;
@@ -1958,6 +1989,9 @@ const loginState = {
 };
 
 function getFreshSignupState(role = 'candidate') {
+  if (typeof window !== 'undefined' && window._districtPickerStates) {
+    delete window._districtPickerStates['cand-pref-location-picker'];
+  }
   return {
     role: role,
     stage: 1,
@@ -1980,7 +2014,8 @@ function getFreshSignupState(role = 'candidate') {
       desired_role: '',
       shift: 'Rotational',
       expected_salary: '',
-      preferred_location: 'Dhaka'
+      preferred_location: '',
+      preferred_locations: []
     },
     education: [],
     certifications: [],
@@ -2105,7 +2140,7 @@ function captureCurrentSignupInputs() {
     signupState.job_preferences.expected_salary = isNegActive ? 'Negotiable' : prefSalary.value.trim();
   }
   const prefLoc = document.getElementById('cand-pref-location');
-  if (prefLoc) signupState.job_preferences.preferred_location = prefLoc.value.trim() || 'Anywhere in Bangladesh';
+  if (prefLoc) signupState.job_preferences.preferred_location = prefLoc.value.trim();
 
   // Dynamic Education cards
   const eduCards = document.querySelectorAll('#edu-dynamic-container .dynamic-entry-card');
@@ -2308,6 +2343,9 @@ function clearSignupState() {
   try {
     sessionStorage.removeItem('nicejobs_signup_state');
   } catch (e) {}
+  if (typeof window !== 'undefined' && window._districtPickerStates) {
+    delete window._districtPickerStates['cand-pref-location-picker'];
+  }
   if (typeof signupState !== 'undefined') {
     const role = signupState.role || 'candidate';
     const fresh = getFreshSignupState(role);
@@ -2336,6 +2374,9 @@ function restoreSignupProgress() {
       if (parsed.rep_email === 'fatima.khan@radissondhaka.com') parsed.rep_email = '';
       if (parsed.join_name === 'Tanvir Hossain') parsed.join_name = '';
       if (parsed.join_user_email === 'tanvir.recruiter@radissondhaka.com') parsed.join_user_email = '';
+      if (parsed.job_preferences && parsed.job_preferences.preferred_location === 'Dhaka' && (!parsed.job_preferences.preferred_locations || parsed.job_preferences.preferred_locations.length === 0)) {
+        parsed.job_preferences.preferred_location = '';
+      }
       Object.assign(signupState, parsed);
     }
   } catch (e) {}
@@ -11907,7 +11948,7 @@ function renderSignupPage(viewport) {
                       allowAnywhere: false
                     })}
                   </div>
-                  <input type="hidden" id="cand-pref-location" value="${escapeHtml(signupState.job_preferences?.preferred_location || 'Anywhere in Bangladesh')}">
+                  <input type="hidden" id="cand-pref-location" value="${escapeHtml(signupState.job_preferences?.preferred_location || '')}">
                 </div>
               </div>
 
@@ -14893,7 +14934,7 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
   const prefShift = document.getElementById('cand-pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
   const isNegActive = document.getElementById('cand-salary-negotiable-btn')?.classList.contains('active');
   const prefSalary = isNegActive ? 'Negotiable' : ((document.getElementById('cand-pref-salary')?.value || '').trim() || 'Negotiable');
-  const prefLoc = (document.getElementById('cand-pref-location')?.value || '').trim() || signupState.job_preferences?.preferred_location || 'Anywhere in Bangladesh';
+  const prefLoc = (document.getElementById('cand-pref-location')?.value || '').trim() || signupState.job_preferences?.preferred_location || '';
 
   signupState.bio = bioVal;
   signupState.job_preferences = {
@@ -15065,7 +15106,7 @@ async function handleCandidateCompleteProfile(event) {
     cv_url: signupState.cv_data || signupState.cv_url || '',
     department: signupState.job_preferences?.department || 'Front Office & Guest Services',
     designation: signupState.job_preferences?.desired_role || signupState.designation || 'Front Desk Agent',
-    location: signupState.job_preferences?.preferred_location || (document.getElementById('cand-pref-location')?.value || '').trim() || 'Anywhere in Bangladesh',
+    location: signupState.job_preferences?.preferred_location || (document.getElementById('cand-pref-location')?.value || '').trim() || '',
     expected_salary: signupState.job_preferences?.expected_salary || 'Negotiable',
     job_preferences: signupState.job_preferences,
     education: signupState.education || [],
@@ -19467,7 +19508,7 @@ function openEditJobPreferencesModal() {
   const isNegotiable = currentSalary === 'Negotiable';
   const currentLocations = (prefs.preferred_locations && prefs.preferred_locations.length) 
     ? prefs.preferred_locations 
-    : (prefs.locations && prefs.locations.length ? prefs.locations : (prefs.preferred_location ? prefs.preferred_location.split(',').map(s => s.trim()).filter(Boolean) : ['Dhaka']));
+    : (prefs.locations && prefs.locations.length ? prefs.locations : (prefs.preferred_location ? prefs.preferred_location.split(',').map(s => s.trim()).filter(Boolean) : []));
 
   window.editPrefLocState = {
     selected: [...currentLocations],
@@ -20473,7 +20514,7 @@ async function openComprehensiveEditProfileModal() {
   const currentSalary = prefs.expected_salary || profile.expected_salary || '৳55,000';
   const isNegotiable = currentSalary === 'Negotiable';
   const currentShift = prefs.shift || 'Rotational';
-  const preferredLocStr = profile.location || prefs.preferred_location || 'Anywhere in Bangladesh';
+  const preferredLocStr = profile.location || prefs.preferred_location || '';
 
   let initialLocations = [];
   if (Array.isArray(prefs.preferred_locations) && prefs.preferred_locations.length > 0) {
@@ -20936,7 +20977,7 @@ async function handleSaveComprehensiveProfile(event) {
   const certsArr = window.compEditProfileState?.certifications || [];
   const expArr = window.compEditProfileState?.experience || [];
 
-  const locVal = document.getElementById('comp-pref-location')?.value || form.location?.value || 'Anywhere in Bangladesh';
+  const locVal = document.getElementById('comp-pref-location')?.value || form.location?.value || '';
 
   const currentPrefs = state.profile?.preferences || {};
   const updatedPrefs = {
@@ -20948,7 +20989,7 @@ async function handleSaveComprehensiveProfile(event) {
     expected_salary: expSalary,
     phone_secondary: phoneSec,
     preferred_location: locVal,
-    preferred_locations: window.compEditProfileState?.preferred_locations || [locVal]
+    preferred_locations: window.compEditProfileState?.preferred_locations || (locVal ? [locVal] : [])
   };
 
   const totalExpYears = parseFloat(getCompEditTotalHospitalityExp()) || 0;
