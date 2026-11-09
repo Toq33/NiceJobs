@@ -18416,69 +18416,168 @@ async function respondToInterview(appId, responseType) {
 }
 window.respondToInterview = respondToInterview;
 
-// Candidate Interview Response: Open Reschedule Modal
+// Candidate Interview Reschedule Draft Persistence
+function getInterviewRescheduleDraft(appId) {
+  if (state.interviewRescheduleDrafts && state.interviewRescheduleDrafts[appId]) {
+    return state.interviewRescheduleDrafts[appId];
+  }
+  try {
+    const raw = localStorage.getItem('nicejobs_reschedule_draft_' + appId);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        if (!state.interviewRescheduleDrafts) state.interviewRescheduleDrafts = {};
+        state.interviewRescheduleDrafts[appId] = parsed;
+        return parsed;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+window.getInterviewRescheduleDraft = getInterviewRescheduleDraft;
+
+function saveInterviewRescheduleDraft(appId) {
+  const reasonEl = document.getElementById('reschedule-reason-input');
+  const suggEl = document.getElementById('reschedule-suggestion-input');
+  const draft = {
+    reason: reasonEl ? reasonEl.value : '',
+    suggestion: suggEl ? suggEl.value : '',
+    updatedAt: Date.now()
+  };
+  if (!state.interviewRescheduleDrafts) state.interviewRescheduleDrafts = {};
+  state.interviewRescheduleDrafts[appId] = draft;
+  try {
+    localStorage.setItem('nicejobs_reschedule_draft_' + appId, JSON.stringify(draft));
+  } catch (_) {}
+}
+window.saveInterviewRescheduleDraft = saveInterviewRescheduleDraft;
+
+function clearInterviewRescheduleDraft(appId) {
+  if (state.interviewRescheduleDrafts && state.interviewRescheduleDrafts[appId]) {
+    delete state.interviewRescheduleDrafts[appId];
+  }
+  try {
+    localStorage.removeItem('nicejobs_reschedule_draft_' + appId);
+  } catch (_) {}
+}
+window.clearInterviewRescheduleDraft = clearInterviewRescheduleDraft;
+
+function handleClearRescheduleDraft(appId, originalReason = '', originalSuggestion = '') {
+  clearInterviewRescheduleDraft(appId);
+  const reasonEl = document.getElementById('reschedule-reason-input');
+  const suggEl = document.getElementById('reschedule-suggestion-input');
+  const banner = document.getElementById('reschedule-draft-banner');
+  if (reasonEl) reasonEl.value = originalReason;
+  if (suggEl) suggEl.value = originalSuggestion;
+  if (banner) banner.remove();
+  showToast('Saved draft cleared.', 'info');
+}
+window.handleClearRescheduleDraft = handleClearRescheduleDraft;
+
+function setRescheduleSuggestion(appId, text) {
+  const suggEl = document.getElementById('reschedule-suggestion-input');
+  if (suggEl) {
+    suggEl.value = text;
+    saveInterviewRescheduleDraft(appId);
+  }
+}
+window.setRescheduleSuggestion = setRescheduleSuggestion;
+
+function closeInterviewRescheduleModal(appId) {
+  saveInterviewRescheduleDraft(appId);
+  document.body.style.overflow = '';
+  closeModal('modal-interview-reschedule');
+}
+window.closeInterviewRescheduleModal = closeInterviewRescheduleModal;
+
+// Candidate Interview Response: Open Reschedule Modal (Fixed Popup with Saved Progress)
 function openInterviewRescheduleModal(appId, originalTime, existingReason = '', existingSuggestion = '') {
   const container = document.getElementById('modal-container');
   if (!container) return;
+
+  const draft = getInterviewRescheduleDraft(appId);
+  const hasUnsentDraft = Boolean(draft && ((draft.reason && draft.reason !== existingReason) || (draft.suggestion && draft.suggestion !== existingSuggestion)));
+  const reasonVal = (draft && typeof draft.reason === 'string') ? draft.reason : existingReason;
+  const suggestionVal = (draft && typeof draft.suggestion === 'string') ? draft.suggestion : existingSuggestion;
+
+  // Lock body scroll while popup is open so popup position is fixed and independent of scroll
+  document.body.style.overflow = 'hidden';
+
   container.innerHTML = `
-    <div class="modal is-open" id="modal-interview-reschedule">
-      <div class="modal-backdrop" onclick="closeModal('modal-interview-reschedule')"></div>
-      <div class="modal-dialog" style="max-width: 480px; width: 92%; background: #0a1128; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: var(--radius-lg); box-shadow: 0 20px 50px rgba(0,0,0,0.7); overflow: hidden;">
-        <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+    <div class="modal-backdrop open" id="modal-interview-reschedule" onclick="if(event.target === this) closeInterviewRescheduleModal('${appId}')">
+      <div class="modal-dialog" onclick="event.stopPropagation()">
+        <div class="modal-header">
           <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--white); margin: 0; display: flex; align-items: center; gap: 8px;">
             ${svgIcon('clock', '', 18)} Request Interview Reschedule
           </h3>
-          <button class="modal-close" onclick="closeModal('modal-interview-reschedule')">&times;</button>
+          <button class="modal-close" onclick="closeInterviewRescheduleModal('${appId}')" aria-label="Close" title="Close and save draft">
+            ${svgIcon('x', '', 16)}
+          </button>
         </div>
         
-        <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div class="modal-body" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 16px;">
+          ${hasUnsentDraft ? `
+            <div id="reschedule-draft-banner" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: rgba(255, 107, 0, 0.12); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: var(--radius-sm); font-size: 0.76rem; color: #fdba74;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+                ${svgIcon('check', '', 12)} Unsent progress restored
+              </span>
+              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.68rem; line-height: 1.2;" onclick="handleClearRescheduleDraft('${appId}', '${escapeHtml(existingReason)}', '${escapeHtml(existingSuggestion)}')">
+                Discard Draft
+              </button>
+            </div>
+          ` : ''}
+
           ${originalTime ? `
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 14px; border-radius: var(--radius-md);">
-              <div style="font-size: 0.74rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Current Scheduled Time</div>
-              <div style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-top: 2px;">${escapeHtml(originalTime)}</div>
+            <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); padding: 12px 14px; border-radius: var(--radius-md);">
+              <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Current Scheduled Time</div>
+              <div style="font-size: 0.95rem; font-weight: 800; color: var(--white); margin-top: 3px;">${escapeHtml(originalTime)}</div>
             </div>
           ` : ''}
 
           <div>
-            <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
+            <label for="reschedule-reason-input" style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
               Reason for Reschedule <span style="color: var(--orange-primary);">*</span>
             </label>
-            <textarea id="reschedule-reason-input" rows="3" placeholder="Please state your reason (e.g. Prior academic exam, out of town on personal emergency, etc.)..."
-                      style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem; resize: none;">${escapeHtml(existingReason)}</textarea>
+            <textarea id="reschedule-reason-input" rows="3" 
+                      placeholder="Please state your reason (e.g. Prior academic exam, out of town on personal emergency, etc.)..."
+                      oninput="saveInterviewRescheduleDraft('${appId}')"
+                      style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem; resize: none; outline: none; line-height: 1.45;">${escapeHtml(reasonVal)}</textarea>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;">Progress is automatically preserved until you press Send.</div>
           </div>
 
           <div>
-            <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
+            <label for="reschedule-suggestion-input" style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
               Suggested Alternative Date &amp; Time (Optional)
             </label>
-            <input type="text" id="reschedule-suggestion-input" value="${escapeHtml(existingSuggestion)}"
+            <input type="text" id="reschedule-suggestion-input" value="${escapeHtml(suggestionVal)}"
                    placeholder="e.g. Next Tuesday after 3:00 PM, or Wednesday morning"
-                   style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
-                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Tomorrow same time';">
+                   oninput="saveInterviewRescheduleDraft('${appId}')"
+                   style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem; outline: none;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
+                      onclick="setRescheduleSuggestion('${appId}', 'Tomorrow same time')">
                 Tomorrow same time
               </button>
-              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
-                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Next Monday morning';">
+              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
+                      onclick="setRescheduleSuggestion('${appId}', 'Next Monday morning')">
                 Next Monday morning
               </button>
-              <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;"
-                      onclick="document.getElementById('reschedule-suggestion-input').value = 'Any afternoon next week';">
+              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
+                      onclick="setRescheduleSuggestion('${appId}', 'Any afternoon next week')">
                 Any afternoon next week
               </button>
             </div>
           </div>
 
-          <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4;">
+          <div style="font-size: 0.76rem; color: var(--text-dim); line-height: 1.45; background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-sm); padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
             The hiring team will receive your reason and suggested alternative time immediately so they can update the schedule.
           </div>
         </div>
 
-        <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px;">
-          <button class="btn-secondary" onclick="closeModal('modal-interview-reschedule')">Cancel</button>
-          <button class="btn-orange" onclick="submitInterviewReschedule('${appId}')">
-            ${svgIcon('check', '', 14)} Send Reschedule Request
+        <div class="modal-footer" style="padding: 14px 22px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-secondary" onclick="closeInterviewRescheduleModal('${appId}')">Close</button>
+          <button class="btn-orange" id="btn-submit-reschedule" onclick="submitInterviewReschedule('${appId}')" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+            ${svgIcon('send', '', 14)} Send Reschedule Request
           </button>
         </div>
       </div>
@@ -18491,6 +18590,7 @@ window.openInterviewRescheduleModal = openInterviewRescheduleModal;
 async function submitInterviewReschedule(appId) {
   const reasonInput = document.getElementById('reschedule-reason-input');
   const suggestionInput = document.getElementById('reschedule-suggestion-input');
+  const submitBtn = document.getElementById('btn-submit-reschedule');
   const reason = reasonInput ? reasonInput.value.trim() : '';
   const suggestion = suggestionInput ? suggestionInput.value.trim() : '';
 
@@ -18501,6 +18601,10 @@ async function submitInterviewReschedule(appId) {
   }
 
   const actorName = state.currentUser?.name || 'Candidate';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `${svgIcon('refresh', 'spin', 14)} Sending...`;
+  }
 
   try {
     const res = await fetch(`/api/applications/${appId}/interview-response`, {
@@ -18515,11 +18619,19 @@ async function submitInterviewReschedule(appId) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed to submit reschedule request');
+    
+    // Clear the saved draft only after successful sending
+    clearInterviewRescheduleDraft(appId);
+    document.body.style.overflow = '';
     closeModal('modal-interview-reschedule');
     showToast('Reschedule request sent to employer! They have been notified.', 'success');
     await renderApplicationsScreen(document.getElementById('app-viewport'));
   } catch (err) {
     showToast(err.message, 'danger');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `${svgIcon('send', '', 14)} Send Reschedule Request`;
+    }
   }
 }
 window.submitInterviewReschedule = submitInterviewReschedule;
@@ -23051,6 +23163,11 @@ function closeModal(modalId) {
     if (el.parentElement && el.parentElement.id === 'modal-container') {
       el.remove();
     }
+  }
+  // Check if any other modal backdrop is open before resetting overflow
+  const remainingOpenModal = document.querySelector('.modal-backdrop.open');
+  if (!remainingOpenModal) {
+    document.body.style.overflow = '';
   }
 }
 window.closeModal = closeModal;

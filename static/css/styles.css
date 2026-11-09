@@ -1851,6 +1851,58 @@ select option {
   pointer-events: auto;
 }
 
+/* Candidate Interview Reschedule Fixed Popup Modal */
+#modal-interview-reschedule.modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2500 !important;
+  background: rgba(4, 8, 20, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  overflow: hidden !important;
+}
+
+#modal-interview-reschedule .modal-dialog {
+  position: relative !important;
+  max-width: 500px !important;
+  width: 100% !important;
+  max-height: calc(100vh - 40px) !important;
+  overflow-y: auto !important;
+  background: #0a1128 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85) !important;
+  transform: translateY(0) scale(1) !important;
+  margin: auto !important;
+  flex-shrink: 0 !important;
+}
+
+#modal-interview-reschedule .modal-header {
+  position: sticky !important;
+  top: 0 !important;
+  background: #0a1128 !important;
+  z-index: 20 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#modal-interview-reschedule .modal-footer {
+  position: sticky !important;
+  bottom: 0 !important;
+  background: rgba(10, 17, 40, 0.98) !important;
+  z-index: 20 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
 .modal-dialog {
   background: rgba(10, 17, 40, 0.95);
   backdrop-filter: blur(28px);
