@@ -635,6 +635,21 @@ def init_db():
         tags TEXT, -- JSON array
         author_id TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS sponsors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        tag TEXT DEFAULT 'SPONSORED',
+        badge TEXT DEFAULT '',
+        image_url TEXT NOT NULL,
+        description TEXT NOT NULL,
+        button_text TEXT DEFAULT 'Explore Programs →',
+        link_url TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+    );
     """)
 
     conn.commit()
@@ -908,6 +923,12 @@ def init_db():
         cursor.execute("SELECT count(*) FROM jobs")
         if cursor.fetchone()[0] == 0:
             seed_data(cursor)
+            conn.commit()
+
+        # Seed sponsors if empty
+        cursor.execute("SELECT count(*) FROM sponsors")
+        if cursor.fetchone()[0] == 0:
+            seed_sponsors(cursor)
             conn.commit()
 
     conn.close()
@@ -2016,4 +2037,56 @@ def seed_data(cursor):
         published_at = excluded.published_at,
         tags = excluded.tags
     """, blogs)
+
+    seed_sponsors(cursor)
+
+def seed_sponsors(cursor):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    sponsors = [
+        (
+            "sp_swiss_hospitality",
+            "Swiss Hospitality Management",
+            "SPONSORED",
+            "AHLEI Certified",
+            "/static/images/resort_beach.jpg",
+            "AHLEI-accredited dual certification with direct placement assistance across luxury hotel groups.",
+            "Explore Programs →",
+            "https://www.ahlei.org",
+            1,
+            1,
+            now,
+            now
+        ),
+        (
+            "sp_marriott_fasttrack",
+            "Marriott South Asia Fast-Track",
+            "SPONSORED",
+            "Official Partner",
+            "/static/images/hero_lobby.jpg",
+            "Accelerated supervisory track and cross-border mobility for high-potential hospitality talent.",
+            "Partner Inquiries →",
+            "https://www.marriott.com/careers",
+            2,
+            1,
+            now,
+            now
+        )
+    ]
+
+    cursor.executemany("""
+    INSERT INTO sponsors (
+        id, name, tag, badge, image_url, description, button_text, link_url,
+        display_order, is_active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+        name = excluded.name,
+        tag = excluded.tag,
+        badge = excluded.badge,
+        image_url = excluded.image_url,
+        description = excluded.description,
+        button_text = excluded.button_text,
+        link_url = excluded.link_url,
+        display_order = excluded.display_order,
+        is_active = excluded.is_active
+    """, sponsors)
 

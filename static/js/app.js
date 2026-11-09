@@ -243,6 +243,8 @@ function svgIcon(name, customClass = '', size = 16) {
     chevronRight: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
     chevronDown: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
     image: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+    upload: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+    externalLink: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
     plus: `<svg ${cls}width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`
   };
   icons['shield_check'] = icons.shieldCheck;
@@ -333,6 +335,7 @@ const state = {
   conversations: [],
   savedJobs: [],
   blogs: [],
+  sponsors: [],
   profile: null
 };
 window.state = state;
@@ -3767,10 +3770,11 @@ async function loadInitialData() {
   try {
     state.demoDataHidden = false;
 
-    const [jobsRes, bizRes, blogsRes] = await Promise.all([
+    const [jobsRes, bizRes, blogsRes, sponsorsRes] = await Promise.all([
       fetch('/api/jobs?status=active'),
       fetch('/api/businesses'),
-      fetch('/api/blogs')
+      fetch('/api/blogs'),
+      fetch('/api/sponsors')
     ]);
     if (jobsRes.ok) {
       const fresh = await jobsRes.json();
@@ -3782,6 +3786,7 @@ async function loadInitialData() {
     }
     state.businesses = bizRes.ok ? await bizRes.json() : (state.businesses || []);
     state.blogs = blogsRes.ok ? await blogsRes.json() : (state.blogs || []);
+    state.sponsors = sponsorsRes.ok ? await sponsorsRes.json() : (state.sponsors || []);
 
     if (state.currentUser && state.currentUser.role === 'jobseeker') {
       const [appsRes, savedRes, notifRes, profRes, convRes] = await Promise.all([
@@ -4404,39 +4409,9 @@ async function renderHomeScreen(viewport) {
         </div>
       </section>
 
-      <!-- Sidebar Area: Sponsors Only -->
+      <!-- Sidebar Area: Dynamic Hospitality Sponsors -->
       <aside class="sidebar-area">
-        <!-- Sponsor 1: Swiss Hospitality Management & AHLEI -->
-        <div class="sponsored-box spotlight-card reveal-on-scroll" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 22px; margin-bottom: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">SPONSORED</span>
-            <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.72rem; font-weight: 600;">AHLEI Certified</span>
-          </div>
-          <img src="/static/images/resort_beach.jpg" alt="Swiss Hospitality Management" style="width: 100%; height: 140px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 12px;">
-          <h4 style="font-size: 1.02rem; font-weight: 700; color: var(--white); margin: 0 0 6px 0;">Swiss Hospitality Management</h4>
-          <p style="font-size: 0.82rem; color: rgba(255, 255, 255, 0.65); line-height: 1.5; margin: 0 0 14px 0;">
-            AHLEI-accredited dual certification with direct placement assistance across luxury hotel groups.
-          </p>
-          <button class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 8px 12px;" onclick="showToast('Opened AHLEI Certification guide')">
-            Explore Programs →
-          </button>
-        </div>
-
-        <!-- Sponsor 2: Marriott South Asia Fast-Track -->
-        <div class="sponsored-box spotlight-card reveal-on-scroll" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 22px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">SPONSORED</span>
-            <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.72rem; font-weight: 600;">Official Partner</span>
-          </div>
-          <img src="/static/images/hero_lobby.jpg" alt="Marriott South Asia Fast-Track" style="width: 100%; height: 140px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 12px;">
-          <h4 style="font-size: 1.02rem; font-weight: 700; color: var(--white); margin: 0 0 6px 0;">Marriott South Asia Fast-Track</h4>
-          <p style="font-size: 0.82rem; color: rgba(255, 255, 255, 0.65); line-height: 1.5; margin: 0 0 14px 0;">
-            Accelerated supervisory track and cross-border mobility for high-potential hospitality talent.
-          </p>
-          <button class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 8px 12px;" onclick="showToast('Opened Marriott Partner Program details')">
-            Partner Inquiries →
-          </button>
-        </div>
+        ${renderHomeSponsorsSidebarHTML()}
       </aside>
     </div>
   `;
@@ -7507,7 +7482,7 @@ function adminSignOut() {
 // ==========================================================================
 
 const adminState = {
-  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications' | 'database' | 'blogs'
+  activeTab: 'users', // 'users' | 'jobs' | 'businesses' | 'moderators' | 'verifications' | 'database' | 'blogs' | 'sponsors'
   userFilterRole: 'all',
   userFilterStatus: 'all',
   userSearch: '',
@@ -7516,17 +7491,20 @@ const adminState = {
   blogSearch: '',
   blogCategory: 'all',
   blogSubTab: 'articles', // 'articles' | 'authors'
+  sponsorSearch: '',
+  sponsorFilterStatus: 'all', // 'all' | 'active' | 'paused'
   dbQuery: 'SELECT * FROM users LIMIT 10;',
   dbQueryResult: null,
   dbOverview: null,
   blogs: [],
-  blogAuthors: []
+  blogAuthors: [],
+  sponsors: []
 };
 
 async function renderAdminScreen(viewport) {
   try {
     const t = Date.now();
-    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes, dbRes, blogsRes, authorsRes] = await Promise.all([
+    const [overviewRes, usersRes, jobsRes, bizRes, modRes, verifsRes, dbRes, blogsRes, authorsRes, sponsorsRes] = await Promise.all([
       fetch(`/api/admin/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
       fetch(`/api/admin/users?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/jobs-list?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
@@ -7535,7 +7513,8 @@ async function renderAdminScreen(viewport) {
       fetch(`/api/admin/verifications?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
       fetch(`/api/admin/database/overview?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
       fetch(`/api/admin/blogs?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
-      fetch(`/api/admin/blog-authors?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] }))
+      fetch(`/api/admin/blog-authors?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] })),
+      fetch(`/api/admin/sponsors?_t=${t}`, { cache: 'no-store' }).catch(() => ({ json: () => [] }))
     ]);
 
     const overview = await overviewRes.json();
@@ -7547,10 +7526,27 @@ async function renderAdminScreen(viewport) {
     const dbOverview = await dbRes.json();
     const blogs = await blogsRes.json();
     const blogAuthors = await authorsRes.json();
+    const sponsors = await sponsorsRes.json();
     adminState.dbOverview = dbOverview;
     adminState.users = users;
     adminState.blogs = blogs;
     adminState.blogAuthors = blogAuthors;
+    adminState.sponsors = sponsors;
+
+    // Filter Sponsors for Admin
+    const filteredSponsors = (sponsors || []).filter(s => {
+      if (adminState.sponsorFilterStatus === 'active' && !s.is_active) return false;
+      if (adminState.sponsorFilterStatus === 'paused' && s.is_active) return false;
+      if (adminState.sponsorSearch) {
+        const q = adminState.sponsorSearch.toLowerCase();
+        const name = (s.name || '').toLowerCase();
+        const desc = (s.description || '').toLowerCase();
+        const tag = (s.tag || '').toLowerCase();
+        const badge = (s.badge || '').toLowerCase();
+        if (!name.includes(q) && !desc.includes(q) && !tag.includes(q) && !badge.includes(q)) return false;
+      }
+      return true;
+    });
 
     // Filter Blogs for Admin
     const filteredAdminBlogs = (blogs || []).filter(b => {
@@ -7642,6 +7638,10 @@ async function renderAdminScreen(viewport) {
           <div class="admin-metric-val">${overview.total_blogs ?? blogs.length}</div>
           <div class="admin-metric-lbl">Published Articles</div>
         </div>
+        <div class="admin-metric-card accent-orange">
+          <div class="admin-metric-val">${overview.active_sponsors ?? (sponsors || []).filter(s=>s.is_active).length} / ${overview.total_sponsors ?? (sponsors || []).length}</div>
+          <div class="admin-metric-lbl">Active Sponsors</div>
+        </div>
       </div>
 
       <!-- Admin Workspace Layout: Left Side Panel Navigation + Right Content -->
@@ -7649,7 +7649,7 @@ async function renderAdminScreen(viewport) {
         <aside class="admin-side-panel">
           <div class="admin-side-panel-header">
             <span class="admin-side-panel-title">CONTROL DIRECTORY</span>
-            <span class="admin-side-panel-badge">7 Modules</span>
+            <span class="admin-side-panel-badge">8 Modules</span>
           </div>
           <nav class="admin-side-nav">
             <button class="admin-side-nav-btn ${activeTab === 'users' ? 'active' : ''}" onclick="switchAdminTab('users')">
@@ -7681,6 +7681,11 @@ async function renderAdminScreen(viewport) {
               <span class="admin-side-nav-icon">${svgIcon('fileText', '', 16)}</span>
               <span class="admin-side-nav-label">Hospitality Blog Manager</span>
               <span class="admin-side-nav-count">${blogs.length}</span>
+            </button>
+            <button class="admin-side-nav-btn ${activeTab === 'sponsors' ? 'active' : ''}" onclick="switchAdminTab('sponsors')">
+              <span class="admin-side-nav-icon">${svgIcon('award', '', 16)}</span>
+              <span class="admin-side-nav-label">Sponsors Manager</span>
+              <span class="admin-side-nav-count">${(sponsors || []).length}</span>
             </button>
             <button class="admin-side-nav-btn ${activeTab === 'database' ? 'active' : ''}" onclick="switchAdminTab('database')">
               <span class="admin-side-nav-icon">${svgIcon('database', '', 16)}</span>
@@ -8446,6 +8451,151 @@ async function renderAdminScreen(viewport) {
                   </table>
                 </div>
               </div>
+            </div>
+          `}
+        </div>
+      ` : ''}
+
+      <!-- TAB 8: SPONSORS & PROMOTIONAL PARTNERS -->
+      ${activeTab === 'sponsors' ? `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Header and Action Ribbon -->
+          <div class="admin-table-wrapper" style="padding: 20px; background: rgba(10, 17, 40, 0.7); border: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(255, 107, 0, 0.15); color: var(--orange-primary); border: 1px solid rgba(255, 107, 0, 0.35);">
+                  ${svgIcon('award', '', 22)}
+                </span>
+                <div>
+                  <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0 0 3px 0;">
+                    Sponsors &amp; Promotional Partners
+                  </h2>
+                  <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">
+                    Manage promotional partner spotlights, accreditations, banners, pictures, texts, and links featured on the candidate feed sidebar.
+                  </p>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-orange" style="font-size: 0.84rem; padding: 9px 18px; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; border-radius: 10px; cursor: pointer;" onclick="openAddSponsorModal()">
+                  ${svgIcon('plus', '', 15)} Add New Sponsor
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter & Search Toolbar -->
+          <div class="admin-table-wrapper" style="padding: 16px 20px;">
+            <div class="admin-table-actions-bar" style="margin: 0;">
+              <div class="admin-filter-group" style="flex: 1; max-width: 650px;">
+                <input type="text" class="admin-search-box" placeholder="Search by sponsor name, tag, badge, or description..."
+                  value="${escapeHtml(adminState.sponsorSearch)}"
+                  oninput="adminState.sponsorSearch = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
+
+                <select class="admin-select-filter" onchange="adminState.sponsorFilterStatus = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
+                  <option value="all" ${adminState.sponsorFilterStatus === 'all' ? 'selected' : ''}>All Statuses</option>
+                  <option value="active" ${adminState.sponsorFilterStatus === 'active' ? 'selected' : ''}>Active / Live Only</option>
+                  <option value="paused" ${adminState.sponsorFilterStatus === 'paused' ? 'selected' : ''}>Paused Only</option>
+                </select>
+              </div>
+
+              <div style="font-size: 0.82rem; color: var(--text-dim); font-weight: 600;">
+                Showing ${filteredSponsors.length} of ${(sponsors || []).length} Sponsors
+              </div>
+            </div>
+          </div>
+
+          <!-- Sponsors Cards Grid -->
+          ${filteredSponsors.length === 0 ? `
+            <div class="admin-table-wrapper" style="text-align: center; padding: 50px 20px;">
+              <div style="width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; background: rgba(255, 107, 0, 0.12); display: flex; align-items: center; justify-content: center; color: var(--orange-primary);">
+                ${svgIcon('award', '', 28)}
+              </div>
+              <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--white); margin: 0 0 6px 0;">No Sponsors Found</h3>
+              <p style="font-size: 0.85rem; color: var(--text-dim); max-width: 440px; margin: 0 auto 20px;">
+                ${(sponsors || []).length === 0 ? 'No promotional sponsor spotlights are currently configured in the database.' : 'No sponsors matched your current search filters.'}
+              </p>
+              <button class="btn-orange" style="font-size: 0.84rem; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px;" onclick="openAddSponsorModal()">
+                ${svgIcon('plus', '', 14)} Create First Sponsor
+              </button>
+            </div>
+          ` : `
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+              ${filteredSponsors.map(sp => `
+                <div class="admin-table-wrapper" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid ${sp.is_active ? 'rgba(255, 255, 255, 0.1)' : 'rgba(239, 68, 68, 0.3)'}; position: relative; overflow: hidden; background: rgba(13, 21, 44, 0.85);">
+                  
+                  <div>
+                    <!-- Top Ribbon: Tag + Badge + Status -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+                          ${escapeHtml(sp.tag || 'SPONSORED')}
+                        </span>
+                        ${sp.badge ? `
+                          <span style="color: rgba(255, 255, 255, 0.7); font-size: 0.72rem; font-weight: 600; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+                            ${escapeHtml(sp.badge)}
+                          </span>
+                        ` : ''}
+                      </div>
+
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 0.7rem; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          Order: #${sp.display_order ?? 0}
+                        </span>
+                        <span class="status-pill ${sp.is_active ? 'status-active' : 'status-suspended'}" style="font-size: 0.68rem; padding: 2px 8px;">
+                          ${sp.is_active ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Banner Image Preview -->
+                    <div style="position: relative; border-radius: 12px; overflow: hidden; margin-bottom: 14px; border: 1px solid rgba(255, 255, 255, 0.08); background: #070d1e;">
+                      <img src="${escapeHtml(sp.image_url)}" alt="${escapeHtml(sp.name)}" style="width: 100%; height: 145px; object-fit: cover; display: block;" onerror="this.src='/static/images/hero_lobby.jpg'">
+                      <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.65); backdrop-filter: blur(8px); padding: 3px 8px; border-radius: 6px; font-size: 0.68rem; color: rgba(255,255,255,0.85); display: flex; align-items: center; gap: 4px;">
+                        ${svgIcon('image', '', 11)} Picture Preview
+                      </div>
+                    </div>
+
+                    <!-- Title & Description -->
+                    <h3 style="font-size: 1.08rem; font-weight: 700; color: var(--white); margin: 0 0 8px 0; line-height: 1.35;">
+                      ${escapeHtml(sp.name)}
+                    </h3>
+                    <p style="font-size: 0.83rem; color: rgba(255, 255, 255, 0.7); line-height: 1.5; margin: 0 0 14px 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                      ${escapeHtml(sp.description)}
+                    </p>
+
+                    <!-- Link & Action Label Meta -->
+                    <div style="background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.75rem; margin-bottom: 4px;">
+                        <span style="color: var(--text-dim); font-weight: 600;">Button Label:</span>
+                        <strong style="color: var(--orange-primary);">${escapeHtml(sp.button_text || 'Explore Programs →')}</strong>
+                      </div>
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.75rem;">
+                        <span style="color: var(--text-dim); font-weight: 600;">Target Link:</span>
+                        <a href="${escapeHtml(sp.link_url || '#')}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; text-decoration: none; word-break: break-all; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;" title="${escapeHtml(sp.link_url || '')}">
+                          ${escapeHtml(sp.link_url || 'No link')} ${svgIcon('externalLink', '', 11)}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div style="display: flex; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; margin-top: auto;">
+                    <button class="admin-btn-action" style="flex: 1; padding: 7px 10px; font-size: 0.78rem; justify-content: center; background: rgba(255, 107, 0, 0.12); color: var(--orange-primary); border-color: rgba(255, 107, 0, 0.3);" onclick="openEditSponsorModal('${sp.id}')" title="Edit sponsor details">
+                      ${svgIcon('edit', '', 13)} Edit
+                    </button>
+                    
+                    <button class="admin-btn-action" style="padding: 7px 12px; font-size: 0.78rem; justify-content: center; ${sp.is_active ? 'color: #fca5a5; border-color: rgba(239, 68, 68, 0.3);' : 'color: #86efac; border-color: rgba(34, 197, 94, 0.3);'}" onclick="toggleAdminSponsorStatus('${sp.id}')" title="${sp.is_active ? 'Pause sponsor' : 'Activate sponsor'}">
+                      ${sp.is_active ? `${svgIcon('eye', '', 13)} Pause` : `${svgIcon('check', '', 13)} Activate`}
+                    </button>
+
+                    <button class="admin-btn-action btn-delete" style="padding: 7px 12px; font-size: 0.78rem; justify-content: center;" onclick="confirmDeleteAdminSponsor('${sp.id}', '${escapeHtml(sp.name).replace(/'/g, "\\'")}')" title="Permanently delete sponsor">
+                      ${svgIcon('trash', '', 13)} Remove
+                    </button>
+                  </div>
+
+                </div>
+              `).join('')}
             </div>
           `}
         </div>
@@ -9276,6 +9426,480 @@ function renderAdminDbQueryResults(res) {
   `;
 }
 window.renderAdminDbQueryResults = renderAdminDbQueryResults;
+
+// ==========================================================================
+// Sponsors & Promotional Partners Management Handlers & Home Sidebar
+// ==========================================================================
+
+function renderHomeSponsorsSidebarHTML() {
+  const sponsors = (state.sponsors || []).filter(s => s.is_active !== 0 && s.is_active !== false);
+  if (!sponsors.length) {
+    return '';
+  }
+
+  return sponsors.map(sp => `
+    <div class="sponsored-box spotlight-card reveal-on-scroll" style="background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 22px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${escapeHtml(sp.tag || 'SPONSORED')}
+        </span>
+        ${sp.badge ? `
+          <span style="color: rgba(255, 255, 255, 0.45); font-size: 0.72rem; font-weight: 600;">
+            ${escapeHtml(sp.badge)}
+          </span>
+        ` : ''}
+      </div>
+      <img src="${escapeHtml(sp.image_url)}" alt="${escapeHtml(sp.name)}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 12px;" onerror="this.src='/static/images/hero_lobby.jpg'">
+      <h4 style="font-size: 1.02rem; font-weight: 700; color: var(--white); margin: 0 0 6px 0;">${escapeHtml(sp.name)}</h4>
+      <p style="font-size: 0.82rem; color: rgba(255, 255, 255, 0.65); line-height: 1.5; margin: 0 0 14px 0;">
+        ${escapeHtml(sp.description)}
+      </p>
+      <button class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 8px 12px;" onclick="handleSponsorClick('${escapeHtml(sp.link_url || '#')}', '${escapeHtml(sp.name).replace(/'/g, "\\'")}')">
+        ${escapeHtml(sp.button_text || 'Explore Programs →')}
+      </button>
+    </div>
+  `).join('');
+}
+window.renderHomeSponsorsSidebarHTML = renderHomeSponsorsSidebarHTML;
+
+function handleSponsorClick(linkUrl, name) {
+  if (!linkUrl || linkUrl === '#' || linkUrl === '') {
+    showToast(`Exploring ${name || 'Sponsor'}`);
+    return;
+  }
+  if (linkUrl.startsWith('http://') || linkUrl.startsWith('https://') || linkUrl.startsWith('mailto:')) {
+    window.open(linkUrl, '_blank', 'noopener,noreferrer');
+  } else if (linkUrl.startsWith('#')) {
+    const route = linkUrl.substring(1);
+    navigateTo(route);
+  } else {
+    window.location.href = linkUrl;
+  }
+}
+window.handleSponsorClick = handleSponsorClick;
+
+function openAddSponsorModal() {
+  openSponsorFormModal(null);
+}
+window.openAddSponsorModal = openAddSponsorModal;
+
+async function openEditSponsorModal(sponsorId) {
+  let sponsor = (adminState.sponsors || []).find(s => s.id === sponsorId);
+  if (!sponsor) {
+    try {
+      const res = await fetch('/api/admin/sponsors');
+      if (res.ok) {
+        const all = await res.json();
+        sponsor = all.find(s => s.id === sponsorId);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  if (!sponsor) {
+    showToast('Sponsor not found', 'danger');
+    return;
+  }
+  openSponsorFormModal(sponsor);
+}
+window.openEditSponsorModal = openEditSponsorModal;
+
+function openSponsorFormModal(sp) {
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  const isEdit = !!sp;
+  const sponsorId = sp ? sp.id : '';
+  const name = sp ? sp.name : '';
+  const tag = sp ? (sp.tag || 'SPONSORED') : 'SPONSORED';
+  const badge = sp ? (sp.badge || '') : '';
+  const imageUrl = sp ? sp.image_url : '/static/images/resort_beach.jpg';
+  const description = sp ? sp.description : '';
+  const buttonText = sp ? (sp.button_text || 'Explore Programs →') : 'Explore Programs →';
+  const linkUrl = sp ? (sp.link_url || '') : '';
+  const displayOrder = sp ? (sp.display_order ?? 0) : 0;
+  const isActive = sp ? (sp.is_active !== 0 && sp.is_active !== false) : true;
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-sponsor-form" onclick="if(event.target === this) closeModal('modal-sponsor-form')">
+      <div class="modal-dialog" style="max-width: 720px; width: 95%; max-height: 90vh; overflow-y: auto; background: rgba(10, 17, 40, 0.98); backdrop-filter: blur(28px); border: 1px solid rgba(255, 107, 0, 0.35); border-radius: 20px; padding: 28px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 107, 0, 0.15); color: var(--orange-primary); border: 1px solid rgba(255, 107, 0, 0.3);">
+              ${svgIcon(isEdit ? 'edit' : 'plus', '', 18)}
+            </span>
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white); margin: 0 0 2px 0;">
+                ${isEdit ? 'Edit Sponsor &amp; Partner Spotlight' : 'Add New Promotional Sponsor'}
+              </h2>
+              <p style="font-size: 0.78rem; color: var(--text-dim); margin: 0;">
+                Configure the picture, brand name, accreditation text, promotional copy, and conversion URL.
+              </p>
+            </div>
+          </div>
+          <button class="modal-close" onclick="closeModal('modal-sponsor-form')" style="background: none; border: none; color: var(--white); cursor: pointer; display: flex;">
+            ${svgIcon('x', '', 18)}
+          </button>
+        </div>
+
+        <!-- Form -->
+        <form id="form-admin-sponsor" onsubmit="handleAdminSaveSponsor(event, '${sponsorId}')" style="display: flex; flex-direction: column; gap: 18px;">
+          
+          <!-- Name & Tag Row -->
+          <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Sponsor / Brand Name <span style="color: var(--orange-primary);">*</span>
+              </label>
+              <input type="text" id="sp-field-name" required class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" placeholder="e.g., Swiss Hospitality Management" value="${escapeHtml(name)}">
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Top Category Tag
+              </label>
+              <input type="text" id="sp-field-tag" class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" placeholder="e.g., SPONSORED, PARTNER" value="${escapeHtml(tag)}">
+            </div>
+          </div>
+
+          <!-- Badge & Order Row -->
+          <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Accreditation / Sub-Badge
+              </label>
+              <input type="text" id="sp-field-badge" class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" placeholder="e.g., AHLEI Certified, 5-Star Partner" value="${escapeHtml(badge)}">
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Display Order Sequence
+              </label>
+              <input type="number" id="sp-field-order" class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" min="0" max="999" value="${displayOrder}">
+            </div>
+          </div>
+
+          <!-- Banner Image Field & Uploader -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.8rem; font-weight: 700; color: var(--white); margin: 0;">
+                Sponsor Banner Picture <span style="color: var(--orange-primary);">*</span>
+              </label>
+              <span style="font-size: 0.72rem; color: var(--text-dim);">URL, upload file, or select curated preset</span>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <input type="text" id="sp-field-image" required class="input-glass" style="flex: 1; box-sizing: border-box; padding: 10px 12px; font-size: 0.85rem;" placeholder="https://... or /static/images/..." value="${escapeHtml(imageUrl)}" oninput="updateSponsorPreviewImage(this.value)">
+              
+              <label class="btn-secondary" style="padding: 10px 14px; font-size: 0.8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
+                ${svgIcon('upload', '', 14)} Upload Image
+                <input type="file" id="sp-file-upload" accept="image/*" style="display: none;" onchange="handleSponsorImageFileUpload(this)">
+              </label>
+            </div>
+
+            <!-- Quick Preset Hospitality Banner Photos -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
+              <span style="font-size: 0.72rem; color: var(--text-dim); margin-right: 4px;">Quick Presets:</span>
+              <button type="button" class="admin-btn-action" style="font-size: 0.72rem; padding: 3px 8px;" onclick="setSponsorImagePreset('/static/images/resort_beach.jpg')">Resort Beach</button>
+              <button type="button" class="admin-btn-action" style="font-size: 0.72rem; padding: 3px 8px;" onclick="setSponsorImagePreset('/static/images/hero_lobby.jpg')">Hero Lobby</button>
+              <button type="button" class="admin-btn-action" style="font-size: 0.72rem; padding: 3px 8px;" onclick="setSponsorImagePreset('/static/images/modern_suite.jpg')">Modern Suite</button>
+              <button type="button" class="admin-btn-action" style="font-size: 0.72rem; padding: 3px 8px;" onclick="setSponsorImagePreset('/static/images/chef_kitchen.jpg')">Chef Kitchen</button>
+              <button type="button" class="admin-btn-action" style="font-size: 0.72rem; padding: 3px 8px;" onclick="setSponsorImagePreset('/static/images/pool_lounge.jpg')">Pool Lounge</button>
+            </div>
+
+            <!-- Live Image Preview Box -->
+            <div style="background: rgba(0, 0, 0, 0.4); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 10px; display: flex; align-items: center; gap: 14px;">
+              <img id="sp-image-preview" src="${escapeHtml(imageUrl)}" alt="Preview" style="width: 140px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: #050a19;" onerror="this.src='/static/images/hero_lobby.jpg'">
+              <div style="font-size: 0.78rem; color: var(--text-dim); line-height: 1.4;">
+                <strong style="color: var(--white); display: block; margin-bottom: 2px;">Image Display Aspect</strong>
+                Displayed in home sidebar at 140px height with high-contrast card styling.
+              </div>
+            </div>
+          </div>
+
+          <!-- Description Textarea -->
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+              Promotional Copy / Description <span style="color: var(--orange-primary);">*</span>
+            </label>
+            <textarea id="sp-field-desc" required rows="3" class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.86rem; line-height: 1.5; resize: vertical;" placeholder="Brief value proposition or certification details...">${escapeHtml(description)}</textarea>
+          </div>
+
+          <!-- Action Button Text & Link Target URL Row -->
+          <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Button Text Label
+              </label>
+              <input type="text" id="sp-field-btn-text" class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" placeholder="e.g., Explore Programs →" value="${escapeHtml(buttonText)}">
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">
+                Target Link / URL <span style="color: var(--orange-primary);">*</span>
+              </label>
+              <input type="text" id="sp-field-link" required class="input-glass" style="width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 0.88rem;" placeholder="https://example.com, #jobs, or mailto:info@..." value="${escapeHtml(linkUrl)}">
+            </div>
+          </div>
+
+          <!-- Active Status Switch -->
+          <div style="display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px;">
+            <input type="checkbox" id="sp-field-active" style="width: 18px; height: 18px; accent-color: var(--orange-primary); cursor: pointer;" ${isActive ? 'checked' : ''}>
+            <label for="sp-field-active" style="font-size: 0.85rem; font-weight: 600; color: var(--white); cursor: pointer; user-select: none;">
+              Publish sponsor immediately (Active on Homepage feed)
+            </label>
+          </div>
+
+          <!-- Footer Actions -->
+          <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+            <button type="button" class="btn-secondary" style="padding: 10px 20px; font-weight: 600;" onclick="closeModal('modal-sponsor-form')">
+              Cancel
+            </button>
+            <button type="submit" id="btn-save-sponsor" class="btn-orange" style="padding: 10px 24px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+              ${svgIcon('check', '', 14)} ${isEdit ? 'Save Changes' : 'Create Sponsor'}
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  `;
+}
+window.openSponsorFormModal = openSponsorFormModal;
+
+function updateSponsorPreviewImage(url) {
+  const preview = document.getElementById('sp-image-preview');
+  if (preview && url) {
+    preview.src = url;
+  }
+}
+window.updateSponsorPreviewImage = updateSponsorPreviewImage;
+
+function setSponsorImagePreset(url) {
+  const input = document.getElementById('sp-field-image');
+  if (input) {
+    input.value = url;
+    updateSponsorPreviewImage(url);
+  }
+}
+window.setSponsorImagePreset = setSponsorImagePreset;
+
+function handleSponsorImageFileUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!file.type.startsWith('image/')) {
+    showToast('Please upload a valid image file (JPG, PNG, WebP).', 'warning');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    const imgInput = document.getElementById('sp-field-image');
+    if (imgInput) {
+      imgInput.value = dataUrl;
+      updateSponsorPreviewImage(dataUrl);
+    }
+    showToast('Image file loaded successfully.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+window.handleSponsorImageFileUpload = handleSponsorImageFileUpload;
+
+async function handleAdminSaveSponsor(event, sponsorId) {
+  if (event) event.preventDefault();
+
+  const name = (document.getElementById('sp-field-name')?.value || '').trim();
+  const tag = (document.getElementById('sp-field-tag')?.value || 'SPONSORED').trim();
+  const badge = (document.getElementById('sp-field-badge')?.value || '').trim();
+  const imageUrl = (document.getElementById('sp-field-image')?.value || '').trim();
+  const description = (document.getElementById('sp-field-desc')?.value || '').trim();
+  const buttonText = (document.getElementById('sp-field-btn-text')?.value || 'Explore Programs →').trim();
+  const linkUrl = (document.getElementById('sp-field-link')?.value || '').trim();
+  const displayOrder = parseInt(document.getElementById('sp-field-order')?.value || '0', 10);
+  const isActive = !!document.getElementById('sp-field-active')?.checked;
+
+  if (!name) {
+    showToast('Please provide a sponsor brand name.', 'warning');
+    return;
+  }
+  if (!imageUrl) {
+    showToast('Please provide or upload a banner image.', 'warning');
+    return;
+  }
+  if (!description) {
+    showToast('Please write a promotional description.', 'warning');
+    return;
+  }
+  if (!linkUrl) {
+    showToast('Please specify a target link URL.', 'warning');
+    return;
+  }
+
+  const saveBtn = document.getElementById('btn-save-sponsor');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
+  const payload = {
+    name,
+    tag,
+    badge,
+    image_url: imageUrl,
+    description,
+    button_text: buttonText,
+    link_url: linkUrl,
+    display_order: isNaN(displayOrder) ? 0 : displayOrder,
+    is_active: isActive
+  };
+
+  const isEdit = !!sponsorId;
+  const endpoint = isEdit ? `/api/admin/sponsors/${encodeURIComponent(sponsorId)}` : '/api/admin/sponsors';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Failed to save sponsor');
+    }
+
+    closeModal('modal-sponsor-form');
+    showToast(data.message || (isEdit ? 'Sponsor updated successfully.' : 'Sponsor created successfully.'), 'success');
+
+    // Also update public state.sponsors so homepage immediately reflects it
+    try {
+      const publicRes = await fetch('/api/sponsors');
+      if (publicRes.ok) {
+        state.sponsors = await publicRes.json();
+      }
+    } catch (_) {}
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `${svgIcon('check', '', 14)} ${isEdit ? 'Save Changes' : 'Create Sponsor'}`;
+    }
+  }
+}
+window.handleAdminSaveSponsor = handleAdminSaveSponsor;
+
+async function toggleAdminSponsorStatus(sponsorId) {
+  try {
+    const res = await fetch(`/api/admin/sponsors/${encodeURIComponent(sponsorId)}/toggle-status`, {
+      method: 'POST'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Failed to toggle sponsor status');
+    }
+    showToast(data.message || 'Sponsor status updated.', 'success');
+
+    // Update public sponsors cache
+    try {
+      const publicRes = await fetch('/api/sponsors');
+      if (publicRes.ok) {
+        state.sponsors = await publicRes.json();
+      }
+    } catch (_) {}
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.toggleAdminSponsorStatus = toggleAdminSponsorStatus;
+
+function confirmDeleteAdminSponsor(sponsorId, sponsorName) {
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="modal-backdrop open" id="modal-delete-sponsor" onclick="if(event.target === this) closeModal('modal-delete-sponsor')">
+      <div class="modal-dialog" style="max-width: 480px; text-align: center; padding: 32px 28px; background: rgba(13, 21, 44, 0.98); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 20px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);">
+        <div style="width: 58px; height: 58px; margin: 0 auto 16px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; color: #f87171;">
+          ${svgIcon('trash', '', 26)}
+        </div>
+        <div style="font-size: 0.78rem; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">
+          Confirm Sponsor Removal
+        </div>
+        <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--white); margin: 0 0 10px 0;">
+          Delete Sponsor Spotlight?
+        </h3>
+        <p style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.55; margin: 0 0 8px 0;">
+          Are you sure you want to permanently remove <strong style="color: var(--white);">${escapeHtml(sponsorName || 'this sponsor')}</strong> from the database?
+        </p>
+        <p style="color: #94a3b8; font-size: 0.8rem; margin: 0 0 24px 0;">
+          This banner will be instantly removed from the candidate feed sidebar across all devices.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button type="button" class="btn-secondary" style="flex: 1; padding: 11px 20px; font-weight: 700; font-size: 0.88rem; justify-content: center;" onclick="closeModal('modal-delete-sponsor')">
+            Cancel
+          </button>
+          <button type="button" id="btn-confirm-delete-sponsor" class="btn-primary" style="flex: 1; padding: 11px 20px; font-weight: 700; font-size: 0.88rem; justify-content: center; background: #dc2626; border-color: #ef4444;" onclick="executeDeleteAdminSponsor('${sponsorId}', '${escapeHtml(sponsorName).replace(/'/g, "\\'")}')">
+            ${svgIcon('trash', '', 14)} Remove Sponsor
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.confirmDeleteAdminSponsor = confirmDeleteAdminSponsor;
+
+async function executeDeleteAdminSponsor(sponsorId, sponsorName) {
+  const confirmBtn = document.getElementById('btn-confirm-delete-sponsor');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Removing...';
+  }
+
+  try {
+    const res = await fetch(`/api/admin/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Failed to delete sponsor');
+    }
+
+    closeModal('modal-delete-sponsor');
+    showToast(`Sponsor "${sponsorName}" removed successfully.`, 'info');
+
+    // Update public sponsors cache
+    try {
+      const publicRes = await fetch('/api/sponsors');
+      if (publicRes.ok) {
+        state.sponsors = await publicRes.json();
+      }
+    } catch (_) {}
+
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = `${svgIcon('trash', '', 14)} Remove Sponsor`;
+    }
+  }
+}
+window.executeDeleteAdminSponsor = executeDeleteAdminSponsor;
 
 // ==========================================================================
 // Screen 8: Saved Jobs

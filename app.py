@@ -5795,7 +5795,9 @@ def get_admin_overview():
             (SELECT count(*) FROM jobs) as total_jobs,
             (SELECT count(*) FROM jobs WHERE status = 'active') as active_jobs,
             (SELECT count(*) FROM users WHERE status = 'suspended') as suspended_users,
-            (SELECT count(*) FROM blogs) as total_blogs
+            (SELECT count(*) FROM blogs) as total_blogs,
+            (SELECT count(*) FROM sponsors) as total_sponsors,
+            (SELECT count(*) FROM sponsors WHERE is_active = 1) as active_sponsors
     """)
     row = cursor.fetchone()
     conn.close()
@@ -5810,7 +5812,9 @@ def get_admin_overview():
         "total_jobs": row["total_jobs"] if row else 0,
         "active_jobs": row["active_jobs"] if row else 0,
         "suspended_users": row["suspended_users"] if row else 0,
-        "total_blogs": row["total_blogs"] if row else 0
+        "total_blogs": row["total_blogs"] if row else 0,
+        "total_sponsors": row["total_sponsors"] if row else 0,
+        "active_sponsors": row["active_sponsors"] if row else 0
     }
     set_cached_api("admin_overview", res)
     return res
@@ -5848,6 +5852,178 @@ def get_admin_blog_authors():
     authors = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return authors
+
+# ==============================================================================
+# SPONSORS & PROMOTIONAL PARTNERS MANAGEMENT
+# ==============================================================================
+
+class SponsorPayload(BaseModel):
+    name: str
+    tag: Optional[str] = "SPONSORED"
+    badge: Optional[str] = ""
+    image_url: str
+    description: str
+    button_text: Optional[str] = "Explore Programs →"
+    link_url: str
+    display_order: Optional[int] = 0
+    is_active: Optional[bool] = True
+
+@app.get("/api/sponsors")
+def get_public_sponsors():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM sponsors
+        WHERE is_active = 1
+        ORDER BY display_order ASC, created_at ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/admin/sponsors")
+def get_admin_sponsors():
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM sponsors
+        ORDER BY display_order ASC, created_at ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/admin/sponsors")
+def create_admin_sponsor(payload: SponsorPayload):
+    name_clean = payload.name.strip()
+    if not name_clean:
+        raise HTTPException(status_code=400, detail="Sponsor name is required.")
+    if not payload.image_url.strip():
+        raise HTTPException(status_code=400, detail="Sponsor banner image / picture is required.")
+    if not payload.description.strip():
+        raise HTTPException(status_code=400, detail="Sponsor description is required.")
+    if not payload.link_url.strip():
+        raise HTTPException(status_code=400, detail="Sponsor target link is required.")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    sp_id = f"sp_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO sponsors (
+            id, name, tag, badge, image_url, description, button_text, link_url,
+            display_order, is_active, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        sp_id,
+        name_clean,
+        (payload.tag or "SPONSORED").strip(),
+        (payload.badge or "").strip(),
+        payload.image_url.strip(),
+        payload.description.strip(),
+        (payload.button_text or "Explore Programs →").strip(),
+        payload.link_url.strip(),
+        payload.display_order if payload.display_order is not None else 0,
+        1 if payload.is_active else 0,
+        now,
+        now
+    ))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("admin")
+    return {"success": True, "id": sp_id, "message": f"Sponsor '{name_clean}' created successfully."}
+
+@app.put("/api/admin/sponsors/{sponsor_id}")
+@app.patch("/api/admin/sponsors/{sponsor_id}")
+def update_admin_sponsor(sponsor_id: str, payload: SponsorPayload):
+    name_clean = payload.name.strip()
+    if not name_clean:
+        raise HTTPException(status_code=400, detail="Sponsor name is required.")
+    if not payload.image_url.strip():
+        raise HTTPException(status_code=400, detail="Sponsor banner image / picture is required.")
+    if not payload.description.strip():
+        raise HTTPException(status_code=400, detail="Sponsor description is required.")
+    if not payload.link_url.strip():
+        raise HTTPException(status_code=400, detail="Sponsor target link is required.")
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM sponsors WHERE id = ?", (sponsor_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sponsor not found.")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    cursor.execute("""
+        UPDATE sponsors SET
+            name = ?,
+            tag = ?,
+            badge = ?,
+            image_url = ?,
+            description = ?,
+            button_text = ?,
+            link_url = ?,
+            display_order = ?,
+            is_active = ?,
+            updated_at = ?
+        WHERE id = ?
+    """, (
+        name_clean,
+        (payload.tag or "SPONSORED").strip(),
+        (payload.badge or "").strip(),
+        payload.image_url.strip(),
+        payload.description.strip(),
+        (payload.button_text or "Explore Programs →").strip(),
+        payload.link_url.strip(),
+        payload.display_order if payload.display_order is not None else 0,
+        1 if payload.is_active else 0,
+        now,
+        sponsor_id
+    ))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("admin")
+    return {"success": True, "id": sponsor_id, "message": f"Sponsor '{name_clean}' updated successfully."}
+
+@app.delete("/api/admin/sponsors/{sponsor_id}")
+def delete_admin_sponsor(sponsor_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM sponsors WHERE id = ?", (sponsor_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sponsor not found.")
+
+    cursor.execute("DELETE FROM sponsors WHERE id = ?", (sponsor_id,))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("admin")
+    return {"success": True, "id": sponsor_id, "message": f"Sponsor '{existing['name']}' removed successfully."}
+
+@app.post("/api/admin/sponsors/{sponsor_id}/toggle-status")
+def toggle_admin_sponsor_status(sponsor_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, is_active FROM sponsors WHERE id = ?", (sponsor_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sponsor not found.")
+
+    new_status = 0 if existing["is_active"] else 1
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    cursor.execute("UPDATE sponsors SET is_active = ?, updated_at = ? WHERE id = ?", (new_status, now, sponsor_id))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("admin")
+    status_label = "activated and live" if new_status else "paused"
+    return {"success": True, "is_active": new_status, "message": f"Sponsor '{existing['name']}' is now {status_label}."}
 
 @app.get("/api/admin/users")
 def get_admin_users(role: Optional[str] = "all", status: Optional[str] = "all", q: Optional[str] = None):

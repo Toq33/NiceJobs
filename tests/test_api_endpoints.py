@@ -706,6 +706,98 @@ class TestNiceJobsAPI(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_sponsors_crud_and_management(self):
+        """Verifies full sponsor management lifecycle: create, list, edit pictures/texts/links, toggle status, and delete."""
+        # 1. Fetch public sponsors
+        pub_res = self.client.get("/api/sponsors")
+        self.assertEqual(pub_res.status_code, 200)
+        public_list = pub_res.json()
+        self.assertIsInstance(public_list, list)
+
+        # 2. Fetch admin sponsors
+        adm_res = self.client.get("/api/admin/sponsors")
+        self.assertEqual(adm_res.status_code, 200)
+        admin_list = adm_res.json()
+        self.assertIsInstance(admin_list, list)
+
+        # 3. Create a new sponsor with picture, texts, and links
+        new_payload = {
+            "name": "Luxury Hospitality Institute Test",
+            "tag": "EXCLUSIVE PARTNER",
+            "badge": "AHLEI Certified Platinum",
+            "image_url": "/static/images/resort_beach.jpg",
+            "description": "Comprehensive culinary arts and front-office executive diplomas.",
+            "button_text": "Enroll Now →",
+            "link_url": "https://example.com/hospitality-institute",
+            "display_order": 99,
+            "is_active": True
+        }
+        create_res = self.client.post("/api/admin/sponsors", json=new_payload)
+        self.assertEqual(create_res.status_code, 200)
+        created_data = create_res.json()
+        self.assertTrue(created_data.get("success"))
+        sp_id = created_data.get("id")
+        self.assertIsNotNone(sp_id)
+
+        # 4. Verify new sponsor is present in admin list
+        adm_res_after = self.client.get("/api/admin/sponsors")
+        self.assertEqual(adm_res_after.status_code, 200)
+        found = next((s for s in adm_res_after.json() if s["id"] == sp_id), None)
+        self.assertIsNotNone(found)
+        self.assertEqual(found["name"], "Luxury Hospitality Institute Test")
+        self.assertEqual(found["badge"], "AHLEI Certified Platinum")
+        self.assertEqual(found["button_text"], "Enroll Now →")
+        self.assertEqual(found["link_url"], "https://example.com/hospitality-institute")
+
+        # 5. Edit sponsor picture, texts, and link
+        update_payload = {
+            "name": "Luxury Hospitality Institute (Updated)",
+            "tag": "PREMIER PARTNER",
+            "badge": "5-Star Global Accreditation",
+            "image_url": "/static/images/hero_lobby.jpg",
+            "description": "Updated masterclass certifications with guaranteed international placement.",
+            "button_text": "Apply For Scholarship →",
+            "link_url": "https://example.com/scholarship",
+            "display_order": 1,
+            "is_active": True
+        }
+        update_res = self.client.put(f"/api/admin/sponsors/{sp_id}", json=update_payload)
+        self.assertEqual(update_res.status_code, 200)
+        self.assertTrue(update_res.json().get("success"))
+
+        # Verify updated values
+        adm_res_updated = self.client.get("/api/admin/sponsors")
+        updated_sp = next((s for s in adm_res_updated.json() if s["id"] == sp_id), None)
+        self.assertIsNotNone(updated_sp)
+        self.assertEqual(updated_sp["name"], "Luxury Hospitality Institute (Updated)")
+        self.assertEqual(updated_sp["image_url"], "/static/images/hero_lobby.jpg")
+        self.assertEqual(updated_sp["badge"], "5-Star Global Accreditation")
+        self.assertEqual(updated_sp["link_url"], "https://example.com/scholarship")
+        self.assertEqual(updated_sp["button_text"], "Apply For Scholarship →")
+
+        # 6. Toggle status (pause sponsor)
+        toggle_res = self.client.post(f"/api/admin/sponsors/{sp_id}/toggle-status")
+        self.assertEqual(toggle_res.status_code, 200)
+        self.assertEqual(toggle_res.json().get("is_active"), 0)
+
+        # Verify paused sponsor is excluded from public active feed
+        pub_res_paused = self.client.get("/api/sponsors")
+        self.assertIsNone(next((s for s in pub_res_paused.json() if s["id"] == sp_id), None))
+
+        # Toggle status back to active
+        toggle_res2 = self.client.post(f"/api/admin/sponsors/{sp_id}/toggle-status")
+        self.assertEqual(toggle_res2.status_code, 200)
+        self.assertEqual(toggle_res2.json().get("is_active"), 1)
+
+        # 7. Delete sponsor
+        del_res = self.client.delete(f"/api/admin/sponsors/{sp_id}")
+        self.assertEqual(del_res.status_code, 200)
+        self.assertTrue(del_res.json().get("success"))
+
+        # Verify sponsor is deleted
+        adm_res_final = self.client.get("/api/admin/sponsors")
+        self.assertIsNone(next((s for s in adm_res_final.json() if s["id"] == sp_id), None))
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -43,6 +43,22 @@ CREATE TABLE IF NOT EXISTS blogs (
     author_id TEXT DEFAULT ''
 );
 
+-- 2.1 Sponsors
+CREATE TABLE IF NOT EXISTS sponsors (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tag TEXT DEFAULT 'SPONSORED',
+    badge TEXT DEFAULT '',
+    image_url TEXT NOT NULL,
+    description TEXT NOT NULL,
+    button_text TEXT DEFAULT 'Explore Programs →',
+    link_url TEXT NOT NULL,
+    display_order INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT,
+    updated_at TEXT
+);
+
 -- 3. Moderation Reports
 CREATE TABLE IF NOT EXISTS moderation_reports (
     id TEXT PRIMARY KEY,
@@ -360,6 +376,7 @@ CREATE INDEX IF NOT EXISTS idx_blogs_slug ON blogs(slug);
 TABLE_MIGRATION_ORDER = [
     "system_settings",
     "blogs",
+    "sponsors",
     "moderation_reports",
     "otp_verifications",
     "email_logs",
@@ -382,6 +399,7 @@ TABLE_MIGRATION_ORDER = [
 TABLE_PKS: Dict[str, List[str]] = {
     "system_settings": ["key"],
     "blogs": ["id"],
+    "sponsors": ["id"],
     "moderation_reports": ["id"],
     "otp_verifications": ["id"],
     "email_logs": ["id"],
