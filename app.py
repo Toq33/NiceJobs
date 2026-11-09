@@ -10,7 +10,7 @@ import secrets
 import re
 import base64
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Union
 from collections import defaultdict
 import asyncio
 
@@ -2405,8 +2405,8 @@ def register_candidate(payload: CandidateRegisterPayload):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
     """, (user_id, full_name, fn, mn, ln, nb, payload.email, payload.phone, secure_password_hash, "jobseeker", avatar, now, dob_val, nid_val, "active", cand_designation, terms_acc, terms_acc_at, prof_comp, onb_status))
 
-    cv_filename = payload.cv_name or f"{full_name.replace(' ', '_')}_Hospitality_Resume.pdf"
     cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
+    cv_filename = payload.cv_name.strip() if (payload.cv_name and cv_data_content) else ""
     initial_cvs = json.dumps([
         {
             "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
@@ -2417,7 +2417,7 @@ def register_candidate(payload: CandidateRegisterPayload):
             "is_default": True,
             "file_data": cv_data_content
         }
-    ]) if cv_data_content else json.dumps([])
+    ]) if (cv_data_content and cv_filename) else json.dumps([])
 
     skills_data = payload.skills if isinstance(payload.skills, list) else []
     
@@ -2493,8 +2493,8 @@ def register_candidate(payload: CandidateRegisterPayload):
         json.dumps(edu_list),
         json.dumps(prefs_data),
         cv_filename,
-        "Just now",
-        85 if payload.cv_name else 40,
+        "Just now" if cv_filename else "",
+        85 if cv_filename else 40,
         initial_cvs,
         dob_val,
         nid_val,
@@ -2588,7 +2588,7 @@ class CompleteProfilePayload(BaseModel):
     skills: Optional[List[str]] = None
     languages: Optional[Any] = None
     experience: Optional[Any] = None
-    experience_years: Optional[int] = None
+    experience_years: Optional[Union[int, float]] = None
     job_preferences: Optional[Dict[str, Any]] = None
     designation: Optional[str] = None
     department: Optional[str] = None
@@ -2647,15 +2647,15 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     if payload.location:
         prefs_data["preferred_location"] = payload.location
 
-    cv_filename = payload.cv_name or f"{u['name'].replace(' ', '_')}_Hospitality_Resume.pdf"
     cv_data_content = (payload.cv_data or payload.cv_url or "").strip()
+    cv_filename = payload.cv_name.strip() if (payload.cv_name and cv_data_content) else ""
     existing_cvs = []
     if p_row and p_row["cv_list"]:
         try:
             existing_cvs = json.loads(p_row["cv_list"])
         except Exception:
             pass
-    if cv_data_content:
+    if cv_data_content and cv_filename:
         new_cv = {
             "id": f"cv_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
             "name": cv_filename,
@@ -2666,6 +2666,10 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             "file_data": cv_data_content
         }
         existing_cvs = [new_cv] + [c for c in existing_cvs if c.get("name") != cv_filename]
+
+    final_cv_name = cv_filename if (cv_data_content and cv_filename) else ((p_row.get("cv_name") if p_row else "") or "")
+    final_cv_url = cv_data_content if cv_data_content else ((p_row.get("cv_url") if p_row else "") or "")
+    profile_comp = 95 if (existing_cvs or final_cv_name) else 75
 
     edu_list = payload.education if isinstance(payload.education, list) else []
     cert_list = payload.certifications if isinstance(payload.certifications, list) else []
@@ -2699,7 +2703,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
                 cv_name = ?,
                 cv_url = ?,
                 cv_list = ?,
-                profile_completion = 95
+                profile_completion = ?
             WHERE user_id = ?
         """, (
             headline_text,
@@ -2713,9 +2717,10 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             json.dumps(exp_list),
             json.dumps(edu_list),
             json.dumps(cert_list),
-            cv_filename,
-            cv_data_content or payload.cv_url or "",
+            final_cv_name,
+            final_cv_url,
             json.dumps(existing_cvs),
+            profile_comp,
             payload.user_id
         ))
     else:
@@ -2724,7 +2729,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
                 user_id, headline, location, summary, current_position, experience_years,
                 open_to_work, visibility, skills, languages, certifications, experience,
                 education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', 95, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', ?, ?, ?)
         """, (
             payload.user_id,
             headline_text,
@@ -2738,9 +2743,10 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             json.dumps(exp_list),
             json.dumps(edu_list),
             json.dumps(prefs_data),
-            cv_filename,
+            final_cv_name,
+            profile_comp,
             json.dumps(existing_cvs),
-            cv_data_content or payload.cv_url or ""
+            final_cv_url
         ))
 
     conn.commit()
@@ -3499,17 +3505,19 @@ def get_profile(user_id: str = "user_rahim"):
     profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
     profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
 
-    # Synthetic CV entry if cv_list is empty but cv_name or cv_url is present
-    if not profile["cv_list"] and (profile.get("cv_name") or profile.get("cv_url")):
+    # Synthetic CV entry only if cv_list is empty but actual cv_url and cv_name are present
+    cv_url_val = (profile.get("cv_url") or "").strip()
+    cv_name_val = (profile.get("cv_name") or "").strip()
+    if not profile["cv_list"] and cv_url_val and cv_name_val:
         profile["cv_list"] = [{
             "id": "cv_primary",
-            "name": profile.get("cv_name") or "Primary_CV.pdf",
-            "title": profile.get("cv_name") or "Primary Hospitality Resume",
+            "name": cv_name_val,
+            "title": cv_name_val or "Primary Hospitality Resume",
             "size": "Original Upload",
             "uploaded_at": profile.get("cv_updated_at") or "Verified",
             "is_default": True,
-            "url": profile.get("cv_url") or "",
-            "file_data": profile.get("cv_url") or ""
+            "url": cv_url_val,
+            "file_data": cv_url_val
         }]
 
     conn.close()
@@ -3535,7 +3543,7 @@ class ProfileUpdatePayload(BaseModel):
     location: Optional[str] = None
     summary: Optional[str] = None
     current_position: Optional[str] = None
-    experience_years: Optional[int] = None
+    experience_years: Optional[Union[int, float]] = None
     open_to_work: Optional[bool] = None
     visibility: Optional[str] = None
     skills: Optional[List[str]] = None
@@ -3729,16 +3737,18 @@ def get_profile_cvs(user_id: str = "user_rahim"):
     cursor.execute("SELECT cv_list, cv_name, cv_url, cv_updated_at FROM employee_profiles WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     cv_list = json.loads(row["cv_list"]) if row and row["cv_list"] else []
-    if not cv_list and row and (row["cv_name"] or row["cv_url"]):
+    cv_url_val = (row["cv_url"] or "").strip() if row and row["cv_url"] else ""
+    cv_name_val = (row["cv_name"] or "").strip() if row and row["cv_name"] else ""
+    if not cv_list and cv_url_val and cv_name_val:
         cv_list = [{
             "id": "cv_primary",
-            "name": row["cv_name"] or "Primary_CV.pdf",
-            "title": row["cv_name"] or "Primary Hospitality Resume",
+            "name": cv_name_val,
+            "title": cv_name_val or "Primary Hospitality Resume",
             "size": "Original Upload",
             "uploaded_at": row["cv_updated_at"] or "Verified",
             "is_default": True,
-            "url": row["cv_url"] or "",
-            "file_data": row["cv_url"] or ""
+            "url": cv_url_val,
+            "file_data": cv_url_val
         }]
     conn.close()
     return {"success": True, "cvs": cv_list, "cv_list": cv_list}

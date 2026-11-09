@@ -1797,7 +1797,7 @@ function handleDistrictToggle(pickerId, distName, context) {
     pState.selected.push(distName);
   }
   
-  if (context !== 'candidate_signup' && pState.selected.length === 0) {
+  if (context !== 'candidate_signup' && context !== 'comp_edit_profile' && pState.selected.length === 0) {
     pState.selected = ['Dhaka'];
   }
   updatePickerContext(pickerId, context);
@@ -1806,7 +1806,7 @@ function handleDistrictToggle(pickerId, distName, context) {
 function handleDistrictRemove(pickerId, distName, context) {
   const pState = getPickerState(pickerId);
   pState.selected = pState.selected.filter(s => s.toLowerCase() !== distName.toLowerCase());
-  if (context !== 'candidate_signup' && pState.selected.length === 0) {
+  if (context !== 'candidate_signup' && context !== 'comp_edit_profile' && pState.selected.length === 0) {
     pState.selected = ['Anywhere in Bangladesh'];
   }
   updatePickerContext(pickerId, context);
@@ -1854,11 +1854,12 @@ function updatePickerContext(pickerId, context) {
     !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase())
   );
   
-  const formattedVal = (context === 'candidate_signup' && actualDistricts.length === 0)
+  const formattedVal = ((context === 'candidate_signup' || context === 'comp_edit_profile') && actualDistricts.length === 0)
     ? 'Anywhere in Bangladesh'
     : (actualDistricts.length > 0 ? actualDistricts.join(', ') : (pState.selected.join(', ') || 'Anywhere in Bangladesh'));
   
   const hiddenInput = document.getElementById(pickerId.replace('-picker', '')) || 
+                      document.getElementById('comp-pref-location') ||
                       document.getElementById('cand-pref-location');
   if (hiddenInput) {
     hiddenInput.value = formattedVal;
@@ -1868,6 +1869,11 @@ function updatePickerContext(pickerId, context) {
     if (!signupState.job_preferences) signupState.job_preferences = {};
     signupState.job_preferences.preferred_location = formattedVal;
     signupState.job_preferences.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : ['Anywhere in Bangladesh'];
+  } else if (context === 'comp_edit_profile') {
+    if (window.compEditProfileState) {
+      window.compEditProfileState.preferred_location = formattedVal;
+      window.compEditProfileState.preferred_locations = actualDistricts.length > 0 ? [...actualDistricts] : ['Anywhere in Bangladesh'];
+    }
   } else if (context === 'job_search') {
     state.search.location = formattedVal;
     const heroInput = document.getElementById('select-search-loc');
@@ -5470,13 +5476,19 @@ async function renderProfileScreen(viewport) {
 
       <div style="display: flex; flex-direction: column; gap: 10px;">
         ${(profile.cv_list || []).length === 0 ? `
-          <div style="padding: 28px 20px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 8px;">
-            <div style="color: var(--orange-primary);">${svgIcon('upload', '', 32)}</div>
-            <div style="font-weight: 700; color: var(--white); font-size: 0.96rem;">No Hospitality CVs Uploaded Yet</div>
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 12px 0; max-width: 380px; line-height: 1.45;">Upload your tailored hospitality resume (.pdf, .docx) to showcase your experience to top hotels.</p>
-            <button class="btn-orange" onclick="openAddCvModal()" style="font-size: 0.85rem; padding: 7px 18px; display: inline-flex; align-items: center; gap: 6px;">
-              ${svgIcon('upload', '', 15)} Upload / Drop CV
-            </button>
+          <div class="cv-dropzone" id="direct-profile-cv-dropzone"
+               style="padding: 28px 20px; text-align: center; border: 2px dashed rgba(255, 255, 255, 0.25); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s ease;"
+               onclick="document.getElementById('direct-profile-cv-file-input').click()"
+               ondragover="handleDirectProfileCvDragOver(event)"
+               ondragleave="handleDirectProfileCvDragLeave(event)"
+               ondrop="handleDirectProfileCvDrop(event)">
+            <div style="color: var(--orange-primary);">${svgIcon('upload', '', 36)}</div>
+            <div style="font-weight: 700; color: var(--white); font-size: 1.05rem;">No CV Uploaded</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0; max-width: 420px; line-height: 1.45;">
+              Drag &amp; drop your hospitality resume here, or <span style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">browse device</span>
+            </p>
+            <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">PDF, DOCX, DOC (up to 10MB)</div>
+            <input type="file" id="direct-profile-cv-file-input" style="display: none;" accept=".pdf,.docx,.doc" onchange="handleDirectProfileCvSelected(event)">
           </div>
         ` : (profile.cv_list || []).map(cv => `
           <div class="cv-item-row ${cv.is_default ? 'is-default' : ''}">
@@ -17678,6 +17690,106 @@ async function deleteCv(cvId) {
   }
 }
 
+// Direct Profile CV Dropzone Handlers (When candidate has no CV uploaded)
+function handleDirectProfileCvDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById('direct-profile-cv-dropzone');
+  if (dz) {
+    dz.style.borderColor = 'var(--orange-primary)';
+    dz.style.background = 'rgba(255, 107, 0, 0.08)';
+  }
+}
+
+function handleDirectProfileCvDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById('direct-profile-cv-dropzone');
+  if (dz) {
+    dz.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+    dz.style.background = 'rgba(255, 255, 255, 0.02)';
+  }
+}
+
+function handleDirectProfileCvDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  handleDirectProfileCvDragLeave(e);
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    processDirectProfileCvFile(e.dataTransfer.files[0]);
+  }
+}
+
+function handleDirectProfileCvSelected(e) {
+  if (e.target && e.target.files && e.target.files.length > 0) {
+    processDirectProfileCvFile(e.target.files[0]);
+  }
+}
+
+async function processDirectProfileCvFile(file) {
+  if (!file) return;
+  const validExts = ['.pdf', '.docx', '.doc'];
+  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+  if (!validExts.includes(ext)) {
+    showToast('Invalid document format. Please upload a PDF or Word document (.pdf, .docx, .doc).', 'warning');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('File size exceeds 10MB limit. Please upload a smaller resume.', 'warning');
+    return;
+  }
+  const uId = state.currentUser?.id || (state.demoDataHidden ? null : 'user_rahim');
+  if (!uId) {
+    showToast('Please sign in to upload your resume.', 'danger');
+    return;
+  }
+
+  showToast('Uploading resume...', 'info');
+  try {
+    const fileData = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+
+    const sizeStr = file.size > 1024 * 1024 
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+      : `${Math.round(file.size / 1024)} KB`;
+
+    const title = file.name.replace(/\.[^/.]+$/, '').replace(/[_.-]+/g, ' ');
+
+    const res = await fetch('/api/profile/cvs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: uId,
+        title: title || 'Hospitality Resume',
+        name: file.name,
+        size: sizeStr,
+        is_default: true,
+        file_data: fileData
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to upload resume');
+
+    showToast(`Resume "${file.name}" uploaded successfully!`, 'success');
+    const profRes = await fetch(`/api/profile?user_id=${uId}`);
+    if (profRes.ok) {
+      state.profile = await profRes.json();
+    }
+    renderProfileScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleDirectProfileCvDragOver = handleDirectProfileCvDragOver;
+window.handleDirectProfileCvDragLeave = handleDirectProfileCvDragLeave;
+window.handleDirectProfileCvDrop = handleDirectProfileCvDrop;
+window.handleDirectProfileCvSelected = handleDirectProfileCvSelected;
+window.processDirectProfileCvFile = processDirectProfileCvFile;
+
 // ==========================================================================
 // Individual Profile Edit Modals & Candidate CV Preview
 // ==========================================================================
@@ -19002,6 +19114,722 @@ function handleCompEditDepartmentChange(dept) {
 window.handleCompEditDepartmentChange = handleCompEditDepartmentChange;
 
 // Edit Profile Modal
+// ==========================================================================
+// Comprehensive Candidate Edit Profile System
+// Matches candidate profile creation: single full name, no bangla name,
+// NID/passport kept, fixed primary mobile & email, secondary mobile editable,
+// bio with 100-word counter, career preferences, 64-district picker,
+// dynamic education, certifications, experience, skills, languages, open to work.
+// ==========================================================================
+
+function handleCompEditBioInput(el) {
+  if (!el) return;
+  const words = (el.value || '').trim().match(/\S+/g);
+  const count = words ? words.length : 0;
+  const countEl = document.getElementById('comp-edit-bio-word-count');
+  if (countEl) {
+    countEl.textContent = `${count} / 100 words`;
+    countEl.style.color = count > 100 ? '#f87171' : 'var(--text-dim)';
+    countEl.style.fontWeight = count > 100 ? '700' : 'normal';
+  }
+}
+window.handleCompEditBioInput = handleCompEditBioInput;
+
+function handleCompEditDepartmentChange(dept) {
+  if (window.compEditProfileState) {
+    window.compEditProfileState.department = dept;
+  }
+  const roleSelect = document.getElementById('comp-edit-designation');
+  if (roleSelect) {
+    const titles = getJobTitlesForDepartment(dept);
+    roleSelect.innerHTML = titles.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  }
+  updateCompEditExperienceLiveDisplays();
+}
+window.handleCompEditDepartmentChange = handleCompEditDepartmentChange;
+
+function captureCompEditDynamicInputs() {
+  if (!window.compEditProfileState) return;
+
+  // 1. Capture education
+  const eduCards = document.querySelectorAll('.comp-edu-card');
+  const capturedEdu = [];
+  eduCards.forEach(card => {
+    const inst = card.querySelector('.comp-edu-inst')?.value.trim() || '';
+    const degSelect = card.querySelector('.comp-edu-deg')?.value || '';
+    const country = card.querySelector('.comp-edu-country')?.value || 'Bangladesh';
+    const otherDeg = card.querySelector('.comp-edu-other-deg')?.value.trim() || '';
+    const gpaObt = card.querySelector('.comp-edu-gpa-obtained')?.value.trim() || '';
+    const gpaScale = card.querySelector('.comp-edu-gpa-scale')?.value.trim() || '4.00';
+    const isOther = isOtherDegree(degSelect);
+    const finalDegree = isOther ? (otherDeg || degSelect) : degSelect;
+    const finalGpa = gpaObt ? (gpaScale ? `${gpaObt}/${gpaScale}` : gpaObt) : '';
+    capturedEdu.push({
+      institution: inst,
+      degree: finalDegree,
+      degree_select: degSelect,
+      other_degree: otherDeg,
+      country: country,
+      gpa_obtained: gpaObt,
+      gpa_scale: gpaScale,
+      gpa: finalGpa
+    });
+  });
+  if (eduCards.length > 0) window.compEditProfileState.education = capturedEdu;
+
+  // 2. Capture certs
+  const certCards = document.querySelectorAll('.comp-cert-card');
+  const capturedCerts = [];
+  certCards.forEach(card => {
+    const name = card.querySelector('.comp-cert-name')?.value.trim() || '';
+    const issuer = card.querySelector('.comp-cert-issuer')?.value.trim() || '';
+    const year = card.querySelector('.comp-cert-year')?.value.trim() || '';
+    capturedCerts.push({
+      name: name,
+      title: name,
+      issuer: issuer,
+      issued_by: issuer,
+      year: year,
+      year_obtained: year
+    });
+  });
+  if (certCards.length > 0) window.compEditProfileState.certifications = capturedCerts;
+
+  // 3. Capture experience
+  const expCards = document.querySelectorAll('.comp-exp-card');
+  const capturedExp = [];
+  const defaultDept = window.compEditProfileState.department || 'Front Office & Guest Services';
+  expCards.forEach(card => {
+    const company = card.querySelector('.comp-exp-comp')?.value.trim() || '';
+    const role = card.querySelector('.comp-exp-role')?.value.trim() || '';
+    const isHospBtn = card.querySelector('.comp-exp-toggle-btn[data-hospitality="true"]');
+    const isHosp = isHospBtn ? isHospBtn.classList.contains('active') : true;
+    const dept = isHosp ? (card.querySelector('.comp-exp-dept')?.value || defaultDept) : '';
+    const dateFrom = card.querySelector('.comp-exp-date-from')?.value || '';
+    const dateTo = card.querySelector('.comp-exp-date-to')?.value || '';
+    const isCurrent = !!card.querySelector('.comp-exp-current-check')?.checked;
+    const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+    const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+    const skills = card.querySelector('.comp-exp-skills')?.value.trim() || '';
+    capturedExp.push({
+      company: company,
+      hotel: company,
+      role: role,
+      is_hospitality: isHosp,
+      department: dept,
+      date_from: dateFrom,
+      date_to: dateTo,
+      is_current: isCurrent,
+      worked_years: calcYears.toString(),
+      period: period,
+      skills_acquired: skills,
+      description: skills
+    });
+  });
+  if (expCards.length > 0) window.compEditProfileState.experience = capturedExp;
+}
+
+// Education in Comprehensive Edit Profile
+function renderCompEditSingleEducationCardHtml(edu, idx) {
+  const isOther = isOtherDegree(edu.degree_select || edu.degree);
+  const gpaObt = edu.gpa_obtained !== undefined ? edu.gpa_obtained : (edu.gpa && !edu.gpa.includes('/') ? edu.gpa : (edu.gpa ? edu.gpa.split('/')[0].trim() : ''));
+  const gpaSc = edu.gpa_scale !== undefined ? edu.gpa_scale : (edu.gpa && edu.gpa.includes('/') ? edu.gpa.split('/')[1].trim() : '4.00');
+
+  return `
+    <div class="dynamic-entry-card comp-edu-card" data-comp-edu-index="${idx}">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Education #${idx + 1}</span>
+        <button type="button" class="dynamic-remove-btn" onclick="removeCompEditEducationEntry(${idx})" title="Remove education entry">
+          ${svgIcon('x', '', 13)} Remove
+        </button>
+      </div>
+
+      <div class="auth-field" style="margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Educational Institute Name</label>
+        <input type="text" class="auth-input comp-edu-inst" placeholder="Enter school, college, or training institute name" 
+          value="${escapeHtml(edu.institution || '')}" required>
+      </div>
+
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px; gap: 10px;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Degree / Certificate</label>
+          <select class="auth-input comp-edu-deg" onchange="handleCompEditDegreeChange(this, ${idx})">
+            ${BANGLADESH_DEGREES.map(deg => {
+              const selected = (edu.degree_select === deg || edu.degree === deg || (isOther && deg.toLowerCase().includes('other')));
+              return `<option value="${deg}" ${selected ? 'selected' : ''}>${deg}</option>`;
+            }).join('')}
+          </select>
+        </div>
+
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Country</label>
+          <select class="auth-input comp-edu-country">
+            ${EDUCATION_COUNTRIES.map(c => `
+              <option value="${c}" ${(edu.country || 'Bangladesh') === c ? 'selected' : ''}>${c}</option>
+            `).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- Text box when Other degree is selected -->
+      <div class="auth-field comp-edu-other-deg-wrap" style="${isOther ? 'display: block;' : 'display: none;'} margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Degree Name *</label>
+        <input type="text" class="auth-input comp-edu-other-deg" placeholder="Enter degree or certificate name" 
+          value="${escapeHtml(edu.other_degree || (isOther && !isOtherDegree(edu.degree) ? edu.degree : ''))}">
+      </div>
+
+      <!-- GPA: GPA Obtained and Out of -->
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">GPA Obtained</label>
+          <input type="text" class="auth-input comp-edu-gpa-obtained" placeholder="e.g. 3.80" 
+            value="${escapeHtml(gpaObt)}">
+        </div>
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Out of</label>
+          <input type="text" class="auth-input comp-edu-gpa-scale" placeholder="e.g. 4.00 or 5.00" 
+            value="${escapeHtml(gpaSc)}">
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.renderCompEditSingleEducationCardHtml = renderCompEditSingleEducationCardHtml;
+
+function handleCompEditDegreeChange(selectEl, idx) {
+  if (!selectEl) return;
+  const card = selectEl.closest('.comp-edu-card');
+  if (!card) return;
+  const otherWrap = card.querySelector('.comp-edu-other-deg-wrap');
+  if (otherWrap) {
+    const isOther = isOtherDegree(selectEl.value);
+    otherWrap.style.display = isOther ? 'block' : 'none';
+    if (isOther) {
+      const input = otherWrap.querySelector('.comp-edu-other-deg');
+      if (input) input.focus();
+    }
+  }
+}
+window.handleCompEditDegreeChange = handleCompEditDegreeChange;
+
+function renderCompEditEducationCardsDOM() {
+  const container = document.getElementById('comp-edu-dynamic-container');
+  if (!container) return;
+  if (!window.compEditProfileState.education || window.compEditProfileState.education.length === 0) {
+    container.innerHTML = `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No degrees or certificates added yet. Click below to add.
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = window.compEditProfileState.education.map((edu, idx) => renderCompEditSingleEducationCardHtml(edu, idx)).join('');
+}
+window.renderCompEditEducationCardsDOM = renderCompEditEducationCardsDOM;
+
+function addCompEditEducationEntry() {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.education) window.compEditProfileState.education = [];
+  window.compEditProfileState.education.push({
+    institution: '',
+    degree: 'Bachelor of Hotel Management (BHM)',
+    degree_select: 'Bachelor of Hotel Management (BHM)',
+    other_degree: '',
+    country: 'Bangladesh',
+    gpa_obtained: '',
+    gpa_scale: '4.00',
+    gpa: ''
+  });
+  renderCompEditEducationCardsDOM();
+}
+window.addCompEditEducationEntry = addCompEditEducationEntry;
+
+function removeCompEditEducationEntry(idx) {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.education) window.compEditProfileState.education = [];
+  window.compEditProfileState.education.splice(idx, 1);
+  renderCompEditEducationCardsDOM();
+}
+window.removeCompEditEducationEntry = removeCompEditEducationEntry;
+
+// Certifications in Comprehensive Edit Profile
+function renderCompEditSingleCertificationCardHtml(cert, idx) {
+  return `
+    <div class="dynamic-entry-card comp-cert-card" data-comp-cert-index="${idx}">
+      <div class="dynamic-entry-header">
+        <span class="dynamic-entry-title">Certification #${idx + 1}</span>
+        <button type="button" class="dynamic-remove-btn" onclick="removeCompEditCertificationEntry(${idx})" title="Remove certification entry">
+          ${svgIcon('x', '', 13)} Remove
+        </button>
+      </div>
+
+      <div class="auth-field" style="margin-bottom: 10px;">
+        <label class="auth-label" style="font-size: 0.76rem;">Certification Name *</label>
+        <input type="text" class="auth-input comp-cert-name" placeholder="e.g. ServSafe Food Protection Manager, WSET Level 2, CPR/First Aid" 
+          value="${escapeHtml(cert.name || cert.title || '')}">
+      </div>
+
+      <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0;">
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Issued by *</label>
+          <input type="text" class="auth-input comp-cert-issuer" placeholder="e.g. AHLEI, NRA, WSET, City &amp; Guilds" 
+            value="${escapeHtml(cert.issuer || cert.issued_by || '')}">
+        </div>
+        <div class="auth-field" style="margin-bottom: 0;">
+          <label class="auth-label" style="font-size: 0.76rem;">Year Obtained *</label>
+          <input type="text" inputmode="numeric" class="auth-input comp-cert-year" placeholder="e.g. 2024" maxlength="4" 
+            value="${escapeHtml(cert.year || cert.year_obtained || '')}"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.renderCompEditSingleCertificationCardHtml = renderCompEditSingleCertificationCardHtml;
+
+function renderCompEditCertificationCardsDOM() {
+  const container = document.getElementById('comp-cert-dynamic-container');
+  if (!container) return;
+  if (!window.compEditProfileState.certifications || window.compEditProfileState.certifications.length === 0) {
+    container.innerHTML = `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No certifications added yet. Click below to add your certificates (or leave empty).
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = window.compEditProfileState.certifications.map((cert, idx) => renderCompEditSingleCertificationCardHtml(cert, idx)).join('');
+}
+window.renderCompEditCertificationCardsDOM = renderCompEditCertificationCardsDOM;
+
+function addCompEditCertificationEntry() {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.certifications) window.compEditProfileState.certifications = [];
+  window.compEditProfileState.certifications.push({
+    name: '',
+    title: '',
+    issuer: '',
+    issued_by: '',
+    year: '',
+    year_obtained: ''
+  });
+  renderCompEditCertificationCardsDOM();
+}
+window.addCompEditCertificationEntry = addCompEditCertificationEntry;
+
+function removeCompEditCertificationEntry(idx) {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.certifications) window.compEditProfileState.certifications = [];
+  window.compEditProfileState.certifications.splice(idx, 1);
+  renderCompEditCertificationCardsDOM();
+}
+window.removeCompEditCertificationEntry = removeCompEditCertificationEntry;
+
+// Experience in Comprehensive Edit Profile
+function getCompEditTotalHospitalityExp() {
+  if (!window.compEditProfileState || !window.compEditProfileState.experience) return '0';
+  let total = 0;
+  window.compEditProfileState.experience.forEach(e => {
+    if (e.is_hospitality !== false) {
+      total += getEntryWorkedYears(e);
+    }
+  });
+  return (Math.round(total * 10) / 10).toString();
+}
+window.getCompEditTotalHospitalityExp = getCompEditTotalHospitalityExp;
+
+function getCompEditDeptTotalExp(dept) {
+  if (!window.compEditProfileState || !window.compEditProfileState.experience) return '0';
+  let total = 0;
+  const defaultDept = window.compEditProfileState.department || 'Front Office & Guest Services';
+  window.compEditProfileState.experience.forEach(e => {
+    if (e.is_hospitality !== false) {
+      const eDept = e.department || defaultDept;
+      if (eDept === dept) {
+        total += getEntryWorkedYears(e);
+      }
+    }
+  });
+  return (Math.round(total * 10) / 10).toString();
+}
+window.getCompEditDeptTotalExp = getCompEditDeptTotalExp;
+
+function updateCompEditExperienceLiveDisplays() {
+  const defaultDept = window.compEditProfileState?.department || 'Front Office & Guest Services';
+  const totalHotelEl = document.getElementById('comp-total-hotel-exp-stat');
+  if (totalHotelEl) totalHotelEl.textContent = getCompEditTotalHospitalityExp();
+  const primaryDeptEl = document.getElementById('comp-primary-dept-exp-stat');
+  if (primaryDeptEl) primaryDeptEl.textContent = getCompEditDeptTotalExp(defaultDept);
+  const deptNameEl = document.getElementById('comp-dept-exp-name');
+  if (deptNameEl) deptNameEl.textContent = defaultDept;
+
+  if (window.compEditProfileState?.experience && Array.isArray(window.compEditProfileState.experience)) {
+    window.compEditProfileState.experience.forEach((exp, idx) => {
+      const statEl = document.getElementById(`comp-exp-dept-live-stat-${idx}`);
+      if (statEl) {
+        const numSpan = statEl.querySelector('.dept-total-num');
+        const curDept = exp.department || defaultDept;
+        if (numSpan) numSpan.textContent = getCompEditDeptTotalExp(curDept);
+      }
+      const valEl = document.getElementById(`comp-exp-calc-val-${idx}`);
+      if (valEl) {
+        valEl.textContent = getEntryWorkedYears(exp).toString();
+      }
+    });
+  }
+}
+window.updateCompEditExperienceLiveDisplays = updateCompEditExperienceLiveDisplays;
+
+function renderCompEditExperienceCardsHTML() {
+  if (!window.compEditProfileState.experience || window.compEditProfileState.experience.length === 0) {
+    return `
+      <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+        No previous hospitality experience listed yet. Click below to add experience.
+      </div>
+    `;
+  }
+
+  const defaultDept = window.compEditProfileState.department || 'Front Office & Guest Services';
+  const totalHotelExp = getCompEditTotalHospitalityExp();
+  const primaryDeptExp = getCompEditDeptTotalExp(defaultDept);
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  return `
+    <div class="exp-totals-summary-bar" id="comp-exp-totals-summary-bar" style="margin-bottom: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--orange-primary);">${svgIcon('award', '', 15)}</span>
+        <span style="color: var(--white); font-weight: 700;">Hotel Industry Exp: <strong id="comp-total-hotel-exp-stat" style="color: #ff9d42;">${totalHotelExp}</strong> yrs</span>
+      </div>
+      <div style="font-size: 0.78rem; color: var(--text-dim);">
+        In <strong id="comp-dept-exp-name" style="color: var(--white);">${escapeHtml(defaultDept)}</strong>: <strong id="comp-primary-dept-exp-stat" style="color: #34d399;">${primaryDeptExp}</strong> yrs
+      </div>
+    </div>
+    ${window.compEditProfileState.experience.map((exp, idx) => {
+      const isHosp = exp.is_hospitality !== false;
+      const currentDept = exp.department || defaultDept;
+      const deptTotal = getCompEditDeptTotalExp(currentDept);
+      const isCurrent = !!exp.is_current;
+      const calcYears = getEntryWorkedYears(exp);
+
+      return `
+        <div class="dynamic-entry-card comp-exp-card" data-comp-exp-index="${idx}">
+          <div class="dynamic-entry-header">
+            <span class="dynamic-entry-title">Experience #${idx + 1}</span>
+            <button type="button" class="dynamic-remove-btn" onclick="removeCompEditExperienceEntry(${idx})" title="Remove experience entry">
+              ${svgIcon('x', '', 13)} Remove
+            </button>
+          </div>
+
+          <div class="auth-field-grid">
+            <div class="auth-field">
+              <label class="auth-label" style="font-size: 0.76rem;">Institute / Hotel Name</label>
+              <input type="text" class="auth-input comp-exp-comp" placeholder="Enter hotel, resort, or organization name" 
+                value="${escapeHtml(exp.company || exp.hotel || '')}">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" style="font-size: 0.76rem;">Role / Designation</label>
+              <input type="text" class="auth-input comp-exp-role" placeholder="Enter your job title or designation" 
+                value="${escapeHtml(exp.role || '')}">
+            </div>
+          </div>
+
+          <!-- Hospitality Experience Toggle Button -->
+          <div class="auth-field" style="margin-top: 8px; margin-bottom: 8px;">
+            <label class="auth-label" style="font-size: 0.76rem; display: flex; justify-content: space-between; align-items: center;">
+              <span>Hospitality Experience or not</span>
+              <span style="font-size: 0.72rem; color: ${isHosp ? '#ff9d42' : 'var(--text-dim)'}; font-weight: 600;">
+                ${isHosp ? '✓ Hospitality Sector' : 'Other Industry'}
+              </span>
+            </label>
+            <div class="exp-toggle-group">
+              <button type="button" 
+                      class="exp-toggle-btn comp-exp-toggle-btn ${isHosp ? 'active' : ''}" 
+                      data-hospitality="true"
+                      onclick="setCompEditExperienceHospitality(${idx}, true)">
+                ${svgIcon('check', '', 12)} Hospitality Experience
+              </button>
+              <button type="button" 
+                      class="exp-toggle-btn comp-exp-toggle-btn ${!isHosp ? 'active' : ''}" 
+                      data-hospitality="false"
+                      onclick="setCompEditExperienceHospitality(${idx}, false)">
+                Non-Hospitality / Other
+              </button>
+            </div>
+          </div>
+
+          ${isHosp ? `
+            <div class="auth-field" style="margin-bottom: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="auth-label" style="font-size: 0.76rem; margin: 0;">Hospitality Department</label>
+                <span class="exp-dept-live-stat" id="comp-exp-dept-live-stat-${idx}" style="font-size: 0.72rem; color: #ff9d42; font-weight: 700;">
+                  Total in dept: <span class="dept-total-num">${deptTotal}</span> yrs
+                </span>
+              </div>
+              <select class="auth-input comp-exp-dept" onchange="onCompEditExperienceDeptChange(${idx}, this.value)">
+                ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
+
+          <!-- Calendar mechanism: Year From and Year To -->
+          <div class="auth-field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+            <div class="auth-field" style="margin-bottom: 0;">
+              <label class="auth-label" style="font-size: 0.76rem; display: flex; align-items: center; gap: 4px;">
+                ${svgIcon('calendar', '', 12)} Year From
+              </label>
+              <input type="date" 
+                     class="auth-input comp-exp-date-from" 
+                     value="${escapeHtml(exp.date_from || '')}"
+                     max="${todayStr}"
+                     onchange="onCompEditExperienceDateChange(${idx})"
+                     oninput="onCompEditExperienceDateChange(${idx})">
+            </div>
+
+            <div class="auth-field" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="auth-label" style="font-size: 0.76rem; margin: 0; display: flex; align-items: center; gap: 4px;">
+                  ${svgIcon('calendar', '', 12)} Year To
+                </label>
+                <label style="font-size: 0.72rem; color: ${isCurrent ? 'var(--orange-primary)' : 'var(--text-dim)'}; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                  <input type="checkbox" 
+                         class="comp-exp-current-check" 
+                         ${isCurrent ? 'checked' : ''} 
+                         onchange="toggleCompEditExperienceCurrent(${idx}, this.checked)">
+                  Present
+                </label>
+              </div>
+              <input type="date" 
+                     class="auth-input comp-exp-date-to" 
+                     value="${escapeHtml(exp.date_to || '')}"
+                     max="${todayStr}"
+                     ${isCurrent ? 'disabled style="opacity: 0.45; cursor: not-allowed;"' : ''}
+                     onchange="onCompEditExperienceDateChange(${idx})"
+                     oninput="onCompEditExperienceDateChange(${idx})">
+            </div>
+          </div>
+
+          <!-- Calculated Experience Badge / Duration -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; margin-bottom: 10px;">
+            <span style="font-size: 0.75rem; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px;">
+              ${svgIcon('clock', '', 13)} Experience Duration:
+            </span>
+            <span style="font-size: 0.78rem; font-weight: 700; color: #ff9d42;" id="comp-exp-calc-badge-${idx}">
+              <strong id="comp-exp-calc-val-${idx}">${calcYears}</strong> yrs
+            </span>
+          </div>
+
+          <div class="auth-field" style="margin-top: 8px;">
+            <label class="auth-label" style="font-size: 0.76rem;">Key Responsibilities &amp; Skills Acquired</label>
+            <textarea class="auth-input comp-exp-skills" rows="2" placeholder="Responsibilities, hotel systems used, or achievements...">${escapeHtml(exp.skills_acquired || exp.description || '')}</textarea>
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+window.renderCompEditExperienceCardsHTML = renderCompEditExperienceCardsHTML;
+
+function renderCompEditExperienceCardsDOM() {
+  const container = document.getElementById('comp-exp-dynamic-container');
+  if (!container) return;
+  container.innerHTML = renderCompEditExperienceCardsHTML();
+  updateCompEditExperienceLiveDisplays();
+}
+window.renderCompEditExperienceCardsDOM = renderCompEditExperienceCardsDOM;
+
+function addCompEditExperienceEntry() {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  const defaultDept = window.compEditProfileState.department || 'Front Office & Guest Services';
+  window.compEditProfileState.experience.push({
+    company: '',
+    role: '',
+    is_hospitality: true,
+    department: defaultDept,
+    date_from: '',
+    date_to: '',
+    is_current: false,
+    worked_years: '0',
+    period: '',
+    skills_acquired: ''
+  });
+  renderCompEditExperienceCardsDOM();
+}
+window.addCompEditExperienceEntry = addCompEditExperienceEntry;
+
+function removeCompEditExperienceEntry(idx) {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  window.compEditProfileState.experience.splice(idx, 1);
+  renderCompEditExperienceCardsDOM();
+}
+window.removeCompEditExperienceEntry = removeCompEditExperienceEntry;
+
+function setCompEditExperienceHospitality(idx, isHosp) {
+  captureCompEditDynamicInputs();
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  if (window.compEditProfileState.experience[idx]) {
+    window.compEditProfileState.experience[idx].is_hospitality = isHosp;
+    if (isHosp && !window.compEditProfileState.experience[idx].department) {
+      window.compEditProfileState.experience[idx].department = window.compEditProfileState.department || 'Front Office & Guest Services';
+    }
+    renderCompEditExperienceCardsDOM();
+  }
+}
+window.setCompEditExperienceHospitality = setCompEditExperienceHospitality;
+
+function onCompEditExperienceDeptChange(idx, val) {
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  if (window.compEditProfileState.experience[idx]) {
+    window.compEditProfileState.experience[idx].department = val;
+    updateCompEditExperienceLiveDisplays();
+  }
+}
+window.onCompEditExperienceDeptChange = onCompEditExperienceDeptChange;
+
+function onCompEditExperienceDateChange(idx) {
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  const card = document.querySelector(`.comp-exp-card[data-comp-exp-index="${idx}"]`);
+  if (!card) return;
+
+  const dateFrom = card.querySelector('.comp-exp-date-from')?.value || '';
+  const dateTo = card.querySelector('.comp-exp-date-to')?.value || '';
+  const isCurrent = !!card.querySelector('.comp-exp-current-check')?.checked;
+  const calcYears = calculateExperienceYears(dateFrom, dateTo, isCurrent);
+  const period = formatExperiencePeriod(dateFrom, dateTo, isCurrent);
+
+  if (window.compEditProfileState.experience[idx]) {
+    window.compEditProfileState.experience[idx].date_from = dateFrom;
+    window.compEditProfileState.experience[idx].date_to = dateTo;
+    window.compEditProfileState.experience[idx].is_current = isCurrent;
+    window.compEditProfileState.experience[idx].worked_years = calcYears.toString();
+    window.compEditProfileState.experience[idx].period = period;
+  }
+
+  const valEl = document.getElementById(`comp-exp-calc-val-${idx}`);
+  if (valEl) valEl.textContent = calcYears.toString();
+
+  updateCompEditExperienceLiveDisplays();
+}
+window.onCompEditExperienceDateChange = onCompEditExperienceDateChange;
+
+function toggleCompEditExperienceCurrent(idx, isChecked) {
+  if (!window.compEditProfileState.experience) window.compEditProfileState.experience = [];
+  const card = document.querySelector(`.comp-exp-card[data-comp-exp-index="${idx}"]`);
+  if (card) {
+    const toInput = card.querySelector('.comp-exp-date-to');
+    if (toInput) {
+      toInput.disabled = isChecked;
+      toInput.style.opacity = isChecked ? '0.45' : '1';
+      toInput.style.cursor = isChecked ? 'not-allowed' : 'pointer';
+    }
+  }
+  if (window.compEditProfileState.experience[idx]) {
+    window.compEditProfileState.experience[idx].is_current = isChecked;
+  }
+  onCompEditExperienceDateChange(idx);
+}
+window.toggleCompEditExperienceCurrent = toggleCompEditExperienceCurrent;
+
+// Languages in Comprehensive Edit Profile
+function updateCompEditLanguagesDOM() {
+  if (!window.compEditLanguagesState) return;
+  const q = (window.compEditLanguagesState.query || '').toLowerCase().trim();
+  const presetList = [...HOTEL_LANGUAGES_PRESETS];
+  (window.compEditLanguagesState.customPool || []).forEach(name => {
+    if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      presetList.push({ name, level: 'Fluent' });
+    }
+  });
+
+  const allNames = Array.from(new Set([...(window.compEditLanguagesState.customPool || []), ...presetList.map(l => l.name)]));
+  const hasExactMatch = q && allNames.some(l => l.toLowerCase() === q);
+
+  const customAdd = document.getElementById('comp-languages-add-chip-container');
+  if (customAdd) {
+    if (q && !hasExactMatch) {
+      customAdd.innerHTML = `
+        <div class="schema-add-chip" onclick="addCustomCompEditLanguage('${window.compEditLanguagesState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+          + Add "${window.compEditLanguagesState.query}" (Fluent) to languages
+        </div>
+      `;
+    } else {
+      customAdd.innerHTML = '';
+    }
+  }
+
+  const pillsPool = document.getElementById('comp-languages-pills-pool');
+  if (pillsPool) {
+    const selectedStack = (window.compEditLanguagesState.selected || []).filter(l => !q || l.name.toLowerCase().includes(q));
+    const unselectedPool = presetList.filter(l => !(window.compEditLanguagesState.selected || []).some(sel => sel.name === l.name && sel.level === l.level)).filter(l => !q || l.name.toLowerCase().includes(q));
+
+    pillsPool.innerHTML = [
+      ...selectedStack.map(l => `
+        <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleCompEditLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to unselect">
+          ✓ ${l.name} (${l.level})
+        </span>
+      `),
+      ...unselectedPool.map(l => `
+        <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleCompEditLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to select">
+          + ${l.name} (${l.level})
+        </span>
+      `)
+    ].join('');
+  }
+}
+window.updateCompEditLanguagesDOM = updateCompEditLanguagesDOM;
+
+function filterCompEditLanguages(q) {
+  if (!window.compEditLanguagesState) return;
+  window.compEditLanguagesState.query = q;
+  updateCompEditLanguagesDOM();
+}
+window.filterCompEditLanguages = filterCompEditLanguages;
+
+function addCustomCompEditLanguage(lang) {
+  if (!lang || !window.compEditLanguagesState) return;
+  const trimmed = lang.trim();
+  if (trimmed) {
+    if (!window.compEditLanguagesState.customPool) window.compEditLanguagesState.customPool = [];
+    if (!window.compEditLanguagesState.customPool.includes(trimmed)) {
+      window.compEditLanguagesState.customPool.push(trimmed);
+    }
+    if (!window.compEditLanguagesState.selected) window.compEditLanguagesState.selected = [];
+    const sameNameIdx = window.compEditLanguagesState.selected.findIndex(l => l.name.toLowerCase() === trimmed.toLowerCase());
+    if (sameNameIdx >= 0) {
+      window.compEditLanguagesState.selected.splice(sameNameIdx, 1);
+    }
+    window.compEditLanguagesState.selected.unshift({ name: trimmed, level: 'Fluent' });
+    window.compEditLanguagesState.query = '';
+    const input = document.getElementById('comp-languages-search');
+    if (input) input.value = '';
+    updateCompEditLanguagesDOM();
+  }
+}
+window.addCustomCompEditLanguage = addCustomCompEditLanguage;
+
+function toggleCompEditLanguage(name, level, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!window.compEditLanguagesState) return;
+  if (!window.compEditLanguagesState.selected) window.compEditLanguagesState.selected = [];
+  const existingIdx = window.compEditLanguagesState.selected.findIndex(l => l.name === name && l.level === level);
+  if (existingIdx >= 0) {
+    window.compEditLanguagesState.selected.splice(existingIdx, 1);
+  } else {
+    const sameNameIdx = window.compEditLanguagesState.selected.findIndex(l => l.name === name);
+    if (sameNameIdx >= 0) {
+      window.compEditLanguagesState.selected.splice(sameNameIdx, 1);
+    }
+    window.compEditLanguagesState.selected.unshift({ name, level });
+  }
+  updateCompEditLanguagesDOM();
+}
+window.toggleCompEditLanguage = toggleCompEditLanguage;
+
+// Main Open Comprehensive Candidate Edit Profile Modal
 async function openComprehensiveEditProfileModal() {
   const userId = state.currentUser ? state.currentUser.id : (state.demoDataHidden ? null : 'user_rahim');
   if (!userId) {
@@ -19016,8 +19844,38 @@ async function openComprehensiveEditProfileModal() {
   const profile = await res.json();
   state.profile = profile;
 
+  const prefs = profile.preferences || {};
+  const currentDept = profile.department || prefs.department || 'Front Office & Guest Services';
+  const currentSalary = prefs.expected_salary || profile.expected_salary || '৳55,000';
+  const isNegotiable = currentSalary === 'Negotiable';
+  const currentShift = prefs.shift || 'Rotational';
+  const preferredLocStr = profile.location || prefs.preferred_location || 'Anywhere in Bangladesh';
+
+  let initialLocations = [];
+  if (Array.isArray(prefs.preferred_locations) && prefs.preferred_locations.length > 0) {
+    initialLocations = prefs.preferred_locations.filter(s => !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(String(s).trim().toLowerCase()));
+  } else if (preferredLocStr) {
+    initialLocations = preferredLocStr.split(',').map(s => s.trim()).filter(s => !['anywhere in bangladesh', 'anywhere in bd', 'all'].includes(s.toLowerCase()));
+  }
+
+  // Initialize Modal Global State
+  window.compEditProfileState = {
+    department: currentDept,
+    education: Array.isArray(profile.education) ? JSON.parse(JSON.stringify(profile.education)) : [],
+    certifications: Array.isArray(profile.certifications) ? JSON.parse(JSON.stringify(profile.certifications)) : [],
+    experience: Array.isArray(profile.experience) ? JSON.parse(JSON.stringify(profile.experience)) : [],
+    preferred_location: preferredLocStr,
+    preferred_locations: initialLocations
+  };
+
   window.compEditSkillsState = {
     selected: [...(profile.skills || [])],
+    query: '',
+    customPool: []
+  };
+
+  window.compEditLanguagesState = {
+    selected: Array.isArray(profile.languages) ? JSON.parse(JSON.stringify(profile.languages)) : [],
     query: '',
     customPool: []
   };
@@ -19028,27 +19886,21 @@ async function openComprehensiveEditProfileModal() {
     crop: null
   };
 
-  const prefs = profile.preferences || {};
-  const currentDept = profile.department || prefs.department || 'Front Office & Guest Services';
-  const currentSalary = prefs.expected_salary || profile.expected_salary || '৳55,000';
-  const isNegotiable = currentSalary === 'Negotiable';
-  const currentShift = prefs.shift || 'Rotational';
-
   const container = document.getElementById('modal-container');
   container.innerHTML = `
     <div class="modal-backdrop open" id="modal-edit-profile-comp">
-      <div class="modal-dialog" style="max-width: 720px;">
+      <div class="modal-dialog" style="max-width: 760px;">
         <div class="modal-header">
           <div>
             <h2 class="modal-title">Edit Candidate Profile</h2>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Update personal identity, contact details, hospitality roles &amp; preferences</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Update personal identity, verified credentials, education, certifications &amp; experience</div>
           </div>
           <button class="modal-close" onclick="closeModal('modal-edit-profile-comp')" aria-label="Close modal">${svgIcon('x', '', 18)}</button>
         </div>
 
         <form id="form-edit-profile-comp" onsubmit="handleSaveComprehensiveProfile(event)">
-          <div class="modal-body">
-            <!-- Avatar / PFP Section -->
+          <div class="modal-body" style="max-height: 75vh; overflow-y: auto; padding: 22px;">
+            <!-- Profile Photo Section -->
             <div style="display: flex; align-items: center; gap: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 16px;">
               <div style="position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--orange-primary); flex-shrink: 0; background: #070d1e;">
                 <img id="edit-cand-pfp-img" src="${profile.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="Profile avatar" style="width: 100%; height: 100%; object-fit: cover;">
@@ -19071,28 +19923,14 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Basic Details (First, Middle, Last) -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">First Name *</label>
-                <input type="text" name="first_name" value="${escapeHtml(profile.first_name || '')}" required placeholder="First name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Middle Name <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
-                <input type="text" name="middle_name" value="${escapeHtml(profile.middle_name || '')}" placeholder="Middle name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Last Name *</label>
-                <input type="text" name="last_name" value="${escapeHtml(profile.last_name || '')}" required placeholder="Last name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
+            <!-- Full Name (Single Field, No 3-Part Name, No Bangla Name) -->
+            <div class="auth-field" style="margin-bottom: 12px;">
+              <label class="auth-label" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Full Name *</label>
+              <input type="text" name="name" class="auth-input" value="${escapeHtml(profile.name || '')}" required placeholder="Enter your full name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
             </div>
 
-            <!-- Bangla Name, Date of Birth (DOB) & NID / Passport -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Bangla Name <span style="font-weight: 400; color: var(--text-dim);">(বাংলা নাম - ঐচ্ছিক)</span></label>
-                <input type="text" name="name_bangla" value="${escapeHtml(profile.name_bangla || '')}" placeholder="যেমন: মোঃ রহিম আহমেদ" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
+            <!-- Date of Birth (DOB) & NID / Passport (Kept side by side) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
               <div>
                 <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Date of Birth (DOB)</label>
                 <input type="date" name="dob" value="${profile.dob || ''}" style="width: 100%; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
@@ -19103,134 +19941,180 @@ async function openComprehensiveEditProfileModal() {
               </div>
             </div>
 
-            <!-- Contact Credentials (Primary Mobile, Secondary Mobile, Email) -->
-            <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.1); padding: 14px; border-radius: var(--radius-md); margin-top: 14px;">
-              <div style="font-size: 0.85rem; font-weight: 700; color: var(--white); margin-bottom: 8px;">
-                Verified Contact Information
+            <!-- Verified Contact Information (Primary Mobile & Email Fixed, Secondary Mobile Editable) -->
+            <div style="background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px; border-radius: var(--radius-md); margin-bottom: 16px;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: var(--white); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                ${svgIcon('shieldCheck', '', 16)} Verified Contact Information
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                 <div>
-                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Primary Mobile *</label>
-                  <input type="tel" id="edit-phone" name="phone" value="${profile.phone || ''}" required placeholder="01XXXXXXXXX" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Primary Mobile</label>
+                  <div class="phone-input-wrapper" style="opacity: 0.9;">
+                    <span class="phone-prefix-fixed">+88</span>
+                    <input type="tel" value="${escapeHtml(profile.phone || '')}" readonly style="background: rgba(255, 255, 255, 0.04); cursor: default; color: var(--text-muted); font-size: 0.85rem;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 0.7rem; font-weight: 700; color: #34d399; background: rgba(52, 211, 153, 0.12); border-radius: 4px; margin-right: 6px;">
+                      ${svgIcon('shieldCheck', '', 12)} Fixed
+                    </span>
+                  </div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; display: block;">Primary verified phone</span>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Email Address</label>
+                  <div style="position: relative; display: flex; align-items: center;">
+                    <input type="email" value="${escapeHtml(profile.email || '')}" readonly style="width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); padding: 8px 30px 8px 12px; border-radius: var(--radius-md); color: var(--text-muted); font-size: 0.85rem; cursor: default;">
+                    <span style="position: absolute; right: 10px; color: #34d399;" title="Verified primary email">${svgIcon('shieldCheck', '', 15)}</span>
+                  </div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; display: block;">Primary verified email</span>
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Secondary Mobile <span style="font-weight: 400; color: var(--text-dim);">(Optional)</span></label>
-                  <input type="tel" name="phone_secondary" value="${profile.phone_secondary || prefs.phone_secondary || ''}" placeholder="01XXXXXXXXX" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                </div>
-                <div>
-                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--white);">Email Address *</label>
-                  <input type="email" id="edit-email" name="email" value="${profile.email || ''}" required style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                </div>
-              </div>
-
-              <!-- Inline OTP Box -->
-              <div id="contact-otp-box" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 0.8rem; color: #fdba74; margin-bottom: 6px;">
-                  Enter 6-digit OTP code sent to confirm phone/email change:
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <input type="text" id="contact-otp-code" maxlength="6" placeholder="123456" style="width: 130px; background: var(--bg-input); border: 2px solid var(--orange-primary); padding: 6px 10px; border-radius: var(--radius-md); color: var(--white); font-weight: 800; text-align: center;">
-                  <button type="button" class="btn-orange" style="padding: 6px 12px; font-size: 0.8rem;" onclick="requestContactChangeOtp()">
-                    Send OTP
-                  </button>
+                  <div class="phone-input-wrapper">
+                    <span class="phone-prefix-fixed">+88</span>
+                    <input type="tel" name="phone_secondary" value="${escapeHtml(profile.phone_secondary || prefs.phone_secondary || '')}" placeholder="01XXXXXXXXX" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);" style="background: var(--bg-input); font-size: 0.85rem;">
+                  </div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; display: block;">Alternative contact for HR</span>
                 </div>
               </div>
             </div>
 
-            <!-- Hospitality Department & Designation (Job Title) -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Hospitality Department *</label>
-                <select name="department" id="edit-comp-department" onchange="handleCompEditDepartmentChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${currentDept === d ? 'selected' : ''}>${d}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Designation (Job Title) *</label>
-                <input type="text" name="designation" id="edit-comp-designation" value="${escapeHtml(profile.designation || profile.current_position || '')}" required placeholder="e.g. Front Desk Agent" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-            </div>
-
-            <!-- Professional Headline & Preferred Shift -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Professional Headline *</label>
-                <input type="text" name="headline" value="${escapeHtml(profile.headline || '')}" required placeholder="e.g. Front Office Associate • 5-Star Hotel Guest Relations" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Preferred Shift</label>
-                <select name="shift" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
-                  <option value="Rotational" ${currentShift === 'Rotational' ? 'selected' : ''}>Rotational</option>
-                  <option value="Morning" ${currentShift === 'Morning' ? 'selected' : ''}>Morning</option>
-                  <option value="Evening" ${currentShift === 'Evening' ? 'selected' : ''}>Evening</option>
-                  <option value="Night" ${currentShift === 'Night' ? 'selected' : ''}>Night</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Expected Monthly Salary -->
-            <div style="margin-top: 12px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; color: var(--white); margin-bottom: 0;">Expected Monthly Salary</label>
-                <button type="button" id="comp-salary-neg-btn" 
-                        class="btn-salary-neg-pill ${isNegotiable ? 'active' : ''}" 
-                        onclick="toggleCandidateSalaryNegotiable(this, 'comp-edit-salary')">
-                  Negotiable
-                </button>
-              </div>
-              <input type="text" id="comp-edit-salary" name="expected_salary"
-                     value="${escapeHtml(currentSalary)}" 
-                     placeholder="e.g. ৳55,000" 
-                     oninput="handleExpectedSalaryInput(this, 'comp-salary-neg-btn')"
-                     onkeydown="handleExpectedSalaryKeydown(event)"
-                     ${isNegotiable ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 9px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.88rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;"'}>
-            </div>
-
-            <!-- Bio / Summary -->
-            <div style="margin-top: 12px;">
+            <!-- Professional Bio with 100-word limit counter -->
+            <div class="auth-field" style="margin-bottom: 14px;">
               <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0; color: var(--white);">Summary / Bio</label>
-                <span id="full-profile-summary-word-count" style="font-size: 0.76rem; color: var(--text-dim);">${countWords(profile.summary || '')} / 100 words</span>
+                <label class="auth-label" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0; color: var(--white);">Professional Bio / Summary</label>
+                <span id="comp-edit-bio-word-count" style="font-size: 0.76rem; color: var(--text-dim);">
+                  ${countWords(profile.summary || profile.bio || '')} / 100 words
+                </span>
               </div>
               <textarea name="summary" rows="3" 
-                oninput="const c = countWords(this.value); const el = document.getElementById('full-profile-summary-word-count'); if(el){ el.textContent = c + ' / 100 words'; el.style.color = c > 100 ? '#f87171' : 'var(--text-dim)'; el.style.fontWeight = c > 100 ? '700' : 'normal'; }"
-                placeholder="Highlight your hotel department, guest service philosophy, and core hospitality strengths (maximum 100 words)..."
-                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${escapeHtml(profile.summary || '')}</textarea>
+                oninput="handleCompEditBioInput(this)"
+                placeholder="Write a brief professional summary of your hospitality background and strengths (maximum 100 words)..."
+                style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">${escapeHtml(profile.summary || profile.bio || '')}</textarea>
+              <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">Maximum 100 words. Highlight your hotel department, guest service philosophy, and core hospitality strengths.</div>
             </div>
 
-            <!-- Location & Visibility -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px;">
-              <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Preferred / Current Location</label>
-                <input type="text" name="location" value="${escapeHtml(profile.location || prefs.preferred_location || 'Dhaka, Bangladesh')}" placeholder="Location" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+            <!-- Career & Job Preferences -->
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+              <div style="font-weight: 700; font-size: 0.88rem; color: var(--white); margin-bottom: 10px;">
+                Career &amp; Job Preferences
               </div>
+
+              <!-- Department & Designation -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Department *</label>
+                  <select name="department" id="comp-edit-department" onchange="handleCompEditDepartmentChange(this.value)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                    ${HOTEL_ALL_DEPARTMENTS.map(d => `<option value="${d}" ${currentDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Job Title (Designation) *</label>
+                  <select name="designation" id="comp-edit-designation" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                    ${(() => {
+                      const titles = getJobTitlesForDepartment(currentDept);
+                      const selRole = profile.designation || profile.current_position || prefs.desired_role || titles[0];
+                      return titles.map(t => `<option value="${escapeHtml(t)}" ${selRole === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+                    })()}
+                  </select>
+                </div>
+              </div>
+
+              <!-- Professional Headline & Preferred Shift -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Professional Headline *</label>
+                  <input type="text" name="headline" value="${escapeHtml(profile.headline || '')}" required placeholder="e.g. Front Office Associate • 5-Star Hotel Guest Relations" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Preferred Shift</label>
+                  <select name="shift" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                    <option value="Rotational" ${currentShift === 'Rotational' ? 'selected' : ''}>Rotational</option>
+                    <option value="Morning" ${currentShift === 'Morning' ? 'selected' : ''}>Morning</option>
+                    <option value="Evening" ${currentShift === 'Evening' ? 'selected' : ''}>Evening</option>
+                    <option value="Night" ${currentShift === 'Night' ? 'selected' : ''}>Night</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Expected Monthly Salary -->
+              <div style="margin-bottom: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 0;">Expected Monthly Salary</label>
+                  <button type="button" id="comp-salary-neg-btn" 
+                          class="btn-salary-neg-pill ${isNegotiable ? 'active' : ''}" 
+                          onclick="toggleCandidateSalaryNegotiable(this, 'comp-edit-salary')">
+                    Negotiable
+                  </button>
+                </div>
+                <input type="text" id="comp-edit-salary" name="expected_salary"
+                       value="${escapeHtml(currentSalary)}" 
+                       placeholder="e.g. ৳55,000" 
+                       oninput="handleExpectedSalaryInput(this, 'comp-salary-neg-btn')"
+                       onkeydown="handleExpectedSalaryKeydown(event)"
+                       ${isNegotiable ? 'readonly style="width: 100%; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.4); padding: 8px 12px; border-radius: var(--radius-md); color: #ff7a18; font-weight: 700; font-size: 0.85rem;"' : 'style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;"'}>
+              </div>
+
+              <!-- Preferred Location: Bangladesh 64 Districts Proximity Picker -->
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Visibility</label>
-                <select name="visibility" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
-                  <option value="eligible_employers" ${profile.visibility === 'eligible_employers' ? 'selected' : ''}>Applied Employers Only</option>
-                  <option value="registered_users" ${profile.visibility === 'registered_users' ? 'selected' : ''}>All Registered Hotels</option>
-                  <option value="private" ${profile.visibility === 'private' ? 'selected' : ''}>Private</option>
-                </select>
+                <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Preferred Location</label>
+                <div id="comp-location-picker-wrapper">
+                  ${renderDistrictProximityPicker({
+                    pickerId: 'comp-pref-location-picker',
+                    selected: initialLocations,
+                    context: 'comp_edit_profile',
+                    allowMultiple: true,
+                    allowAnywhere: false
+                  })}
+                </div>
+                <input type="hidden" id="comp-pref-location" name="location" value="${escapeHtml(preferredLocStr)}">
               </div>
             </div>
 
-            <!-- Open to Work Status Switch -->
-            <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; margin-top: 14px;">
-              <div>
-                <label style="font-weight: 700; font-size: 0.85rem; color: var(--white); display: block; margin-bottom: 2px;">Open to Work</label>
-                <span style="font-size: 0.78rem; color: var(--text-dim);">Let 5-star hotel recruiters know you are actively seeking hospitality roles.</span>
+            <!-- EDUCATION: Multi-entry with Bangladesh certificates & degrees -->
+            <div class="auth-field" style="margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="auth-label" style="margin: 0; font-weight: 700; font-size: 0.88rem; color: var(--white);">Education (Bangladesh Certificates &amp; Degrees)</label>
+                <span style="font-size: 0.74rem; color: var(--text-dim);">Add as many as you have</span>
               </div>
-              <input type="checkbox" name="open_to_work" ${(profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === undefined) ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--orange-primary); cursor: pointer;">
+
+              <div class="dynamic-list-container" id="comp-edu-dynamic-container">
+                ${(!window.compEditProfileState.education || window.compEditProfileState.education.length === 0) ? `
+                  <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+                    No degrees or certificates added yet. Click below to add.
+                  </div>
+                ` : window.compEditProfileState.education.map((edu, idx) => renderCompEditSingleEducationCardHtml(edu, idx)).join('')}
+              </div>
+
+              <button type="button" class="dynamic-add-btn" onclick="addCompEditEducationEntry()">
+                + Add Another Degree / School Certificate
+              </button>
             </div>
 
-            <!-- Skills (Unified Schema Select System) -->
-            <div style="margin-top: 14px;">
-              <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">
-                Hospitality Skills &amp; Operational Competencies
-              </label>
+            <!-- CERTIFICATIONS: Multi-entry with Certification Name, Year Obtained, Issued by -->
+            <div class="auth-field" style="margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="auth-label" style="margin: 0; font-weight: 700; font-size: 0.88rem; color: var(--white);">Professional Certifications</label>
+                <span style="font-size: 0.74rem; color: var(--text-dim);">Hospitality accreditations &amp; licenses</span>
+              </div>
+
+              <div class="dynamic-list-container" id="comp-cert-dynamic-container">
+                ${(!window.compEditProfileState.certifications || window.compEditProfileState.certifications.length === 0) ? `
+                  <div style="color: var(--text-dim); font-size: 0.82rem; padding: 12px; border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: center; margin-bottom: 8px;">
+                    No certifications added yet. Click below to add your certificates (or leave empty).
+                  </div>
+                ` : window.compEditProfileState.certifications.map((cert, idx) => renderCompEditSingleCertificationCardHtml(cert, idx)).join('')}
+              </div>
+
+              <button type="button" class="dynamic-add-btn" onclick="addCompEditCertificationEntry()">
+                + Add Another Certification
+              </button>
+            </div>
+
+            <!-- SKILLS: Unified Schema Select System -->
+            <div class="auth-field" style="margin-bottom: 16px;">
+              <label class="auth-label" style="font-weight: 700; font-size: 0.88rem; color: var(--white); margin-bottom: 6px;">Hospitality Skills</label>
               <div class="schema-box-wrapper" style="margin-bottom: 0;">
                 <input type="text" class="schema-search-input" id="comp-skills-search" 
-                  placeholder="Type skill and press Enter to add..." 
+                  placeholder="Search or enter a skill, then press Enter..." 
                   value="${window.compEditSkillsState.query || ''}" 
                   oninput="filterCompEditSkills(this.value)"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomCompEditSkill(this.value);}">
@@ -19274,54 +20158,116 @@ async function openComprehensiveEditProfileModal() {
                 </div>
               </div>
             </div>
+
+            <!-- LANGUAGES: Unified Schema Select System -->
+            <div class="auth-field" style="margin-bottom: 16px;">
+              <label class="auth-label" style="font-weight: 700; font-size: 0.88rem; color: var(--white); margin-bottom: 6px;">Languages &amp; Fluency</label>
+              <div class="schema-box-wrapper" style="margin-bottom: 0;">
+                <input type="text" class="schema-search-input" id="comp-languages-search" 
+                  placeholder="Search or enter a language, then press Enter..." 
+                  value="${window.compEditLanguagesState.query || ''}" 
+                  oninput="filterCompEditLanguages(this.value)"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomCompEditLanguage(this.value);}">
+
+                <div id="comp-languages-add-chip-container">
+                  ${(() => {
+                    const q = (window.compEditLanguagesState.query || '').toLowerCase().trim();
+                    const presetList = [...HOTEL_LANGUAGES_PRESETS];
+                    (window.compEditLanguagesState.customPool || []).forEach(name => {
+                      if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                        presetList.push({ name, level: 'Fluent' });
+                      }
+                    });
+                    const allNames = Array.from(new Set([...(window.compEditLanguagesState.customPool || []), ...presetList.map(l => l.name)]));
+                    const hasExactMatch = q && allNames.some(l => l.toLowerCase() === q);
+                    if (q && !hasExactMatch) {
+                      return `
+                        <div class="schema-add-chip" onclick="addCustomCompEditLanguage('${window.compEditLanguagesState.query.replace(/'/g, "\\'")}')" style="cursor: pointer; margin-bottom: 8px;">
+                          + Add "${window.compEditLanguagesState.query}" (Fluent) to languages
+                        </div>
+                      `;
+                    }
+                    return '';
+                  })()}
+                </div>
+
+                <div class="schema-pills-pool" id="comp-languages-pills-pool" style="max-height: 200px;">
+                  ${(() => {
+                    const q = (window.compEditLanguagesState.query || '').toLowerCase().trim();
+                    const presetList = [...HOTEL_LANGUAGES_PRESETS];
+                    (window.compEditLanguagesState.customPool || []).forEach(name => {
+                      if (!presetList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                        presetList.push({ name, level: 'Fluent' });
+                      }
+                    });
+
+                    const selectedStack = (window.compEditLanguagesState.selected || []).filter(l => !q || l.name.toLowerCase().includes(q));
+                    const unselectedPool = presetList.filter(l => !(window.compEditLanguagesState.selected || []).some(sel => sel.name === l.name && sel.level === l.level)).filter(l => !q || l.name.toLowerCase().includes(q));
+
+                    return [
+                      ...selectedStack.map(l => `
+                        <span class="schema-pill-item selected" data-pill-key="${l.name} (${l.level})" onclick="toggleCompEditLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to unselect">
+                          ✓ ${l.name} (${l.level})
+                        </span>
+                      `),
+                      ...unselectedPool.map(l => `
+                        <span class="schema-pill-item" data-pill-key="${l.name} (${l.level})" onclick="toggleCompEditLanguage('${l.name.replace(/'/g, "\\'")}', '${l.level}', event)" title="Click to select">
+                          + ${l.name} (${l.level})
+                        </span>
+                      `)
+                    ].join('');
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <!-- PREVIOUS HOSPITALITY EXPERIENCE -->
+            <div class="auth-field" style="margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="auth-label" style="margin: 0; font-weight: 700; font-size: 0.88rem; color: var(--white);">Previous Hospitality Experience</label>
+                <span style="font-size: 0.74rem; color: var(--text-dim);">Multi-entry experience</span>
+              </div>
+
+              <div class="dynamic-list-container" id="comp-exp-dynamic-container">
+                ${renderCompEditExperienceCardsHTML()}
+              </div>
+
+              <button type="button" class="dynamic-add-btn" onclick="addCompEditExperienceEntry()">
+                + Add Another Experience Entry
+              </button>
+            </div>
+
+            <!-- Open to Work Status & Visibility Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;">
+              <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <label style="font-weight: 700; font-size: 0.85rem; color: var(--white); display: block; margin-bottom: 2px;">Open to Work</label>
+                  <span style="font-size: 0.74rem; color: var(--text-dim);">Actively seeking hospitality roles</span>
+                </div>
+                <input type="checkbox" name="open_to_work" ${(profile.open_to_work === 1 || profile.open_to_work === true || profile.open_to_work === undefined) ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--orange-primary); cursor: pointer;">
+              </div>
+
+              <div style="background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-md);">
+                <label style="font-weight: 700; font-size: 0.85rem; color: var(--white); display: block; margin-bottom: 4px;">Visibility</label>
+                <select name="visibility" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+                  <option value="eligible_employers" ${profile.visibility === 'eligible_employers' ? 'selected' : ''}>Applied Employers Only</option>
+                  <option value="registered_users" ${profile.visibility === 'registered_users' ? 'selected' : ''}>All Registered Hotels</option>
+                  <option value="private" ${profile.visibility === 'private' ? 'selected' : ''}>Private</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div class="modal-footer">
+          <div class="modal-footer" style="padding: 16px 22px;">
             <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-profile-comp')">Cancel</button>
-            <button type="submit" class="btn-orange">Save Changes</button>
+            <button type="submit" class="btn-orange" style="padding: 9px 24px;">Save Changes</button>
           </div>
         </form>
       </div>
     </div>
   `;
-
-  // Attach change listener to phone and email
-  const pInput = document.getElementById('edit-phone');
-  const eInput = document.getElementById('edit-email');
-  const checkContactChange = () => {
-    const origPhone = state.profile?.phone || '';
-    const origEmail = state.profile?.email || '';
-    if (pInput.value.trim() !== origPhone.trim() || eInput.value.trim().toLowerCase() !== origEmail.trim().toLowerCase()) {
-      document.getElementById('contact-otp-box').style.display = 'block';
-    } else {
-      document.getElementById('contact-otp-box').style.display = 'none';
-    }
-  };
-  pInput.addEventListener('input', checkContactChange);
-  eInput.addEventListener('input', checkContactChange);
 }
-
-async function requestContactChangeOtp() {
-  const newEmail = document.getElementById('edit-email')?.value.trim();
-  const newPhone = document.getElementById('edit-phone')?.value.trim();
-  const target = newEmail || newPhone;
-
-  try {
-    const res = await fetch('/api/auth/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: target, purpose: 'contact_change' })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.detail || 'Failed to dispatch verification code.', 'danger');
-    } else {
-      showToast(`Security code sent to ${target}. Valid for 5 minutes.`, 'success');
-    }
-  } catch (err) {
-    showToast(err.message, 'danger');
-  }
-}
+window.openComprehensiveEditProfileModal = openComprehensiveEditProfileModal;
 
 async function handleSaveComprehensiveProfile(event) {
   event.preventDefault();
@@ -19330,26 +20276,22 @@ async function handleSaveComprehensiveProfile(event) {
     showToast('Please sign in to update your profile.', 'danger');
     return;
   }
+  captureCompEditDynamicInputs();
   const form = event.target;
-  const newEmail = form.email.value.trim();
-  const newPhone = form.phone.value.trim();
-  const otpCode = document.getElementById('contact-otp-code')?.value.trim() || null;
-  const avatarUrl = document.getElementById('edit-profile-avatar-url')?.value || null;
+  const fullName = (form.name?.value || '').trim();
+  if (!fullName) {
+    showToast('Please enter your full name.', 'warning');
+    form.name?.focus();
+    return;
+  }
 
-  const skillsArr = window.compEditSkillsState ? window.compEditSkillsState.selected : (form.skills_csv?.value.split(',').map(s => s.trim()).filter(Boolean) || []);
-
-  const firstName = (form.first_name?.value || '').trim();
-  const middleName = (form.middle_name?.value || '').trim();
-  const lastName = (form.last_name?.value || '').trim();
-  const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || (form.name?.value || '');
-  const nameBangla = (form.name_bangla?.value || '').trim();
   const dobVal = form.dob?.value || '';
   const nidPassport = (form.nid_passport?.value || '').trim();
   const phoneSec = (form.phone_secondary?.value || '').replace(/[^0-9]/g, '').slice(0, 11);
 
   const dept = form.department?.value || 'Front Office & Guest Services';
   const designation = (form.designation?.value || '').trim();
-  const headline = (form.headline?.value || '').trim();
+  const headline = (form.headline?.value || '').trim() || `${designation || dept} Professional`;
   const shift = form.shift?.value || 'Rotational';
 
   const isNeg = document.getElementById('comp-salary-neg-btn')?.classList.contains('active');
@@ -19363,6 +20305,15 @@ async function handleSaveComprehensiveProfile(event) {
     return;
   }
 
+  const avatarUrl = document.getElementById('edit-profile-avatar-url')?.value || null;
+  const skillsArr = window.compEditSkillsState ? window.compEditSkillsState.selected : (state.profile?.skills || []);
+  const languagesArr = window.compEditLanguagesState ? window.compEditLanguagesState.selected : (state.profile?.languages || []);
+  const educationArr = window.compEditProfileState?.education || [];
+  const certsArr = window.compEditProfileState?.certifications || [];
+  const expArr = window.compEditProfileState?.experience || [];
+
+  const locVal = document.getElementById('comp-pref-location')?.value || form.location?.value || 'Anywhere in Bangladesh';
+
   const currentPrefs = state.profile?.preferences || {};
   const updatedPrefs = {
     ...currentPrefs,
@@ -19372,33 +20323,34 @@ async function handleSaveComprehensiveProfile(event) {
     shift: shift,
     expected_salary: expSalary,
     phone_secondary: phoneSec,
-    preferred_location: form.location.value
+    preferred_location: locVal,
+    preferred_locations: window.compEditProfileState?.preferred_locations || [locVal]
   };
+
+  const totalExpYears = parseFloat(getCompEditTotalHospitalityExp()) || 0;
 
   const payload = {
     user_id: userId,
     name: fullName,
-    first_name: firstName,
-    middle_name: middleName,
-    last_name: lastName,
-    name_bangla: nameBangla,
     dob: dobVal,
     nid_passport: nidPassport,
     phone_secondary: phoneSec,
     department: dept,
-    email: newEmail,
-    phone: newPhone,
-    otp_code: otpCode,
-    avatar_url: avatarUrl,
     designation: designation,
     current_position: designation,
     headline: headline,
     summary: summaryVal,
-    location: form.location.value,
-    visibility: form.visibility.value,
+    location: locVal,
+    visibility: form.visibility?.value || 'eligible_employers',
     open_to_work: form.open_to_work ? form.open_to_work.checked : (state.profile?.open_to_work ? true : false),
     skills: skillsArr,
-    preferences: updatedPrefs
+    languages: languagesArr,
+    education: educationArr,
+    certifications: certsArr,
+    experience: expArr,
+    experience_years: totalExpYears,
+    preferences: updatedPrefs,
+    avatar_url: avatarUrl
   };
 
   try {
@@ -19408,41 +20360,33 @@ async function handleSaveComprehensiveProfile(event) {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-
-    if (data.requires_otp) {
-      document.getElementById('contact-otp-box').style.display = 'block';
-      showToast(data.detail, 'orange');
-      requestContactChangeOtp();
-      return;
-    }
-
     if (!res.ok) throw new Error(data.detail || 'Profile update failed');
 
     if (state.currentUser) {
       state.currentUser.avatar = avatarUrl || DEFAULT_AVATAR_PREVIEW;
-      state.currentUser.name = payload.name;
-      if (payload.designation) state.currentUser.designation = payload.designation;
+      state.currentUser.name = fullName;
+      if (designation) state.currentUser.designation = designation;
     }
     if (state.profile) {
       state.profile.avatar_url = avatarUrl;
-      state.profile.name = payload.name;
-      state.profile.first_name = firstName;
-      state.profile.middle_name = middleName;
-      state.profile.last_name = lastName;
-      state.profile.name_bangla = nameBangla;
+      state.profile.name = fullName;
       state.profile.dob = dobVal;
       state.profile.nid_passport = nidPassport;
-      state.profile.phone = newPhone;
       state.profile.phone_secondary = phoneSec;
       state.profile.department = dept;
       state.profile.designation = designation;
       state.profile.current_position = designation;
       state.profile.headline = headline;
       state.profile.summary = summaryVal;
-      state.profile.location = payload.location;
+      state.profile.location = locVal;
       state.profile.visibility = payload.visibility;
       state.profile.open_to_work = payload.open_to_work;
       state.profile.skills = skillsArr;
+      state.profile.languages = languagesArr;
+      state.profile.education = educationArr;
+      state.profile.certifications = certsArr;
+      state.profile.experience = expArr;
+      state.profile.experience_years = totalExpYears;
       state.profile.preferences = updatedPrefs;
     }
 
@@ -19455,6 +20399,7 @@ async function handleSaveComprehensiveProfile(event) {
     showToast(err.message, 'danger');
   }
 }
+window.handleSaveComprehensiveProfile = handleSaveComprehensiveProfile;
 
 // Business User Edit Profile Modal
 async function openBusinessUserEditProfileModal() {
