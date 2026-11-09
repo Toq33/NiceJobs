@@ -7539,8 +7539,163 @@ const adminState = {
   dbOverview: null,
   blogs: [],
   blogAuthors: [],
-  sponsors: []
+  sponsors: [],
+  selectedItems: {
+    users: new Set(),
+    jobs: new Set(),
+    businesses: new Set(),
+    moderators: new Set(),
+    verifications: new Set(),
+    blogs: new Set(),
+    sponsors: new Set()
+  },
+  visibleIds: {
+    users: [],
+    jobs: [],
+    businesses: [],
+    moderators: [],
+    verifications: [],
+    blogs: [],
+    sponsors: []
+  }
 };
+
+function getAdminSelected(module) {
+  if (!adminState.selectedItems) {
+    adminState.selectedItems = {};
+  }
+  if (!adminState.selectedItems[module]) {
+    adminState.selectedItems[module] = new Set();
+  }
+  return adminState.selectedItems[module];
+}
+window.getAdminSelected = getAdminSelected;
+
+function handleAdminToggleSelect(module, id, isChecked) {
+  const set = getAdminSelected(module);
+  if (isChecked) {
+    set.add(id);
+  } else {
+    set.delete(id);
+  }
+  const viewport = document.getElementById('app-viewport');
+  if (viewport && state.currentScreen === 'admin') {
+    renderAdminScreen(viewport);
+  }
+}
+window.handleAdminToggleSelect = handleAdminToggleSelect;
+
+function handleAdminSelectAll(module, isChecked) {
+  const set = getAdminSelected(module);
+  const visible = (adminState.visibleIds && adminState.visibleIds[module]) || [];
+  if (isChecked) {
+    visible.forEach(id => {
+      if (module === 'users' && id === 'user_admin') return;
+      set.add(id);
+    });
+  } else {
+    visible.forEach(id => set.delete(id));
+  }
+  const viewport = document.getElementById('app-viewport');
+  if (viewport && state.currentScreen === 'admin') {
+    renderAdminScreen(viewport);
+  }
+}
+window.handleAdminSelectAll = handleAdminSelectAll;
+
+function handleAdminClearSelection(module) {
+  const set = getAdminSelected(module);
+  set.clear();
+  const viewport = document.getElementById('app-viewport');
+  if (viewport && state.currentScreen === 'admin') {
+    renderAdminScreen(viewport);
+  }
+}
+window.handleAdminClearSelection = handleAdminClearSelection;
+
+async function handleAdminBulkDelete(module) {
+  const set = getAdminSelected(module);
+  const count = set.size;
+  if (count === 0) {
+    showToast('Please select at least one item to delete.', 'info');
+    return;
+  }
+
+  const moduleLabels = {
+    users: 'user account(s)',
+    jobs: 'job post(s)',
+    businesses: 'hotel establishment(s) and all associated jobs',
+    moderators: 'moderator request(s)',
+    verifications: 'trade verification record(s)',
+    blogs: 'blog article(s)',
+    sponsors: 'sponsor spotlight(s)'
+  };
+  const label = moduleLabels[module] || `${module} record(s)`;
+
+  const confirmed = window.confirm(
+    `Are you sure you want to permanently delete the ${count} selected ${label}?\n\nThis action cannot be undone and will permanently remove associated data from the database.`
+  );
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch('/api/admin/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        module: module,
+        ids: Array.from(set)
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Bulk deletion failed.');
+
+    set.clear();
+    showToast(data.message || `Deleted ${data.deleted_count || count} items successfully!`, 'success');
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message || 'Error executing bulk deletion', 'danger');
+  }
+}
+window.handleAdminBulkDelete = handleAdminBulkDelete;
+
+async function handleAdminDeleteModerator(memId) {
+  if (!window.confirm('Are you sure you want to delete this moderator request?')) return;
+  try {
+    const res = await fetch(`/api/admin/moderators/${memId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to delete moderator request');
+    showToast(data.message || 'Moderator request deleted.', 'success');
+    getAdminSelected('moderators').delete(memId);
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminDeleteModerator = handleAdminDeleteModerator;
+
+async function handleAdminDeleteVerification(verifId) {
+  if (!window.confirm('Are you sure you want to delete this verification record?')) return;
+  try {
+    const res = await fetch(`/api/admin/verifications/${verifId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to delete verification record');
+    showToast(data.message || 'Verification record deleted.', 'success');
+    getAdminSelected('verifications').delete(verifId);
+    const viewport = document.getElementById('app-viewport');
+    if (viewport && state.currentScreen === 'admin') {
+      renderAdminScreen(viewport);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminDeleteVerification = handleAdminDeleteVerification;
 
 async function renderAdminScreen(viewport) {
   try {
@@ -7630,6 +7785,45 @@ async function renderAdminScreen(viewport) {
       }
       return true;
     });
+
+    // Cache visible IDs for select-all actions across all modules
+    adminState.visibleIds = {
+      users: filteredUsers.map(u => u.id),
+      jobs: filteredJobs.map(j => j.id),
+      businesses: (businesses || []).map(b => b.id),
+      moderators: (moderatorRequests || []).map(m => m.id),
+      verifications: (verifications || []).map(v => v.id),
+      blogs: filteredAdminBlogs.map(b => b.id),
+      sponsors: filteredSponsors.map(s => s.id)
+    };
+
+    const selectedUsers = getAdminSelected('users');
+    const allUsersSelected = adminState.visibleIds.users.length > 0 && 
+      adminState.visibleIds.users.filter(id => id !== 'user_admin').every(id => selectedUsers.has(id));
+
+    const selectedJobs = getAdminSelected('jobs');
+    const allJobsSelected = adminState.visibleIds.jobs.length > 0 && 
+      adminState.visibleIds.jobs.every(id => selectedJobs.has(id));
+
+    const selectedBusinesses = getAdminSelected('businesses');
+    const allBizSelected = adminState.visibleIds.businesses.length > 0 && 
+      adminState.visibleIds.businesses.every(id => selectedBusinesses.has(id));
+
+    const selectedModerators = getAdminSelected('moderators');
+    const allModsSelected = adminState.visibleIds.moderators.length > 0 && 
+      adminState.visibleIds.moderators.every(id => selectedModerators.has(id));
+
+    const selectedVerifications = getAdminSelected('verifications');
+    const allVerifsSelected = adminState.visibleIds.verifications.length > 0 && 
+      adminState.visibleIds.verifications.every(id => selectedVerifications.has(id));
+
+    const selectedBlogs = getAdminSelected('blogs');
+    const allBlogsSelected = adminState.visibleIds.blogs.length > 0 && 
+      adminState.visibleIds.blogs.every(id => selectedBlogs.has(id));
+
+    const selectedSponsors = getAdminSelected('sponsors');
+    const allSponsorsSelected = adminState.visibleIds.sponsors.length > 0 && 
+      adminState.visibleIds.sponsors.every(id => selectedSponsors.has(id));
 
     const activeTab = adminState.activeTab;
 
@@ -7761,13 +7955,30 @@ async function renderAdminScreen(viewport) {
                 <option value="suspended" ${adminState.userFilterStatus === 'suspended' ? 'selected' : ''}>Suspended</option>
               </select>
             </div>
-            <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredUsers.length} user accounts found</span>
+            <div class="admin-bulk-actions-group">
+              <button class="admin-btn-action btn-bulk-delete ${selectedUsers.size > 0 ? 'has-selection' : ''}" 
+                onclick="handleAdminBulkDelete('users')" 
+                ${selectedUsers.size > 0 ? '' : 'disabled'}
+                title="${selectedUsers.size > 0 ? `Delete ${selectedUsers.size} selected users` : 'Select users to delete'}">
+                ${svgIcon('trash', '', 13)} Delete Selected ${selectedUsers.size > 0 ? `(${selectedUsers.size})` : ''}
+              </button>
+              ${selectedUsers.size > 0 ? `
+                <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('users')" title="Clear selection">
+                  ${svgIcon('x', '', 11)} Deselect
+                </button>
+              ` : ''}
+              <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredUsers.length} user accounts found</span>
+            </div>
           </div>
 
           <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" class="admin-checkbox" ${allUsersSelected ? 'checked' : ''} 
+                      onchange="handleAdminSelectAll('users', this.checked)" title="Select all visible users">
+                  </th>
                   <th>User Profile</th>
                   <th>Role & Designation</th>
                   <th>Contact</th>
@@ -7778,6 +7989,11 @@ async function renderAdminScreen(viewport) {
               <tbody>
                 ${filteredUsers.map(u => `
                   <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" class="admin-checkbox admin-row-cb" value="${u.id}" 
+                        ${selectedUsers.has(u.id) ? 'checked' : ''}
+                        ${u.id === 'user_admin' ? 'disabled title="Root system administrator cannot be deleted"' : `onchange="handleAdminToggleSelect('users', '${u.id}', this.checked)" title="Select user"`}>
+                    </td>
                     <td>
                       <div class="admin-user-cell">
                         <img src="${u.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${u.name}">
@@ -7875,13 +8091,30 @@ async function renderAdminScreen(viewport) {
                 <option value="closed" ${adminState.jobFilterStatus === 'closed' ? 'selected' : ''}>Closed</option>
               </select>
             </div>
-            <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredJobs.length} job postings</span>
+            <div class="admin-bulk-actions-group">
+              <button class="admin-btn-action btn-bulk-delete ${selectedJobs.size > 0 ? 'has-selection' : ''}" 
+                onclick="handleAdminBulkDelete('jobs')" 
+                ${selectedJobs.size > 0 ? '' : 'disabled'}
+                title="${selectedJobs.size > 0 ? `Delete ${selectedJobs.size} selected job postings` : 'Select job postings to delete'}">
+                ${svgIcon('trash', '', 13)} Delete Selected ${selectedJobs.size > 0 ? `(${selectedJobs.size})` : ''}
+              </button>
+              ${selectedJobs.size > 0 ? `
+                <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('jobs')" title="Clear selection">
+                  ${svgIcon('x', '', 11)} Deselect
+                </button>
+              ` : ''}
+              <span style="font-size: 0.8rem; color: var(--text-dim);">${filteredJobs.length} job postings</span>
+            </div>
           </div>
 
           <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" class="admin-checkbox" ${allJobsSelected ? 'checked' : ''} 
+                      onchange="handleAdminSelectAll('jobs', this.checked)" title="Select all job postings">
+                  </th>
                   <th>Job Title & Department</th>
                   <th>Hotel & Location</th>
                   <th>Compensation & Type</th>
@@ -7892,6 +8125,11 @@ async function renderAdminScreen(viewport) {
               <tbody>
                 ${filteredJobs.map(j => `
                   <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" class="admin-checkbox admin-row-cb" value="${j.id}" 
+                        ${selectedJobs.has(j.id) ? 'checked' : ''} 
+                        onchange="handleAdminToggleSelect('jobs', '${j.id}', this.checked)" title="Select job post">
+                    </td>
                     <td>
                       <strong style="color: var(--white); font-size: 0.90rem;">${j.title}</strong>
                       <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">
@@ -7946,10 +8184,35 @@ async function renderAdminScreen(viewport) {
       <!-- TAB 3: BUSINESS DIRECTORY -->
       ${activeTab === 'businesses' ? `
         <div class="admin-table-wrapper">
+          <div class="admin-table-actions-bar">
+            <div>
+              <strong style="color: var(--white); font-size: 0.92rem;">Hotel &amp; Resort Establishments</strong>
+              <div style="font-size: 0.76rem; color: var(--text-dim);">Directory of registered hospitality properties, official admins, and operational units.</div>
+            </div>
+            <div class="admin-bulk-actions-group">
+              <button class="admin-btn-action btn-bulk-delete ${selectedBusinesses.size > 0 ? 'has-selection' : ''}" 
+                onclick="handleAdminBulkDelete('businesses')" 
+                ${selectedBusinesses.size > 0 ? '' : 'disabled'}
+                title="${selectedBusinesses.size > 0 ? `Delete ${selectedBusinesses.size} selected businesses` : 'Select businesses to delete'}">
+                ${svgIcon('trash', '', 13)} Delete Selected ${selectedBusinesses.size > 0 ? `(${selectedBusinesses.size})` : ''}
+              </button>
+              ${selectedBusinesses.size > 0 ? `
+                <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('businesses')" title="Clear selection">
+                  ${svgIcon('x', '', 11)} Deselect
+                </button>
+              ` : ''}
+              <span style="font-size: 0.8rem; color: var(--text-dim);">${businesses.length} hotels listed</span>
+            </div>
+          </div>
+
           <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" class="admin-checkbox" ${allBizSelected ? 'checked' : ''} 
+                      onchange="handleAdminSelectAll('businesses', this.checked)" title="Select all hotels">
+                  </th>
                   <th>Hotel Property & Location</th>
                   <th>Official Contact</th>
                   <th>Administration & Team</th>
@@ -7960,6 +8223,11 @@ async function renderAdminScreen(viewport) {
               <tbody>
                 ${businesses.map(b => `
                   <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" class="admin-checkbox admin-row-cb" value="${b.id}" 
+                        ${selectedBusinesses.has(b.id) ? 'checked' : ''} 
+                        onchange="handleAdminToggleSelect('businesses', '${b.id}', this.checked)" title="Select hotel">
+                    </td>
                     <td>
                       <strong style="color: var(--white); font-size: 0.92rem;">${b.brand_name}</strong>
                       <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">${b.legal_name} • ${b.property_type}</div>
@@ -8014,13 +8282,30 @@ async function renderAdminScreen(viewport) {
               <strong style="color: var(--white); font-size: 0.92rem;">Pending Moderator Requests</strong>
               <div style="font-size: 0.76rem; color: var(--text-dim);">Users who joined an existing business waiting for authorization.</div>
             </div>
-            <span class="badge-urgent">${moderatorRequests.length} Pending Approval</span>
+            <div class="admin-bulk-actions-group">
+              <button class="admin-btn-action btn-bulk-delete ${selectedModerators.size > 0 ? 'has-selection' : ''}" 
+                onclick="handleAdminBulkDelete('moderators')" 
+                ${selectedModerators.size > 0 ? '' : 'disabled'}
+                title="${selectedModerators.size > 0 ? `Delete ${selectedModerators.size} selected moderator requests` : 'Select moderator requests to delete'}">
+                ${svgIcon('trash', '', 13)} Delete Selected ${selectedModerators.size > 0 ? `(${selectedModerators.size})` : ''}
+              </button>
+              ${selectedModerators.size > 0 ? `
+                <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('moderators')" title="Clear selection">
+                  ${svgIcon('x', '', 11)} Deselect
+                </button>
+              ` : ''}
+              <span class="badge-urgent">${moderatorRequests.length} Pending Approval</span>
+            </div>
           </div>
 
           <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" class="admin-checkbox" ${allModsSelected ? 'checked' : ''} 
+                      onchange="handleAdminSelectAll('moderators', this.checked)" title="Select all moderator requests">
+                  </th>
                   <th>Applicant Profile</th>
                   <th>Target Hotel & Role</th>
                   <th>Contact Info</th>
@@ -8031,12 +8316,17 @@ async function renderAdminScreen(viewport) {
               <tbody>
                 ${moderatorRequests.length === 0 ? `
                   <tr>
-                    <td colspan="5" style="text-align: center; padding: 32px; color: var(--text-dim);">
+                    <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-dim);">
                       No pending moderator join requests currently. All business moderators are approved.
                     </td>
                   </tr>
                 ` : moderatorRequests.map(m => `
                   <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" class="admin-checkbox admin-row-cb" value="${m.id}" 
+                        ${selectedModerators.has(m.id) ? 'checked' : ''} 
+                        onchange="handleAdminToggleSelect('moderators', '${m.id}', this.checked)" title="Select request">
+                    </td>
                     <td>
                       <div class="admin-user-cell">
                         <img src="${m.avatar_url || DEFAULT_AVATAR_PREVIEW}" alt="${m.name}">
@@ -8069,6 +8359,9 @@ async function renderAdminScreen(viewport) {
                         <button class="admin-btn-action btn-suspend" onclick="handleAdminRejectMember('${m.id}')">
                           Decline ${svgIcon('x', '', 12)}
                         </button>
+                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteModerator('${m.id}')" title="Delete moderator request">
+                          ${svgIcon('trash', '', 13)}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -8082,10 +8375,35 @@ async function renderAdminScreen(viewport) {
       <!-- TAB 5: TRADE LICENSE VERIFICATIONS -->
       ${activeTab === 'verifications' ? `
         <div class="admin-table-wrapper">
+          <div class="admin-table-actions-bar">
+            <div>
+              <strong style="color: var(--white); font-size: 0.92rem;">Trade License &amp; Legal Verifications</strong>
+              <div style="font-size: 0.76rem; color: var(--text-dim);">Verify government trade licenses, Civil Aviation certificates, and TIN registrations.</div>
+            </div>
+            <div class="admin-bulk-actions-group">
+              <button class="admin-btn-action btn-bulk-delete ${selectedVerifications.size > 0 ? 'has-selection' : ''}" 
+                onclick="handleAdminBulkDelete('verifications')" 
+                ${selectedVerifications.size > 0 ? '' : 'disabled'}
+                title="${selectedVerifications.size > 0 ? `Delete ${selectedVerifications.size} selected verification records` : 'Select verifications to delete'}">
+                ${svgIcon('trash', '', 13)} Delete Selected ${selectedVerifications.size > 0 ? `(${selectedVerifications.size})` : ''}
+              </button>
+              ${selectedVerifications.size > 0 ? `
+                <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('verifications')" title="Clear selection">
+                  ${svgIcon('x', '', 11)} Deselect
+                </button>
+              ` : ''}
+              <span style="font-size: 0.8rem; color: var(--text-dim);">${verifications.length} submissions</span>
+            </div>
+          </div>
+
           <div class="admin-table-scroll">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" class="admin-checkbox" ${allVerifsSelected ? 'checked' : ''} 
+                      onchange="handleAdminSelectAll('verifications', this.checked)" title="Select all verifications">
+                  </th>
                   <th>Business Establishment</th>
                   <th>License Type & Number</th>
                   <th>Submission Details</th>
@@ -8094,8 +8412,19 @@ async function renderAdminScreen(viewport) {
                 </tr>
               </thead>
               <tbody>
-                ${verifications.map(v => `
+                ${verifications.length === 0 ? `
                   <tr>
+                    <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-dim);">
+                      No verification submissions currently.
+                    </td>
+                  </tr>
+                ` : verifications.map(v => `
+                  <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" class="admin-checkbox admin-row-cb" value="${v.id}" 
+                        ${selectedVerifications.has(v.id) ? 'checked' : ''} 
+                        onchange="handleAdminToggleSelect('verifications', '${v.id}', this.checked)" title="Select verification">
+                    </td>
                     <td>
                       <strong style="color: var(--white); font-size: 0.90rem;">${v.brand_name}</strong>
                       <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 2px;">${v.legal_name} • ${v.city}</div>
@@ -8121,6 +8450,9 @@ async function renderAdminScreen(viewport) {
                         ` : `
                           <span style="font-size: 0.74rem; color: var(--text-dim);">Reviewed by ${v.reviewed_by}</span>
                         `}
+                        <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteVerification('${v.id}')" title="Delete verification record">
+                          ${svgIcon('trash', '', 13)}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -8283,7 +8615,7 @@ async function renderAdminScreen(viewport) {
           ${adminState.blogSubTab === 'articles' ? `
             <div class="admin-table-wrapper">
               <div class="admin-table-actions-bar">
-                <div class="admin-filter-group" style="flex: 1; max-width: 700px;">
+                <div class="admin-filter-group" style="flex: 1; max-width: 600px;">
                   <input type="text" class="admin-search-box" placeholder="Search by article title, author, or keywords..." 
                     value="${escapeHtml(adminState.blogSearch)}" 
                     oninput="adminState.blogSearch = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
@@ -8297,7 +8629,18 @@ async function renderAdminScreen(viewport) {
                   </select>
                 </div>
 
-                <div style="display: flex; gap: 10px; align-items: center;">
+                <div class="admin-bulk-actions-group">
+                  <button class="admin-btn-action btn-bulk-delete ${selectedBlogs.size > 0 ? 'has-selection' : ''}" 
+                    onclick="handleAdminBulkDelete('blogs')" 
+                    ${selectedBlogs.size > 0 ? '' : 'disabled'}
+                    title="${selectedBlogs.size > 0 ? `Delete ${selectedBlogs.size} selected articles` : 'Select articles to delete'}">
+                    ${svgIcon('trash', '', 13)} Delete Selected ${selectedBlogs.size > 0 ? `(${selectedBlogs.size})` : ''}
+                  </button>
+                  ${selectedBlogs.size > 0 ? `
+                    <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('blogs')" title="Clear selection">
+                      ${svgIcon('x', '', 11)} Deselect
+                    </button>
+                  ` : ''}
                   <button class="btn-orange" style="font-size: 0.82rem; padding: 7px 16px; display: inline-flex; align-items: center; gap: 6px;" onclick="openCreateBlogModal()">
                     ${svgIcon('plus', '', 14)} Post New Article
                   </button>
@@ -8311,6 +8654,10 @@ async function renderAdminScreen(viewport) {
                 <table class="admin-data-table">
                   <thead>
                     <tr>
+                      <th style="width: 44px; text-align: center;">
+                        <input type="checkbox" class="admin-checkbox" ${allBlogsSelected ? 'checked' : ''} 
+                          onchange="handleAdminSelectAll('blogs', this.checked)" title="Select all articles">
+                      </th>
                       <th style="width: 320px;">Article Blueprint</th>
                       <th>Category &amp; Read Time</th>
                       <th>Author Attribution</th>
@@ -8321,12 +8668,17 @@ async function renderAdminScreen(viewport) {
                   <tbody>
                     ${filteredAdminBlogs.length === 0 ? `
                       <tr>
-                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                        <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">
                           No articles match your current search or category filter.
                         </td>
                       </tr>
                     ` : filteredAdminBlogs.map(b => `
                       <tr>
+                        <td style="text-align: center;">
+                          <input type="checkbox" class="admin-checkbox admin-row-cb" value="${b.id}" 
+                            ${selectedBlogs.has(b.id) ? 'checked' : ''} 
+                            onchange="handleAdminToggleSelect('blogs', '${b.id}', this.checked)" title="Select article">
+                        </td>
                         <td>
                           <div style="display: flex; align-items: center; gap: 12px;">
                             <img src="${b.cover_image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80'}" 
@@ -8528,7 +8880,7 @@ async function renderAdminScreen(viewport) {
           <!-- Filter & Search Toolbar -->
           <div class="admin-table-wrapper" style="padding: 16px 20px;">
             <div class="admin-table-actions-bar" style="margin: 0;">
-              <div class="admin-filter-group" style="flex: 1; max-width: 650px;">
+              <div class="admin-filter-group" style="flex: 1; max-width: 550px;">
                 <input type="text" class="admin-search-box" placeholder="Search by sponsor name, tag, badge, or description..."
                   value="${escapeHtml(adminState.sponsorSearch)}"
                   oninput="adminState.sponsorSearch = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
@@ -8540,8 +8892,26 @@ async function renderAdminScreen(viewport) {
                 </select>
               </div>
 
-              <div style="font-size: 0.82rem; color: var(--text-dim); font-weight: 600;">
-                Showing ${filteredSponsors.length} of ${(sponsors || []).length} Sponsors
+              <div class="admin-bulk-actions-group">
+                <label class="admin-select-all-label" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.80rem; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+                  <input type="checkbox" class="admin-checkbox" ${allSponsorsSelected ? 'checked' : ''} 
+                    onchange="handleAdminSelectAll('sponsors', this.checked)">
+                  <span>Select All</span>
+                </label>
+                <button class="admin-btn-action btn-bulk-delete ${selectedSponsors.size > 0 ? 'has-selection' : ''}" 
+                  onclick="handleAdminBulkDelete('sponsors')" 
+                  ${selectedSponsors.size > 0 ? '' : 'disabled'}
+                  title="${selectedSponsors.size > 0 ? `Delete ${selectedSponsors.size} selected sponsors` : 'Select sponsors to delete'}">
+                  ${svgIcon('trash', '', 13)} Delete Selected ${selectedSponsors.size > 0 ? `(${selectedSponsors.size})` : ''}
+                </button>
+                ${selectedSponsors.size > 0 ? `
+                  <button class="admin-btn-action btn-deselect" onclick="handleAdminClearSelection('sponsors')" title="Clear selection">
+                    ${svgIcon('x', '', 11)} Deselect
+                  </button>
+                ` : ''}
+                <div style="font-size: 0.82rem; color: var(--text-dim); font-weight: 600;">
+                  Showing ${filteredSponsors.length} of ${(sponsors || []).length} Sponsors
+                </div>
               </div>
             </div>
           </div>
@@ -8566,9 +8936,15 @@ async function renderAdminScreen(viewport) {
                 <div class="admin-table-wrapper" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid ${sp.is_active ? 'rgba(255, 255, 255, 0.1)' : 'rgba(239, 68, 68, 0.3)'}; position: relative; overflow: hidden; background: rgba(13, 21, 44, 0.85);">
                   
                   <div>
-                    <!-- Top Ribbon: Tag + Badge + Status -->
+                    <!-- Top Ribbon: Selection Checkbox + Tag + Badge + Status -->
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
-                      <div style="display: flex; align-items: center; gap: 6px;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <label class="admin-card-select-label" style="display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);" title="Select sponsor">
+                          <input type="checkbox" class="admin-checkbox" value="${sp.id}" 
+                            ${selectedSponsors.has(sp.id) ? 'checked' : ''} 
+                            onchange="handleAdminToggleSelect('sponsors', '${sp.id}', this.checked)">
+                          <span style="font-size: 0.70rem; color: var(--text-muted); font-weight: 600;">Select</span>
+                        </label>
                         <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 107, 0, 0.15); border: 1px solid rgba(255, 107, 0, 0.4); color: var(--orange-primary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
                           ${escapeHtml(sp.tag || 'SPONSORED')}
                         </span>

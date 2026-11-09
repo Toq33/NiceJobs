@@ -6340,6 +6340,241 @@ def delete_business(business_id: str):
     notify_realtime("business_deleted", {"business_id": business_id})
     return {"success": True, "message": "Business establishment and all associated data deleted successfully."}
 
+@app.delete("/api/admin/moderators/{mem_id}")
+def delete_admin_moderator(mem_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, user_id FROM business_memberships WHERE id = ?", (mem_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return {"success": True, "message": "Moderator request not found or already deleted."}
+    
+    uid = row["user_id"] if isinstance(row, dict) else row[1]
+    cursor.execute("DELETE FROM business_memberships WHERE id = ?", (mem_id,))
+    
+    # Clean up recruiter user if no remaining memberships and was pending approval
+    cursor.execute("SELECT COUNT(*) FROM business_memberships WHERE user_id = ?", (uid,))
+    rem = cursor.fetchone()[0]
+    if rem == 0:
+        cursor.execute("SELECT role, status FROM users WHERE id = ?", (uid,))
+        urow = cursor.fetchone()
+        if urow:
+            role_val = urow["role"] if isinstance(urow, dict) else urow[0]
+            status_val = urow["status"] if isinstance(urow, dict) else urow[1]
+            if role_val == "recruiter" and status_val in ("pending_approval", "rejected"):
+                cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+    conn.commit()
+    conn.close()
+    invalidate_api_cache("admin")
+    notify_realtime("moderator_deleted", {"membership_id": mem_id})
+    return {"success": True, "message": "Moderator request deleted successfully."}
+
+@app.delete("/api/admin/verifications/{verif_id}")
+def delete_admin_verification(verif_id: str):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM business_verifications WHERE id = ?", (verif_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return {"success": True, "message": "Verification record not found or already deleted."}
+    cursor.execute("DELETE FROM business_verifications WHERE id = ?", (verif_id,))
+    conn.commit()
+    conn.close()
+    invalidate_api_cache("admin")
+    notify_realtime("verification_deleted", {"verification_id": verif_id})
+    return {"success": True, "message": "Verification record deleted successfully."}
+
+class AdminBulkDeletePayload(BaseModel):
+    module: str # 'users', 'jobs', 'businesses', 'moderators', 'verifications', 'blogs', 'sponsors'
+    ids: List[str]
+
+@app.post("/api/admin/bulk-delete")
+def admin_bulk_delete(payload: AdminBulkDeletePayload):
+    valid_modules = {"users", "jobs", "businesses", "moderators", "verifications", "blogs", "sponsors"}
+    if payload.module not in valid_modules:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid module '{payload.module}'. Supported modules: {', '.join(sorted(valid_modules))}"
+        )
+
+    clean_ids = [str(i).strip() for i in payload.ids if str(i).strip()]
+    if not clean_ids:
+        return {"success": True, "module": payload.module, "deleted_count": 0, "message": "No items provided for deletion."}
+
+    # Root admin security protection
+    if payload.module == "users":
+        if "user_admin" in clean_ids:
+            if len(clean_ids) == 1:
+                raise HTTPException(status_code=400, detail="Cannot delete root system administrator account.")
+            clean_ids = [uid for uid in clean_ids if uid != "user_admin"]
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    deleted_count = 0
+
+    try:
+        if payload.module == "users":
+            for uid in clean_ids:
+                cursor.execute("SELECT id FROM users WHERE id = ?", (uid,))
+                if not cursor.fetchone():
+                    continue
+                cursor.execute("DELETE FROM application_events WHERE application_id IN (SELECT id FROM applications WHERE user_id = ?)", (uid,))
+                cursor.execute("DELETE FROM applications WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?) OR sender_id = ?", (uid, uid))
+                cursor.execute("DELETE FROM conversations WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM employee_profiles WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM saved_jobs WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM followed_businesses WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+                cursor.execute("DELETE FROM moderation_reports WHERE item_type = 'user' AND item_id = ?", (uid,))
+                cursor.execute("DELETE FROM business_memberships WHERE user_id = ?", (uid,))
+                cursor.execute("UPDATE businesses SET admin_user_id = '' WHERE admin_user_id = ?", (uid,))
+                cursor.execute("DELETE FROM blogs WHERE author_id = ?", (uid,))
+                cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+                deleted_count += 1
+
+        elif payload.module == "jobs":
+            for jid in clean_ids:
+                cursor.execute("SELECT id FROM jobs WHERE id = ?", (jid,))
+                if not cursor.fetchone():
+                    continue
+                cursor.execute("DELETE FROM application_events WHERE application_id IN (SELECT id FROM applications WHERE job_id = ?)", (jid,))
+                cursor.execute("DELETE FROM applications WHERE job_id = ?", (jid,))
+                cursor.execute("DELETE FROM saved_jobs WHERE job_id = ?", (jid,))
+                cursor.execute("DELETE FROM moderation_reports WHERE item_type = 'job' AND item_id = ?", (jid,))
+                cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE job_id = ?)", (jid,))
+                cursor.execute("DELETE FROM conversations WHERE job_id = ?", (jid,))
+                cursor.execute("DELETE FROM jobs WHERE id = ?", (jid,))
+                deleted_count += 1
+
+        elif payload.module == "businesses":
+            for bid in clean_ids:
+                cursor.execute("SELECT id FROM businesses WHERE id = ?", (bid,))
+                if not cursor.fetchone():
+                    continue
+                cursor.execute("SELECT id FROM jobs WHERE business_id = ?", (bid,))
+                job_ids = [r[0] for r in cursor.fetchall()]
+                if job_ids:
+                    placeholders = ",".join(["?"] * len(job_ids))
+                    cursor.execute(f"SELECT id FROM applications WHERE job_id IN ({placeholders})", job_ids)
+                    app_ids = [r[0] for r in cursor.fetchall()]
+                    if app_ids:
+                        app_placeholders = ",".join(["?"] * len(app_ids))
+                        cursor.execute(f"DELETE FROM application_events WHERE application_id IN ({app_placeholders})", app_ids)
+                        cursor.execute(f"DELETE FROM applications WHERE id IN ({app_placeholders})", app_ids)
+                    cursor.execute(f"DELETE FROM saved_jobs WHERE job_id IN ({placeholders})", job_ids)
+                    cursor.execute(f"DELETE FROM moderation_reports WHERE item_type = 'job' AND item_id IN ({placeholders})", job_ids)
+
+                cursor.execute("SELECT id FROM conversations WHERE business_id = ?", (bid,))
+                conv_ids = set(r[0] for r in cursor.fetchall())
+                if job_ids:
+                    placeholders = ",".join(["?"] * len(job_ids))
+                    cursor.execute(f"SELECT id FROM conversations WHERE job_id IN ({placeholders})", job_ids)
+                    for r in cursor.fetchall():
+                        conv_ids.add(r[0])
+                if conv_ids:
+                    c_placeholders = ",".join(["?"] * len(conv_ids))
+                    cursor.execute(f"DELETE FROM messages WHERE conversation_id IN ({c_placeholders})", list(conv_ids))
+                    cursor.execute(f"DELETE FROM conversations WHERE id IN ({c_placeholders})", list(conv_ids))
+
+                cursor.execute("DELETE FROM followed_businesses WHERE business_id = ?", (bid,))
+                cursor.execute("DELETE FROM business_verifications WHERE business_id = ?", (bid,))
+                cursor.execute("DELETE FROM moderation_reports WHERE item_type = 'business' AND item_id = ?", (bid,))
+                cursor.execute("DELETE FROM jobs WHERE business_id = ?", (bid,))
+
+                cursor.execute("SELECT user_id FROM business_memberships WHERE business_id = ?", (bid,))
+                associated_user_ids = set(r[0] for r in cursor.fetchall())
+                cursor.execute("SELECT admin_user_id FROM businesses WHERE id = ?", (bid,))
+                brow = cursor.fetchone()
+                if brow and brow[0]:
+                    associated_user_ids.add(brow[0])
+                cursor.execute("DELETE FROM business_memberships WHERE business_id = ?", (bid,))
+                for uid in associated_user_ids:
+                    cursor.execute("SELECT COUNT(*) FROM business_memberships WHERE user_id = ?", (uid,))
+                    rem = cursor.fetchone()[0]
+                    if rem == 0:
+                        cursor.execute("SELECT role FROM users WHERE id = ?", (uid,))
+                        urow = cursor.fetchone()
+                        if urow and urow[0] == "recruiter":
+                            cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+                            cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+                cursor.execute("DELETE FROM businesses WHERE id = ?", (bid,))
+                deleted_count += 1
+
+        elif payload.module == "moderators":
+            for mid in clean_ids:
+                cursor.execute("SELECT id, user_id FROM business_memberships WHERE id = ?", (mid,))
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                uid = row["user_id"] if isinstance(row, dict) else row[1]
+                cursor.execute("DELETE FROM business_memberships WHERE id = ?", (mid,))
+                cursor.execute("SELECT COUNT(*) FROM business_memberships WHERE user_id = ?", (uid,))
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute("SELECT role, status FROM users WHERE id = ?", (uid,))
+                    urow = cursor.fetchone()
+                    if urow:
+                        role_val = urow["role"] if isinstance(urow, dict) else urow[0]
+                        status_val = urow["status"] if isinstance(urow, dict) else urow[1]
+                        if role_val == "recruiter" and status_val in ("pending_approval", "rejected"):
+                            cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+                            cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+                deleted_count += 1
+
+        elif payload.module == "verifications":
+            for vid in clean_ids:
+                cursor.execute("SELECT id FROM business_verifications WHERE id = ?", (vid,))
+                if not cursor.fetchone():
+                    continue
+                cursor.execute("DELETE FROM business_verifications WHERE id = ?", (vid,))
+                deleted_count += 1
+
+        elif payload.module == "blogs":
+            for bid in clean_ids:
+                cursor.execute("SELECT id FROM blogs WHERE id = ? OR slug = ?", (bid, bid))
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                real_id = row["id"] if isinstance(row, dict) else row[0]
+                cursor.execute("DELETE FROM blogs WHERE id = ?", (real_id,))
+                deleted_count += 1
+
+        elif payload.module == "sponsors":
+            for sid in clean_ids:
+                cursor.execute("SELECT id FROM sponsors WHERE id = ?", (sid,))
+                if not cursor.fetchone():
+                    continue
+                cursor.execute("DELETE FROM sponsors WHERE id = ?", (sid,))
+                deleted_count += 1
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error deleting {payload.module}: {str(e)}")
+
+    conn.close()
+
+    if payload.module in ("jobs", "businesses"):
+        invalidate_api_cache("jobs")
+        invalidate_api_cache("businesses")
+    elif payload.module == "blogs":
+        invalidate_api_cache("blogs")
+    invalidate_api_cache("admin")
+
+    notify_realtime("admin_bulk_deleted", {"module": payload.module, "deleted_count": deleted_count})
+
+    return {
+        "success": True,
+        "module": payload.module,
+        "deleted_count": deleted_count,
+        "message": f"Successfully deleted {deleted_count} {payload.module} record(s)."
+    }
+
 @app.get("/api/admin/demo-status")
 def get_demo_status():
     return {"demo_data_hidden": is_demo_hidden()}

@@ -820,6 +820,161 @@ class TestNiceJobsAPI(unittest.TestCase):
         adm_res_final = self.client.get("/api/admin/sponsors")
         self.assertIsNone(next((s for s in adm_res_final.json() if s["id"] == sp_id), None))
 
+    def test_admin_bulk_delete_and_module_endpoints(self):
+        """Verifies admin bulk delete across modules and individual moderator/verification deletions."""
+        import uuid
+        suffix = uuid.uuid4().hex[:8]
+
+        # 1. Invalid module validation
+        inv_res = self.client.post("/api/admin/bulk-delete", json={
+            "module": "unknown_module",
+            "ids": ["item_1"]
+        })
+        self.assertEqual(inv_res.status_code, 400)
+
+        # 2. Root administrator protection
+        prot_res = self.client.post("/api/admin/bulk-delete", json={
+            "module": "users",
+            "ids": ["user_admin"]
+        })
+        self.assertEqual(prot_res.status_code, 400)
+
+        # 3. Create test fixtures
+        u1_id = f"test_u1_{suffix}"
+        u2_id = f"test_u2_{suffix}"
+        biz_id = f"test_biz_{suffix}"
+        j1_id = f"test_j1_{suffix}"
+        j2_id = f"test_j2_{suffix}"
+        mem_id = f"test_mem_{suffix}"
+        verif_id = f"test_verif_{suffix}"
+        blog_id = f"test_blog_{suffix}"
+        sp_id = f"test_sp_{suffix}"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        try:
+            # Users
+            cursor.execute("""
+                INSERT INTO users (id, name, email, phone, role, status)
+                VALUES (?, 'Bulk User 1', ?, ?, 'jobseeker', 'active')
+            """, (u1_id, f"bulk1_{suffix}@test.com", f"01711{suffix[:6]}"))
+            cursor.execute("""
+                INSERT INTO users (id, name, email, phone, role, status)
+                VALUES (?, 'Bulk User 2', ?, ?, 'recruiter', 'active')
+            """, (u2_id, f"bulk2_{suffix}@test.com", f"01712{suffix[:6]}"))
+
+            # Business
+            cursor.execute("""
+                INSERT INTO businesses (id, legal_name, brand_name, property_type, verification_status, city, address)
+                VALUES (?, 'Bulk Legal', 'Bulk Brand', 'Boutique Hotel', 'verified', 'Dhaka', 'Gulshan')
+            """, (biz_id,))
+
+            # Jobs
+            cursor.execute("""
+                INSERT INTO jobs (id, business_id, title, department, property_location, employment_type, shift, experience_level, description, requirements, status, posted_at)
+                VALUES (?, ?, 'Job Bulk 1', 'Front Office', 'Gulshan, Dhaka', 'Full-time', 'Morning', 'Mid-Level', 'Job description text', '[]', 'active', '2026-11-09 10:00')
+            """, (j1_id, biz_id))
+            cursor.execute("""
+                INSERT INTO jobs (id, business_id, title, department, property_location, employment_type, shift, experience_level, description, requirements, status, posted_at)
+                VALUES (?, ?, 'Job Bulk 2', 'Housekeeping', 'Gulshan, Dhaka', 'Full-time', 'Evening', 'Entry-Level', 'Job description text', '[]', 'active', '2026-11-09 10:00')
+            """, (j2_id, biz_id))
+
+            # Moderator Membership
+            cursor.execute("""
+                INSERT INTO business_memberships (id, business_id, user_id, org_role, membership_role, approval_status)
+                VALUES (?, ?, ?, 'HR Specialist', 'moderator', 'pending_admin_approval')
+            """, (mem_id, biz_id, u2_id))
+
+            # Verification
+            cursor.execute("""
+                INSERT INTO business_verifications (id, business_id, legal_doc_type, doc_number, submitted_by, submitted_at, status)
+                VALUES (?, ?, 'Trade License', ?, 'Test Submitter', '2026-11-09 10:00', 'pending')
+            """, (verif_id, biz_id, f"TL-{suffix}"))
+
+            # Blog
+            cursor.execute("""
+                INSERT INTO blogs (id, slug, title, excerpt, content, category, author_id, author_name, author_title)
+                VALUES (?, ?, 'Bulk Blog Test', 'Excerpt', 'Content', 'Hotel Standards', ?, 'Author Name', 'Hospitality Consultant')
+            """, (blog_id, f"slug-{suffix}", u1_id))
+
+            # Sponsor
+            cursor.execute("""
+                INSERT INTO sponsors (id, name, tag, description, image_url, button_text, link_url, is_active)
+                VALUES (?, 'Bulk Sponsor Test', 'PARTNER', 'Desc', '/img.jpg', 'Link', 'https://test.com', 1)
+            """, (sp_id,))
+
+            conn.commit()
+
+            # 4. Test Single Delete Endpoints for Moderator and Verification
+            del_mod_resp = self.client.delete(f"/api/admin/moderators/{mem_id}")
+            self.assertEqual(del_mod_resp.status_code, 200)
+            self.assertTrue(del_mod_resp.json().get("success"))
+
+            del_verif_resp = self.client.delete(f"/api/admin/verifications/{verif_id}")
+            self.assertEqual(del_verif_resp.status_code, 200)
+            self.assertTrue(del_verif_resp.json().get("success"))
+
+            # 5. Test Bulk Delete for Jobs
+            bulk_jobs_resp = self.client.post("/api/admin/bulk-delete", json={
+                "module": "jobs",
+                "ids": [j1_id, j2_id]
+            })
+            self.assertEqual(bulk_jobs_resp.status_code, 200)
+            self.assertEqual(bulk_jobs_resp.json().get("deleted_count"), 2)
+
+            # 6. Test Bulk Delete for Blog & Sponsor
+            bulk_blog_resp = self.client.post("/api/admin/bulk-delete", json={
+                "module": "blogs",
+                "ids": [blog_id]
+            })
+            self.assertEqual(bulk_blog_resp.status_code, 200)
+            self.assertEqual(bulk_blog_resp.json().get("deleted_count"), 1)
+
+            bulk_sp_resp = self.client.post("/api/admin/bulk-delete", json={
+                "module": "sponsors",
+                "ids": [sp_id]
+            })
+            self.assertEqual(bulk_sp_resp.status_code, 200)
+            self.assertEqual(bulk_sp_resp.json().get("deleted_count"), 1)
+
+            # 7. Test Bulk Delete for Users (including user_admin in list, should safely exclude user_admin)
+            bulk_users_resp = self.client.post("/api/admin/bulk-delete", json={
+                "module": "users",
+                "ids": [u1_id, u2_id, "user_admin"]
+            })
+            self.assertEqual(bulk_users_resp.status_code, 200)
+            self.assertEqual(bulk_users_resp.json().get("deleted_count"), 2)
+
+            # 8. Test Bulk Delete for Businesses
+            bulk_biz_resp = self.client.post("/api/admin/bulk-delete", json={
+                "module": "businesses",
+                "ids": [biz_id]
+            })
+            self.assertEqual(bulk_biz_resp.status_code, 200)
+            self.assertEqual(bulk_biz_resp.json().get("deleted_count"), 1)
+
+        finally:
+            # Clean up any leftover test fixtures
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                clean_conn = database.get_db()
+                clean_cur = clean_conn.cursor()
+                clean_cur.execute("DELETE FROM business_memberships WHERE id = ?", (mem_id,))
+                clean_cur.execute("DELETE FROM business_verifications WHERE id = ?", (verif_id,))
+                clean_cur.execute("DELETE FROM jobs WHERE id IN (?, ?)", (j1_id, j2_id))
+                clean_cur.execute("DELETE FROM businesses WHERE id = ?", (biz_id,))
+                clean_cur.execute("DELETE FROM blogs WHERE id = ?", (blog_id,))
+                clean_cur.execute("DELETE FROM sponsors WHERE id = ?", (sp_id,))
+                clean_cur.execute("DELETE FROM users WHERE id IN (?, ?)", (u1_id, u2_id))
+                clean_conn.commit()
+                clean_conn.close()
+            except Exception:
+                pass
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 
