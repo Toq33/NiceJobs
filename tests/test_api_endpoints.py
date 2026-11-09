@@ -341,13 +341,14 @@ class TestNiceJobsAPI(unittest.TestCase):
         self.assertIsNone(first_candidate.get("phone"))
 
         # 2. Search by query filter: designation or job title
-        q_response = self.client.get("/api/candidates?open_to_work=true&q=Sous")
+        q_term = "Manager"
+        q_response = self.client.get(f"/api/candidates?open_to_work=true&q={q_term}")
         self.assertEqual(q_response.status_code, 200)
         q_candidates = q_response.json()
         self.assertIsInstance(q_candidates, list)
         self.assertGreater(len(q_candidates), 0)
         for c in q_candidates:
-            matches = any("sous" in str(v).lower() for v in [
+            matches = any(q_term.lower() in str(v).lower() for v in [
                 c.get("headline"), c.get("current_position"), 
                 c.get("designation"), c.get("preferences")
             ])

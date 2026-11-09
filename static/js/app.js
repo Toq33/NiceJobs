@@ -11753,35 +11753,38 @@ function renderSignupPage(viewport) {
 
           <!-- STEP 3: OTP VERIFICATION -->
           ${signupState.stage === 3 ? `
-            <div class="auth-header" style="text-align: center;">
-              <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
-              <h2 class="auth-title">Verify Your Email</h2>
-              <p class="auth-subtitle">Enter the 6-digit verification code sent to your email to create your account</p>
-              <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
-                <span>Sent to <strong>${escapeHtml(signupState.email || '')}</strong></span>
-                <span style="font-size: 11px; color: #94a3b8;">From: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
+            <div class="otp-card-shell">
+              <div class="otp-badge-top">
+                ${svgIcon('shield', '', 14)} Secure Verification
               </div>
-            </div>
-
-            <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); handleCandidateVerifyAndCreate(event); return false;">
-              <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
-                <input type="text" id="cand-otp-code" maxlength="6" class="auth-otp-input" 
-                  placeholder="Enter 6-digit code" value="" autofocus required>
+              
+              <h2 class="otp-headline">Verification Code</h2>
+              
+              <div class="otp-email-pill">
+                ${svgIcon('mail', '', 13)}
+                <span>${escapeHtml(signupState.email || '')}</span>
               </div>
 
-              <div class="auth-nav-row" style="margin-top: 14px;">
-                <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevSignupStage()">
-                  ← Back
+              <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); handleCandidateVerifyAndCreate(event); return false;" style="width: 100%;">
+                <div class="otp-grid-wrap">
+                  ${renderOtpDigitsInput('cand-otp-code', signupState.otp_code || '')}
+                </div>
+
+                <div class="otp-action-row">
+                  <button type="button" class="btn-secondary otp-btn-back" onclick="prevSignupStage()">
+                    Back
+                  </button>
+                  <button type="submit" class="auth-btn-primary otp-btn-submit" id="btn-cand-otp-submit">
+                    Verify &amp; Continue
+                  </button>
+                </div>
+              </form>
+
+              <div class="otp-resend-bar">
+                <button type="button" class="otp-resend-btn" id="btn-resend-cand-otp" onclick="resendCandidateOtp(this)">
+                  Resend Code
                 </button>
-                <button type="button" class="auth-btn-primary" style="flex: 1; margin: 0;" id="btn-cand-otp-submit" onclick="handleCandidateVerifyAndCreate(event)">
-                  Verify Code &amp; Create Account →
-                </button>
               </div>
-            </form>
-
-            <div class="auth-otp-footer">
-              <span>Didn't receive code?</span>
-              <button type="button" class="auth-text-link" onclick="resendCandidateOtp()">Resend Code</button>
             </div>
           ` : ''}
 
@@ -12506,31 +12509,39 @@ function renderSignupPage(viewport) {
 
             <!-- OTP Verification -->
             ${signupState.biz_step === 5 ? `
-              <div class="auth-header" style="text-align: center;">
-                <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
-                <h2 class="auth-title">Verify Representative Email</h2>
-                <p class="auth-subtitle">Enter the 6-digit verification code sent to your personal work email</p>
-                <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
-                  <span>Sent to <strong>${signupState.rep_email}</strong></span>
-                  <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
+              <div class="otp-card-shell">
+                <div class="otp-badge-top">
+                  ${svgIcon('shield', '', 14)} Secure Verification
+                </div>
+                
+                <h2 class="otp-headline">Verification Code</h2>
+                
+                <div class="otp-email-pill">
+                  ${svgIcon('mail', '', 13)}
+                  <span>${escapeHtml(signupState.rep_email || '')}</span>
+                </div>
+
+                <form id="form-biz-new-part5" onsubmit="handleNewBusinessOtpSubmit(event)" style="width: 100%;">
+                  <div class="otp-grid-wrap">
+                    ${renderOtpDigitsInput('biz-new-otp', signupState.biz_otp_code || '')}
+                  </div>
+
+                  <div class="otp-action-row">
+                    <button type="button" class="btn-secondary otp-btn-back" onclick="prevBizStage()">
+                      Back
+                    </button>
+                    <button type="submit" class="auth-btn-primary otp-btn-submit" id="btn-biz-otp-submit">
+                      Verify &amp; Continue
+                    </button>
+                  </div>
+                </form>
+
+                <div class="otp-resend-bar">
+                  <button type="button" class="otp-resend-btn" id="btn-resend-biz-otp" onclick="resendNewBusinessOtp(this)">
+                    Resend Code
+                  </button>
                 </div>
               </div>
-
-              <form id="form-biz-new-part5" onsubmit="handleNewBusinessOtpSubmit(event)">
-                <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
-                  <input type="text" id="biz-new-otp" maxlength="6" class="auth-otp-input" 
-                    placeholder="Enter 6-digit code from email" value="" autofocus required>
-                </div>
-
-                <div class="auth-nav-row" style="margin-top: 14px;">
-                  <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevBizStage()">
-                    ← Back
-                  </button>
-                  <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
-                    Verify Code &amp; Review Terms →
-                  </button>
-                </div>
-              </form>
             ` : ''}
 
             <!-- Terms & Conditions Screen (After Hotel OTP) -->
@@ -12800,31 +12811,39 @@ function renderSignupPage(viewport) {
 
             <!-- Mobile Verification OTP -->
             ${signupState.biz_step === 5 ? `
-              <div class="auth-header" style="text-align: center;">
-                <div class="auth-icon-circle" style="margin: 0 auto 12px auto;">${svgIcon('mail', '', 24)}</div>
-                <h2 class="auth-title">Verify Your Email</h2>
-                <p class="auth-subtitle">Enter the 6-digit verification code sent to your email</p>
-                <div class="auth-destination-pill" style="margin-top: 10px; display: inline-flex; flex-direction: column; gap: 4px; text-align: center;">
-                  <span>Sent to <strong>${signupState.join_user_email}</strong></span>
-                  <span style="font-size: 11px; color: #94a3b8;">Sent from: <strong style="color: #cbd5e1;">no-reply.nicejobs@nicesoftware.com.bd</strong> &bull; <span style="color: #ff9800; font-weight: 600;">Valid for 5 minutes</span></span>
+              <div class="otp-card-shell">
+                <div class="otp-badge-top">
+                  ${svgIcon('shield', '', 14)} Secure Verification
+                </div>
+                
+                <h2 class="otp-headline">Verification Code</h2>
+                
+                <div class="otp-email-pill">
+                  ${svgIcon('mail', '', 13)}
+                  <span>${escapeHtml(signupState.join_user_email || '')}</span>
+                </div>
+
+                <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)" style="width: 100%;">
+                  <div class="otp-grid-wrap">
+                    ${renderOtpDigitsInput('join-otp-code', signupState.join_otp_code || '')}
+                  </div>
+
+                  <div class="otp-action-row">
+                    <button type="button" class="btn-secondary otp-btn-back" onclick="prevJoinStage()">
+                      Back
+                    </button>
+                    <button type="submit" class="auth-btn-primary otp-btn-submit" id="btn-join-otp-submit">
+                      Verify &amp; Continue
+                    </button>
+                  </div>
+                </form>
+
+                <div class="otp-resend-bar">
+                  <button type="button" class="otp-resend-btn" id="btn-resend-join-otp" onclick="resendJoinBusinessOtp(this)">
+                    Resend Code
+                  </button>
                 </div>
               </div>
-
-              <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)">
-                <div class="auth-field" style="text-align: center; margin-bottom: 14px;">
-                  <input type="text" id="join-otp-code" maxlength="6" class="auth-otp-input" 
-                    placeholder="Enter 6-digit code from email" value="" autofocus required>
-                </div>
-
-                <div class="auth-nav-row" style="margin-top: 14px;">
-                  <button type="button" class="btn-secondary" style="padding: 12px 18px;" onclick="prevJoinStage()">
-                    ← Back
-                  </button>
-                  <button type="submit" class="auth-btn-primary" style="flex: 1; margin: 0;">
-                    Verify Code &amp; Review Terms →
-                  </button>
-                </div>
-              </form>
             ` : ''}
 
             <!-- Terms & Conditions Screen (After Join OTP) -->
@@ -12882,6 +12901,15 @@ function renderSignupPage(viewport) {
       </div>
     </div>
   `;
+
+  setTimeout(() => {
+    const firstEmptyCell = document.querySelector('.otp-boxes-group .otp-digit-cell:not(.is-filled)') ||
+                           document.querySelector('.otp-boxes-group .otp-digit-cell');
+    if (firstEmptyCell) {
+      firstEmptyCell.focus();
+      firstEmptyCell.select();
+    }
+  }, 40);
 }
 window.renderSignupPage = renderSignupPage;
 
@@ -14726,9 +14754,9 @@ async function nextSignupStage(targetStage) {
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.detail || 'Failed to dispatch verification code to email.', 'danger');
+        showToast(data.detail || 'Failed to dispatch verification code.', 'danger');
       } else {
-        showToast(`Verification code sent to your email (${signupState.email}). Valid for 5 minutes.`, 'success');
+        showToast('Verification code sent.', 'success');
       }
     } catch (err) {
       showToast('Error sending OTP: ' + err.message, 'danger');
@@ -14761,11 +14789,196 @@ function prevSignupStage() {
   }
 }
 
-function autoFillCandidateOtp() {
-  // Demo auto-fill removed for production security
+// ==========================================================================
+// Credible Minimalist OTP Digit Box Engine
+// ==========================================================================
+
+function renderOtpDigitsInput(targetInputId, currentValue = '') {
+  const safeVal = String(currentValue || '').replace(/[^0-9]/g, '').slice(0, 6);
+  const digits = safeVal.padEnd(6, ' ').split('');
+  return `
+    <div class="otp-boxes-group ${safeVal.length === 6 ? 'is-complete' : ''}" data-target-id="${targetInputId}">
+      ${[0, 1, 2, 3, 4, 5].map(i => {
+        const d = (digits[i] && digits[i] !== ' ') ? digits[i] : '';
+        const sep = i === 2 ? '<span class="otp-boxes-separator" aria-hidden="true"></span>' : '';
+        return `
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" 
+            class="otp-digit-cell ${d ? 'is-filled' : ''}" 
+            data-idx="${i}" 
+            value="${d}" 
+            autocomplete="one-time-code" 
+            ${i === 0 ? 'autofocus' : ''} 
+            aria-label="Digit ${i + 1}">
+          ${sep}
+        `;
+      }).join('')}
+    </div>
+    <input type="hidden" id="${targetInputId}" value="${safeVal}">
+  `;
 }
 
-async function resendCandidateOtp() {
+function syncOtpGroupValue(group) {
+  const targetId = group.dataset.targetId;
+  const cells = Array.from(group.querySelectorAll('.otp-digit-cell'));
+  const combined = cells.map(c => c.value || '').join('');
+  
+  if (targetId) {
+    const target = document.getElementById(targetId);
+    if (target) {
+      target.value = combined;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  if (combined.length === 6) {
+    group.classList.add('is-complete');
+    const form = group.closest('form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"], #btn-cand-otp-submit, #btn-biz-otp-submit, #btn-join-otp-submit');
+      if (submitBtn) {
+        submitBtn.focus();
+      }
+    }
+  } else {
+    group.classList.remove('is-complete');
+  }
+}
+
+function startOtpResendTimer(btnElement, seconds = 30) {
+  if (!btnElement) return;
+  btnElement.disabled = true;
+  btnElement.classList.add('is-counting');
+  let remaining = seconds;
+  btnElement.textContent = `Resend in ${remaining}s`;
+
+  const interval = setInterval(() => {
+    remaining -= 1;
+    if (remaining > 0) {
+      btnElement.textContent = `Resend in ${remaining}s`;
+    } else {
+      clearInterval(interval);
+      btnElement.disabled = false;
+      btnElement.classList.remove('is-counting');
+      btnElement.textContent = 'Resend Code';
+    }
+  }, 1000);
+}
+
+function initOtpBoxesDelegation() {
+  if (typeof window !== 'undefined' && window._otpBoxesDelegationInitialized) return;
+  if (typeof window !== 'undefined') window._otpBoxesDelegationInitialized = true;
+
+  if (typeof document === 'undefined') return;
+
+  document.addEventListener('input', (e) => {
+    const cell = e.target.closest('.otp-digit-cell');
+    if (!cell) return;
+    const group = cell.closest('.otp-boxes-group');
+    if (!group) return;
+
+    const val = cell.value.replace(/[^0-9]/g, '');
+    cell.value = val ? val[val.length - 1] : '';
+
+    syncOtpGroupValue(group);
+
+    if (cell.value) {
+      cell.classList.add('is-filled');
+      const idx = parseInt(cell.dataset.idx, 10);
+      const next = group.querySelector(`.otp-digit-cell[data-idx="${idx + 1}"]`);
+      if (next) {
+        next.focus();
+        next.select();
+      }
+    } else {
+      cell.classList.remove('is-filled');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const cell = e.target.closest('.otp-digit-cell');
+    if (!cell) return;
+    const group = cell.closest('.otp-boxes-group');
+    if (!group) return;
+    const idx = parseInt(cell.dataset.idx, 10);
+
+    if (e.key === 'Backspace') {
+      if (!cell.value && idx > 0) {
+        e.preventDefault();
+        const prev = group.querySelector(`.otp-digit-cell[data-idx="${idx - 1}"]`);
+        if (prev) {
+          prev.value = '';
+          prev.classList.remove('is-filled');
+          prev.focus();
+          syncOtpGroupValue(group);
+        }
+      } else {
+        cell.value = '';
+        cell.classList.remove('is-filled');
+        syncOtpGroupValue(group);
+      }
+    } else if (e.key === 'ArrowLeft' && idx > 0) {
+      e.preventDefault();
+      const prev = group.querySelector(`.otp-digit-cell[data-idx="${idx - 1}"]`);
+      if (prev) {
+        prev.focus();
+        prev.select();
+      }
+    } else if (e.key === 'ArrowRight' && idx < 5) {
+      e.preventDefault();
+      const next = group.querySelector(`.otp-digit-cell[data-idx="${idx + 1}"]`);
+      if (next) {
+        next.focus();
+        next.select();
+      }
+    } else if (e.key === 'Enter') {
+      const form = group.closest('form');
+      if (form) {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"], #btn-cand-otp-submit, #btn-biz-otp-submit, #btn-join-otp-submit');
+        if (submitBtn) submitBtn.click();
+        else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  });
+
+  document.addEventListener('paste', (e) => {
+    const cell = e.target.closest('.otp-digit-cell');
+    if (!cell) return;
+    const group = cell.closest('.otp-boxes-group');
+    if (!group) return;
+
+    e.preventDefault();
+    const pasted = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+    const digits = pasted.replace(/[^0-9]/g, '').slice(0, 6);
+    if (!digits) return;
+
+    const cells = Array.from(group.querySelectorAll('.otp-digit-cell'));
+    digits.split('').forEach((d, i) => {
+      if (cells[i]) {
+        cells[i].value = d;
+        cells[i].classList.add('is-filled');
+      }
+    });
+
+    syncOtpGroupValue(group);
+
+    const focusIdx = Math.min(digits.length, 5);
+    if (cells[focusIdx]) {
+      cells[focusIdx].focus();
+      cells[focusIdx].select();
+    }
+  });
+
+  document.addEventListener('focusin', (e) => {
+    const cell = e.target.closest('.otp-digit-cell');
+    if (cell) cell.select();
+  });
+}
+
+initOtpBoxesDelegation();
+
+async function resendCandidateOtp(btn) {
+  startOtpResendTimer(btn || document.getElementById('btn-resend-cand-otp'), 30);
   try {
     const res = await fetch('/api/auth/send-otp', {
       method: 'POST',
@@ -14780,7 +14993,53 @@ async function resendCandidateOtp() {
     if (!res.ok) {
       showToast(data.detail || 'Failed to resend code.', 'danger');
     } else {
-      showToast(`New verification code sent to your email (${signupState.email}). Valid for 5 minutes.`, 'success');
+      showToast('Verification code sent.', 'success');
+    }
+  } catch (err) {
+    showToast('Failed to resend code: ' + err.message, 'danger');
+  }
+}
+
+async function resendNewBusinessOtp(btn) {
+  startOtpResendTimer(btn || document.getElementById('btn-resend-biz-otp'), 30);
+  try {
+    const res = await fetch('/api/auth/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: signupState.rep_email,
+        phone: signupState.rep_cell,
+        purpose: 'business_signup'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Failed to resend code.', 'danger');
+    } else {
+      showToast('Verification code sent.', 'success');
+    }
+  } catch (err) {
+    showToast('Failed to resend code: ' + err.message, 'danger');
+  }
+}
+
+async function resendJoinBusinessOtp(btn) {
+  startOtpResendTimer(btn || document.getElementById('btn-resend-join-otp'), 30);
+  try {
+    const res = await fetch('/api/auth/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: signupState.join_user_email,
+        phone: signupState.join_cell,
+        purpose: 'business_join'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Failed to resend code.', 'danger');
+    } else {
+      showToast('Verification code sent.', 'success');
     }
   } catch (err) {
     showToast('Failed to resend code: ' + err.message, 'danger');
@@ -14794,7 +15053,7 @@ async function handleCandidateVerifyAndCreate(event) {
   const code = (input ? input.value : '').trim();
 
   if (!code || code.length < 6) {
-    showToast('Please enter the 6-digit OTP code received in your email.', 'danger');
+    showToast('Please enter the 6-digit code.', 'danger');
     return;
   }
 
@@ -14802,7 +15061,7 @@ async function handleCandidateVerifyAndCreate(event) {
   const origBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating Account...`;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...`;
   }
 
   try {
@@ -14856,7 +15115,7 @@ async function handleCandidateVerifyAndCreate(event) {
     signupState.otp_code = code;
     signupState.stage = 4;
     saveSignupProgress();
-    showToast('Email verified and account created! Please review and accept Terms & Conditions.', 'success');
+    showToast('Email verified.', 'success');
     renderSignupPage(document.getElementById('app-viewport'));
   } catch (err) {
     showToast('Registration failed: ' + err.message, 'danger');
@@ -15322,7 +15581,7 @@ async function nextBizStage(targetStep) {
       if (!res.ok) {
         showToast(data.detail || 'Failed to dispatch verification code.', 'danger');
       } else {
-        showToast(`Verification code sent to representative email (${signupState.rep_email}). Valid for 5 minutes.`, 'success');
+        showToast('Verification code sent.', 'success');
       }
     } catch (err) {
       showToast('Error dispatching OTP: ' + err.message, 'danger');
@@ -15368,7 +15627,7 @@ async function handleNewBusinessOtpSubmit(event) {
   const code = (input ? input.value : '').trim();
 
   if (!code || code.length < 6) {
-    showToast('Please enter the 6-digit OTP code received in your email.', 'danger');
+    showToast('Please enter the 6-digit code.', 'danger');
     return;
   }
 
@@ -15413,7 +15672,7 @@ async function handleNewBusinessOtpSubmit(event) {
   signupState.biz_step = 'terms';
   saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
-  showToast('Email verified successfully! Please review and accept Hotel Partner Terms & Conditions.', 'info');
+  showToast('Email verified.', 'info');
 }
 
 const handleNewBusinessFinalSignup = handleNewBusinessOtpSubmit;
@@ -15608,7 +15867,7 @@ async function nextJoinStage(targetStep) {
       if (!res.ok) {
         showToast(data.detail || 'Failed to dispatch verification code.', 'danger');
       } else {
-        showToast(`Verification code sent to ${signupState.join_user_email}. Valid for 5 minutes.`, 'success');
+        showToast('Verification code sent.', 'success');
       }
     } catch (err) {
       showToast('Error dispatching OTP: ' + err.message, 'danger');
@@ -15648,7 +15907,7 @@ async function handleJoinBusinessOtpSubmit(event) {
   const code = (input ? input.value : '').trim();
 
   if (!code || code.length < 6) {
-    showToast('Please enter the 6-digit OTP code received in your email.', 'danger');
+    showToast('Please enter the 6-digit code.', 'danger');
     return;
   }
 
@@ -15693,7 +15952,7 @@ async function handleJoinBusinessOtpSubmit(event) {
   signupState.biz_step = 'terms_join';
   saveSignupProgress();
   renderSignupPage(document.getElementById('app-viewport'));
-  showToast('Email verified successfully! Please review and accept Terms & Conditions.', 'info');
+  showToast('Email verified.', 'info');
 }
 
 const handleJoinBusinessFinalSignup = handleJoinBusinessOtpSubmit;
@@ -15756,6 +16015,12 @@ window.prevJoinStage = prevJoinStage;
 window.clearSignupState = clearSignupState;
 window.saveSignupProgress = saveSignupProgress;
 window.restoreSignupProgress = restoreSignupProgress;
+window.renderOtpDigitsInput = renderOtpDigitsInput;
+window.resendCandidateOtp = resendCandidateOtp;
+window.resendNewBusinessOtp = resendNewBusinessOtp;
+window.resendJoinBusinessOtp = resendJoinBusinessOtp;
+window.handleNewBusinessOtpSubmit = handleNewBusinessOtpSubmit;
+window.handleJoinBusinessOtpSubmit = handleJoinBusinessOtpSubmit;
 
 // Compatibility redirect helpers
 function startAuthFlow(role = 'candidate', mode = 'login') {
