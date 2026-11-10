@@ -975,6 +975,128 @@ class TestNiceJobsAPI(unittest.TestCase):
                 pass
             conn.close()
 
+    def test_current_job_title_and_designation_lifecycle(self):
+        """Verifies candidate current job title and designation across profile creation, profile editing, ATS applications, and talent discovery."""
+        import database
+        import uuid
+
+        suffix = uuid.uuid4().hex[:6]
+        user_id = f"user_cand_{suffix}"
+        test_email = f"curjob_cand_{suffix}@test.com"
+        biz_id = f"biz_{suffix}"
+        job_id = f"job_{suffix}"
+        app_id = f"app_{suffix}"
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+
+        try:
+            # 1. Create candidate user
+            cursor.execute("""
+                INSERT INTO users (id, name, email, phone, role, status, terms_accepted, profile_completed)
+                VALUES (?, ?, ?, ?, 'jobseeker', 'active', 1, 0)
+            """, (user_id, "Tanvir Ahmed", test_email, f"01711{suffix[:6]}"))
+            conn.commit()
+
+            # 2. Complete candidate profile with current_job_title & current_job_designation
+            complete_resp = self.client.post("/api/auth/complete-profile", json={
+                "user_id": user_id,
+                "bio": "Experienced guest service supervisor specializing in 5-star hotel front office operations.",
+                "department": "Front Office & Guest Services",
+                "designation": "Assistant Guest Relations Manager",
+                "current_job_title": "Front Desk Associate",
+                "current_job_designation": "Senior Executive",
+                "location": "Dhaka, Bangladesh",
+                "job_preferences": {
+                    "department": "Front Office & Guest Services",
+                    "desired_role": "Assistant Guest Relations Manager",
+                    "preferred_location": "Dhaka",
+                    "expected_salary": "৳65,000"
+                }
+            })
+            self.assertEqual(complete_resp.status_code, 200)
+
+            # 3. Retrieve profile and check current job fields
+            prof_resp = self.client.get(f"/api/profile?user_id={user_id}")
+            self.assertEqual(prof_resp.status_code, 200)
+            prof_data = prof_resp.json()
+            self.assertEqual(prof_data.get("current_job_title"), "Front Desk Associate")
+            self.assertEqual(prof_data.get("current_job_designation"), "Senior Executive")
+            self.assertEqual(prof_data.get("preferences", {}).get("desired_role"), "Assistant Guest Relations Manager")
+
+            # 4. Update profile with new current job details
+            update_resp = self.client.put("/api/profile", json={
+                "user_id": user_id,
+                "name": "Tanvir Ahmed",
+                "current_job_title": "Guest Experience Team Lead",
+                "current_job_designation": "Assistant Manager"
+            })
+            self.assertEqual(update_resp.status_code, 200)
+
+            prof_updated_resp = self.client.get(f"/api/profile?user_id={user_id}")
+            self.assertEqual(prof_updated_resp.status_code, 200)
+            prof_updated = prof_updated_resp.json()
+            self.assertEqual(prof_updated.get("current_job_title"), "Guest Experience Team Lead")
+            self.assertEqual(prof_updated.get("current_job_designation"), "Assistant Manager")
+
+            # 5. Check candidate talent search returns current_job_title & current_job_designation
+            cands_resp = self.client.get(f"/api/candidates?id={user_id}")
+            self.assertEqual(cands_resp.status_code, 200)
+            cands = cands_resp.json()
+            matching_cand = next((c for c in cands if c.get("id") == user_id), None)
+            self.assertIsNotNone(matching_cand)
+            self.assertEqual(matching_cand.get("current_job_title"), "Guest Experience Team Lead")
+            self.assertEqual(matching_cand.get("current_job_designation"), "Assistant Manager")
+
+            # 6. Create business and job to test application
+            cursor.execute("""
+                INSERT INTO businesses (id, legal_name, brand_name, property_type, city, address, verification_status)
+                VALUES (?, 'Grand Palace Ltd', 'Grand Palace', 'Luxury Hotel', 'Dhaka', 'Gulshan 2', 'verified')
+            """, (biz_id,))
+            cursor.execute("""
+                INSERT INTO jobs (id, business_id, title, department, employment_type, shift, experience_level, property_location, description, requirements, status)
+                VALUES (?, ?, 'Front Office Supervisor', 'Front Office & Guest Services', 'Full-time', 'Rotational', '1-3 Years', 'Dhaka', 'Responsible for front office operations.', 'Must have 2+ years luxury hotel experience.', 'active')
+            """, (job_id, biz_id))
+            cursor.execute("""
+                INSERT INTO applications (id, job_id, user_id, status, applied_at, selected_cv)
+                VALUES (?, ?, ?, 'under_review', '2026-11-10 10:00', 'Resume.pdf')
+            """, (app_id, job_id, user_id))
+            conn.commit()
+
+            # 7. Check ATS endpoint returns candidate_current_job_title & candidate_current_job_designation
+            apps_resp = self.client.get(f"/api/applications?business_id={biz_id}")
+            self.assertEqual(apps_resp.status_code, 200)
+            apps_list = apps_resp.json()
+            matching_app = next((a for a in apps_list if a.get("id") == app_id), None)
+            self.assertIsNotNone(matching_app)
+            self.assertEqual(matching_app.get("candidate_current_job_title"), "Guest Experience Team Lead")
+            self.assertEqual(matching_app.get("candidate_current_job_designation"), "Assistant Manager")
+
+            app_single_resp = self.client.get(f"/api/applications/{app_id}")
+            self.assertEqual(app_single_resp.status_code, 200)
+            app_single = app_single_resp.json()
+            self.assertEqual(app_single.get("candidate_current_job_title"), "Guest Experience Team Lead")
+            self.assertEqual(app_single.get("candidate_current_job_designation"), "Assistant Manager")
+
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                clean_conn = database.get_db()
+                clean_cur = clean_conn.cursor()
+                clean_cur.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+                clean_cur.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+                clean_cur.execute("DELETE FROM businesses WHERE id = ?", (biz_id,))
+                clean_cur.execute("DELETE FROM employee_profiles WHERE user_id = ?", (user_id,))
+                clean_cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                clean_conn.commit()
+                clean_conn.close()
+            except Exception:
+                pass
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main()
 

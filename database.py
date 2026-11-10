@@ -396,6 +396,8 @@ def init_db():
         dob TEXT DEFAULT '',
         nid_passport TEXT DEFAULT '',
         cv_url TEXT DEFAULT '',
+        current_job_title TEXT DEFAULT '',
+        current_job_designation TEXT DEFAULT '',
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -775,7 +777,9 @@ def init_db():
         ("first_name", "TEXT DEFAULT ''"),
         ("middle_name", "TEXT DEFAULT ''"),
         ("last_name", "TEXT DEFAULT ''"),
-        ("name_bangla", "TEXT DEFAULT ''")
+        ("name_bangla", "TEXT DEFAULT ''"),
+        ("current_job_title", "TEXT DEFAULT ''"),
+        ("current_job_designation", "TEXT DEFAULT ''")
     ]:
         try:
             cursor.execute(f"ALTER TABLE employee_profiles ADD COLUMN {if_not_exists}{col} {typ}")

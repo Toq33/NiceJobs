@@ -2594,6 +2594,8 @@ class CompleteProfilePayload(BaseModel):
     department: Optional[str] = None
     location: Optional[str] = None
     expected_salary: Optional[str] = None
+    current_job_title: Optional[str] = None
+    current_job_designation: Optional[str] = None
 
 @app.post("/api/auth/complete-profile")
 def complete_candidate_profile(payload: CompleteProfilePayload):
@@ -2642,6 +2644,10 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             pass
     if isinstance(payload.job_preferences, dict):
         prefs_data.update(payload.job_preferences)
+    if payload.current_job_title:
+        prefs_data["current_job_title"] = payload.current_job_title.strip()
+    if payload.current_job_designation:
+        prefs_data["current_job_designation"] = payload.current_job_designation.strip()
     if payload.expected_salary:
         prefs_data["expected_salary"] = payload.expected_salary
     if payload.location:
@@ -2686,12 +2692,17 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     if exp_years is None:
         exp_years = 0
 
+    cand_cur_title = (payload.current_job_title or "").strip()
+    cand_cur_desig = (payload.current_job_designation or "").strip()
+
     if p_row:
         cursor.execute("""
             UPDATE employee_profiles SET
                 headline = ?,
                 summary = ?,
                 current_position = ?,
+                current_job_title = ?,
+                current_job_designation = ?,
                 experience_years = ?,
                 location = ?,
                 preferences = ?,
@@ -2709,6 +2720,8 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             headline_text,
             bio_text,
             cand_role,
+            cand_cur_title,
+            cand_cur_desig,
             exp_years,
             payload.location or "",
             json.dumps(prefs_data),
@@ -2726,16 +2739,18 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     else:
         cursor.execute("""
             INSERT INTO employee_profiles (
-                user_id, headline, location, summary, current_position, experience_years,
+                user_id, headline, location, summary, current_position, current_job_title, current_job_designation, experience_years,
                 open_to_work, visibility, skills, languages, certifications, experience,
                 education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', ?, ?, ?)
         """, (
             payload.user_id,
             headline_text,
             payload.location or "Dhaka, Bangladesh",
             bio_text,
             cand_role,
+            cand_cur_title,
+            cand_cur_desig,
             exp_years,
             json.dumps(skills_data),
             json.dumps(langs_data),
@@ -3504,6 +3519,8 @@ def get_profile(user_id: str = "user_rahim"):
     profile["designation"] = (profile.get("designation") or profile.get("current_position") or "").strip()
     profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
     profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
+    profile["current_job_title"] = (profile.get("current_job_title") or profile.get("preferences", {}).get("current_job_title") or "").strip()
+    profile["current_job_designation"] = (profile.get("current_job_designation") or profile.get("preferences", {}).get("current_job_designation") or "").strip()
 
     # Synthetic CV entry only if cv_list is empty but actual cv_url and cv_name are present
     cv_url_val = (profile.get("cv_url") or "").strip()
@@ -3543,6 +3560,8 @@ class ProfileUpdatePayload(BaseModel):
     location: Optional[str] = None
     summary: Optional[str] = None
     current_position: Optional[str] = None
+    current_job_title: Optional[str] = None
+    current_job_designation: Optional[str] = None
     experience_years: Optional[Union[int, float]] = None
     open_to_work: Optional[bool] = None
     visibility: Optional[str] = None
@@ -3673,6 +3692,16 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.current_position is not None:
         updates.append("current_position = ?")
         params.append(payload.current_position)
+    if payload.current_job_title is not None:
+        updates.append("current_job_title = ?")
+        params.append(payload.current_job_title)
+        curr_prefs["current_job_title"] = payload.current_job_title
+        has_pref_update = True
+    if payload.current_job_designation is not None:
+        updates.append("current_job_designation = ?")
+        params.append(payload.current_job_designation)
+        curr_prefs["current_job_designation"] = payload.current_job_designation
+        has_pref_update = True
     if payload.experience_years is not None:
         updates.append("experience_years = ?")
         params.append(payload.experience_years)
@@ -4059,9 +4088,14 @@ def get_application_by_id(app_id: str):
                j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
                b.id as business_id, b.brand_name, b.logo_url, b.property_type,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
+               u.designation as candidate_designation,
                ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills,
                ep.education as candidate_education, ep.experience as candidate_experience, ep.location as candidate_location,
-               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary
+               ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary,
+               ep.current_position as candidate_current_position,
+               ep.current_job_title as candidate_current_job_title,
+               ep.current_job_designation as candidate_current_job_designation,
+               ep.preferences as candidate_preferences
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
         JOIN businesses b ON j.business_id = b.id
@@ -4075,12 +4109,15 @@ def get_application_by_id(app_id: str):
         raise HTTPException(status_code=404, detail="Application not found")
     
     app_dict = dict(row)
-    for col in ["candidate_skills", "candidate_education", "candidate_experience", "screening_answers"]:
+    for col in ["candidate_skills", "candidate_education", "candidate_experience", "screening_answers", "candidate_preferences"]:
         if app_dict.get(col) and isinstance(app_dict[col], str):
             try:
                 app_dict[col] = json.loads(app_dict[col])
             except Exception:
                 pass
+    cand_prefs = app_dict.get("candidate_preferences") if isinstance(app_dict.get("candidate_preferences"), dict) else {}
+    app_dict["candidate_current_job_title"] = (app_dict.get("candidate_current_job_title") or cand_prefs.get("current_job_title") or "").strip()
+    app_dict["candidate_current_job_designation"] = (app_dict.get("candidate_current_job_designation") or cand_prefs.get("current_job_designation") or "").strip()
     return app_dict
 
 @app.get("/api/applications")
@@ -4098,9 +4135,14 @@ def get_applications(
                j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
                b.id as business_id, b.brand_name, b.logo_url, b.property_type,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
+               u.designation as candidate_designation,
                ep.headline as candidate_headline, ep.experience_years as candidate_exp_years, ep.skills as candidate_skills,
                ep.education as candidate_education, ep.experience as candidate_experience, ep.location as candidate_location,
                ep.open_to_work as candidate_open_to_work, ep.summary as candidate_summary,
+               ep.current_position as candidate_current_position,
+               ep.current_job_title as candidate_current_job_title,
+               ep.current_job_designation as candidate_current_job_designation,
+               ep.preferences as candidate_preferences,
                ae.id as event_id, ae.status as event_status, ae.actor_name as event_actor_name, ae.note as event_note, ae.timestamp as event_timestamp
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
@@ -4154,6 +4196,10 @@ def get_applications(
             d["candidate_skills"] = json.loads(d["candidate_skills"]) if d.get("candidate_skills") else []
             d["candidate_education"] = json.loads(d["candidate_education"]) if d.get("candidate_education") else []
             d["candidate_experience"] = json.loads(d["candidate_experience"]) if d.get("candidate_experience") else []
+            d["candidate_preferences"] = json.loads(d["candidate_preferences"]) if d.get("candidate_preferences") else {}
+            cand_p = d["candidate_preferences"] if isinstance(d.get("candidate_preferences"), dict) else {}
+            d["candidate_current_job_title"] = (d.get("candidate_current_job_title") or cand_p.get("current_job_title") or "").strip()
+            d["candidate_current_job_designation"] = (d.get("candidate_current_job_designation") or cand_p.get("current_job_designation") or "").strip()
             d["timeline"] = []
             app_map[app_id] = d
             results.append(d)
@@ -4240,6 +4286,7 @@ def get_candidates(
     query = """
         SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.designation, u.created_at,
                p.headline, p.location, p.summary, p.current_position, p.experience_years,
+               p.current_job_title, p.current_job_designation,
                p.education, p.skills, p.languages, p.certifications,
                p.experience, p.preferences, p.cv_name, p.cv_url, p.open_to_work
         FROM users u
@@ -4265,9 +4312,9 @@ def get_candidates(
         params.extend([like_loc, like_loc])
 
     if department and department != "all":
-        query += " AND (p.headline LIKE ? OR p.current_position LIKE ? OR u.designation LIKE ? OR p.preferences LIKE ?)"
+        query += " AND (p.headline LIKE ? OR p.current_position LIKE ? OR u.designation LIKE ? OR p.current_job_title LIKE ? OR p.current_job_designation LIKE ? OR p.preferences LIKE ?)"
         like_dept = f"%{department}%"
-        params.extend([like_dept, like_dept, like_dept, like_dept])
+        params.extend([like_dept, like_dept, like_dept, like_dept, like_dept, like_dept])
 
     # Rule: when hotels search for candidates, they CANNOT search by candidate name.
     # Search strictly by designation and job title.
@@ -4277,9 +4324,11 @@ def get_candidates(
             u.designation LIKE ? OR 
             p.headline LIKE ? OR 
             p.current_position LIKE ? OR 
+            p.current_job_title LIKE ? OR 
+            p.current_job_designation LIKE ? OR 
             p.preferences LIKE ?
         )"""
-        params.extend([like_q, like_q, like_q, like_q])
+        params.extend([like_q, like_q, like_q, like_q, like_q, like_q])
 
     query += " ORDER BY u.created_at DESC"
     cursor.execute(query, params)
@@ -4314,6 +4363,8 @@ def get_candidates(
         # Extract salary preference
         sal_pref = cand_prefs.get('expected_salary') or 'Negotiable'
         d['salary_preference'] = sal_pref
+        d['current_job_title'] = (d.get('current_job_title') or cand_prefs.get('current_job_title') or '').strip()
+        d['current_job_designation'] = (d.get('current_job_designation') or cand_prefs.get('current_job_designation') or '').strip()
 
         # Anonymize candidate info for hotel privacy:
         # Rule: hotels cannot view name or contact details.

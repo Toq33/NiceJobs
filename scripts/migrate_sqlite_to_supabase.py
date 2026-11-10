@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS employee_profiles (
     dob TEXT DEFAULT '',
     nid_passport TEXT DEFAULT '',
     cv_url TEXT DEFAULT '',
+    current_job_title TEXT DEFAULT '',
+    current_job_designation TEXT DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
