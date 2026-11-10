@@ -12172,10 +12172,6 @@ function renderSignupPage(viewport) {
           <!-- STEP 3: OTP VERIFICATION -->
           ${signupState.stage === 3 ? `
             <div class="otp-card-shell">
-              <div class="otp-badge-top">
-                ${svgIcon('shield', '', 14)} Secure Verification
-              </div>
-              
               <h2 class="otp-headline">Verification Code</h2>
               
               <div class="otp-email-pill">
@@ -12941,10 +12937,6 @@ function renderSignupPage(viewport) {
             <!-- OTP Verification -->
             ${signupState.biz_step === 5 ? `
               <div class="otp-card-shell">
-                <div class="otp-badge-top">
-                  ${svgIcon('shield', '', 14)} Secure Verification
-                </div>
-                
                 <h2 class="otp-headline">Verification Code</h2>
                 
                 <div class="otp-email-pill">
@@ -13243,10 +13235,6 @@ function renderSignupPage(viewport) {
             <!-- Mobile Verification OTP -->
             ${signupState.biz_step === 5 ? `
               <div class="otp-card-shell">
-                <div class="otp-badge-top">
-                  ${svgIcon('shield', '', 14)} Secure Verification
-                </div>
-                
                 <h2 class="otp-headline">Verification Code</h2>
                 
                 <div class="otp-email-pill">
@@ -17076,7 +17064,7 @@ function renderLoginWizard() {
       modalTitle.textContent = isCandidate ? 'Candidate Log In' : 'Hotel Recruiter Log In';
       modalSubtitle.textContent = isCandidate ? 'Enter your mobile cell number or personal email' : 'Enter your hotel contact number or corporate email';
     } else {
-      modalTitle.textContent = 'Secure Account Verification';
+      modalTitle.textContent = 'Account Verification';
       modalSubtitle.textContent = `Log in to verified ${roleName} desk`;
     }
   }
