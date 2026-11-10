@@ -7390,6 +7390,7 @@ function renderAdminLoginScreen(viewport) {
             <label class="admin-simple-label" for="admin-input-email">Email</label>
             <input
               type="email"
+              name="username"
               id="admin-input-email"
               class="admin-simple-input"
               placeholder="Email"
@@ -7403,6 +7404,7 @@ function renderAdminLoginScreen(viewport) {
             <label class="admin-simple-label" for="admin-input-password">Password</label>
             <input
               type="password"
+              name="password"
               id="admin-input-password"
               class="admin-simple-input"
               placeholder="Password"
@@ -11633,6 +11635,7 @@ function renderLoginPage(viewport) {
             <div class="auth-field">
               <label class="auth-label">Email</label>
               <input type="email" 
+                name="username"
                 id="login-candidate-email" 
                 class="auth-input" 
                 placeholder="Enter your registered email" 
@@ -11645,6 +11648,7 @@ function renderLoginPage(viewport) {
               <label class="auth-label">Password</label>
               <div class="auth-password-wrapper">
                 <input type="password" 
+                  name="password"
                   id="login-candidate-pwd" 
                   class="auth-input" 
                   placeholder="Enter your password" 
@@ -11726,6 +11730,7 @@ function renderLoginPage(viewport) {
               <div class="auth-field">
                 <label class="auth-label">Email</label>
                 <input type="email" 
+                  name="username"
                   id="biz-login-user-email" 
                   class="auth-input" 
                   placeholder="Enter your account email" 
@@ -11738,6 +11743,7 @@ function renderLoginPage(viewport) {
                 <label class="auth-label">Password</label>
                 <div class="auth-password-wrapper">
                   <input type="password" 
+                    name="password"
                     id="biz-login-password" 
                     class="auth-input" 
                     placeholder="Enter your password" 
@@ -12134,11 +12140,12 @@ function renderSignupPage(viewport) {
             </div>
 
             <form id="form-cand-part2" novalidate onsubmit="event.preventDefault(); nextSignupStage(3); return false;">
+              <input type="text" name="username" value="${escapeHtml(signupState.email || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
               <div class="auth-field-grid">
                 <div class="auth-field">
                   <label class="auth-label">Password *</label>
                   <div class="auth-password-wrapper">
-                    <input type="password" id="cand-pwd" class="auth-input" required 
+                    <input type="password" name="password" id="cand-pwd" class="auth-input" required 
                       placeholder="Min. 6 characters" value="${escapeHtml(signupState.password || '')}" autofocus>
                     <button type="button" class="auth-eye-toggle" id="cand-p2-toggle1" 
                       onclick="togglePasswordVisibility('cand-pwd', 'cand-p2-toggle1')" 
@@ -12180,6 +12187,8 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-cand-part3" novalidate onsubmit="event.preventDefault(); handleCandidateVerifyAndCreate(event); return false;" style="width: 100%;">
+                <input type="text" name="username" value="${escapeHtml(signupState.email || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+                <input type="password" name="password" value="${escapeHtml(signupState.password || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
                 <div class="otp-grid-wrap">
                   ${renderOtpDigitsInput('cand-otp-code', signupState.otp_code || '')}
                 </div>
@@ -12901,11 +12910,12 @@ function renderSignupPage(viewport) {
               </div>
 
               <form id="form-biz-new-part4" onsubmit="event.preventDefault(); nextBizStage(5);">
+                <input type="text" name="username" value="${escapeHtml(signupState.rep_email || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
                 <div class="auth-field-grid">
                   <div class="auth-field">
                     <label class="auth-label">Set Password</label>
                     <div class="auth-password-wrapper">
-                      <input type="password" id="biz-pwd-part4" class="auth-input" required 
+                      <input type="password" name="password" id="biz-pwd-part4" class="auth-input" required 
                         placeholder="Min. 6 characters" value="${signupState.biz_password || ''}" autofocus>
                       <button type="button" class="auth-eye-toggle" id="biz-p4-t1" 
                         onclick="togglePasswordVisibility('biz-pwd-part4', 'biz-p4-t1')">${svgIcon('eye', '', 16)}</button>
@@ -12945,6 +12955,8 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <form id="form-biz-new-part5" onsubmit="handleNewBusinessOtpSubmit(event)" style="width: 100%;">
+                  <input type="text" name="username" value="${escapeHtml(signupState.rep_email || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+                  <input type="password" name="password" value="${escapeHtml(signupState.biz_password || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
                   <div class="otp-grid-wrap">
                     ${renderOtpDigitsInput('biz-new-otp', signupState.biz_otp_code || '')}
                   </div>
@@ -13092,7 +13104,7 @@ function renderSignupPage(viewport) {
               <form id="form-biz-join-part3" onsubmit="event.preventDefault(); nextJoinStage(3);">
                 <div class="auth-field">
                   <label class="auth-label">Your Personal Work Email</label>
-                  <input type="email" id="join-rep-email" class="auth-input" required 
+                  <input type="email" name="username" id="join-rep-email" class="auth-input" required 
                     placeholder="Enter your personal work email" 
                     value="${signupState.join_user_email || ''}" autofocus>
                 </div>
@@ -13100,7 +13112,7 @@ function renderSignupPage(viewport) {
                 <div class="auth-field">
                   <label class="auth-label">Account Password</label>
                   <div class="auth-password-wrapper">
-                    <input type="password" id="join-rep-pwd" class="auth-input" required 
+                    <input type="password" name="password" id="join-rep-pwd" class="auth-input" required 
                       placeholder="Enter password (min 6 characters)" value="${signupState.join_user_password || ''}">
                     <button type="button" class="auth-eye-toggle" id="join-p3-t1" 
                       onclick="togglePasswordVisibility('join-rep-pwd', 'join-p3-t1')">${svgIcon('eye', '', 16)}</button>
@@ -13243,6 +13255,8 @@ function renderSignupPage(viewport) {
                 </div>
 
                 <form id="form-biz-join-part6" onsubmit="handleJoinBusinessOtpSubmit(event)" style="width: 100%;">
+                  <input type="text" name="username" value="${escapeHtml(signupState.join_user_email || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+                  <input type="password" name="password" value="${escapeHtml(signupState.join_user_password || '')}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
                   <div class="otp-grid-wrap">
                     ${renderOtpDigitsInput('join-otp-code', signupState.join_otp_code || '')}
                   </div>
@@ -17237,8 +17251,8 @@ function renderLoginWizard() {
         </div>
 
         <form id="form-user-login" onsubmit="handleUserLogin(event)">
-          <!-- Hidden inputs for form data -->
-          <input type="hidden" id="login-identifier" value="${loginWizardState.identifier}">
+          <!-- Form credentials for browser password manager saving -->
+          <input type="text" name="username" id="login-identifier" value="${escapeHtml(loginWizardState.identifier)}" readonly tabindex="-1" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
           <input type="radio" name="login_role" value="${loginWizardState.role}" checked style="display: none;">
 
           <!-- Method Selector (Password vs OTP) -->
@@ -17259,7 +17273,7 @@ function renderLoginWizard() {
             </div>
             <div class="login-input-group" style="margin-bottom: 0;">
               <span class="login-input-icon">${svgIcon('key', '', 16)}</span>
-              <input type="password" id="login-password" class="login-input" placeholder="••••••••" value="${loginWizardState.password}" autocomplete="current-password" style="padding-right: 42px;">
+              <input type="password" name="password" id="login-password" class="login-input" placeholder="••••••••" value="${loginWizardState.password}" autocomplete="current-password" style="padding-right: 42px;">
               <button type="button" class="login-pwd-toggle" id="pwd-toggle-btn" onclick="togglePasswordVisibility('login-password', 'pwd-toggle-btn')" title="Show/Hide Password">${svgIcon('eye', '', 16)}</button>
             </div>
           </div>
