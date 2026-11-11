@@ -18151,8 +18151,11 @@ function setCandidateReviewStatus(status) {
   if (interviewSection) {
     if (status === 'interview_scheduled' || status === 'interview') {
       interviewSection.style.display = 'block';
+      const dateInp = document.getElementById('input-interview-date');
       const timeInp = document.getElementById('input-interview-time');
-      if (timeInp && !timeInp.value) {
+      if (dateInp && !dateInp.value) {
+        dateInp.focus();
+      } else if (timeInp && !timeInp.value) {
         timeInp.focus();
       }
     } else {
@@ -18162,11 +18165,112 @@ function setCandidateReviewStatus(status) {
 }
 window.setCandidateReviewStatus = setCandidateReviewStatus;
 
+function parseInterviewSchedule(str) {
+  if (!str || typeof str !== 'string') return { date: '', time: '', raw: '' };
+  str = str.trim();
+  const ymdMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  let parsedDate = '';
+  let parsedTime = '';
+
+  if (ymdMatch) {
+    parsedDate = `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+  } else {
+    const cleaned = str.replace(/at\s+/i, '').replace(/\(.*?\)/g, '').trim();
+    const parsed = new Date(cleaned);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      parsedDate = `${y}-${m}-${d}`;
+    }
+  }
+
+  const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (timeMatch) {
+    let hour = parseInt(timeMatch[1], 10);
+    const minute = timeMatch[2];
+    const meridiem = timeMatch[3] ? timeMatch[3].toUpperCase() : '';
+    if (meridiem === 'PM' && hour < 12) hour += 12;
+    if (meridiem === 'AM' && hour === 12) hour = 0;
+    parsedTime = `${String(hour).padStart(2, '0')}:${minute}`;
+  }
+
+  return { date: parsedDate, time: parsedTime, raw: str };
+}
+window.parseInterviewSchedule = parseInterviewSchedule;
+
+function formatInterviewDateTime(dateStr, timeStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+  const formattedDate = dateObj.toLocaleDateString('en-US', options);
+  
+  if (!timeStr) return formattedDate;
+  const [h, min] = timeStr.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  const minuteStr = String(min).padStart(2, '0');
+  const formattedTime = `${hour12}:${minuteStr} ${period}`;
+  
+  return `${formattedDate} at ${formattedTime}`;
+}
+window.formatInterviewDateTime = formatInterviewDateTime;
+
+function syncInterviewDateTime() {
+  const dateInp = document.getElementById('input-interview-date');
+  const timeInp = document.getElementById('input-interview-time-clock');
+  const hiddenInp = document.getElementById('input-interview-time');
+  const preview = document.getElementById('interview-time-preview');
+  const previewText = document.getElementById('interview-time-preview-text');
+
+  if (!dateInp || !hiddenInp) return;
+
+  const dateVal = dateInp.value;
+  const timeVal = timeInp ? timeInp.value : '';
+
+  if (!dateVal) {
+    if (!hiddenInp.value) {
+      if (preview && previewText) {
+        preview.style.background = 'rgba(255, 255, 255, 0.02)';
+        preview.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+        preview.style.color = 'var(--text-dim)';
+        previewText.innerHTML = 'Select a date and time above';
+      }
+    }
+    return;
+  }
+
+  const formatted = formatInterviewDateTime(dateVal, timeVal);
+  hiddenInp.value = formatted;
+
+  if (preview && previewText) {
+    preview.style.background = 'rgba(56, 189, 248, 0.08)';
+    preview.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+    preview.style.color = '#38bdf8';
+    previewText.innerHTML = `Scheduled: <strong>${escapeHtml(formatted)}</strong>`;
+  }
+}
+window.syncInterviewDateTime = syncInterviewDateTime;
+
 function setInterviewPreset(val) {
-  const inp = document.getElementById('input-interview-time');
-  if (inp) {
-    inp.value = val;
-    inp.focus();
+  const hiddenInp = document.getElementById('input-interview-time');
+  if (hiddenInp) {
+    hiddenInp.value = val;
+  }
+  const parsed = parseInterviewSchedule(val);
+  const dateInp = document.getElementById('input-interview-date');
+  const timeInp = document.getElementById('input-interview-time-clock');
+  if (dateInp && parsed.date) dateInp.value = parsed.date;
+  if (timeInp && parsed.time) timeInp.value = parsed.time;
+
+  const preview = document.getElementById('interview-time-preview');
+  const previewText = document.getElementById('interview-time-preview-text');
+  if (preview && previewText && val) {
+    preview.style.background = 'rgba(56, 189, 248, 0.08)';
+    preview.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+    preview.style.color = '#38bdf8';
+    previewText.innerHTML = `Candidate Time Applied: <strong>${escapeHtml(val)}</strong>`;
   }
 }
 window.setInterviewPreset = setInterviewPreset;
@@ -18280,6 +18384,8 @@ async function openCandidateReviewModal(appId) {
       { id: 'rejected', label: 'Rejected' }
     ];
     const isInterview = currentStatus === 'interview_scheduled' || currentStatus === 'interview';
+    const parsedSchedule = parseInterviewSchedule(app.interview_time || '');
+    const todayYMD = new Date().toISOString().split('T')[0];
 
     const container = document.getElementById('modal-container');
     if (!container) return;
@@ -18526,38 +18632,43 @@ async function openCandidateReviewModal(appId) {
                     </div>
                   ` : '')}
 
-                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px; color: var(--white);">
-                    Interview Schedule (Date &amp; Time) <span style="color: var(--orange-primary);">*</span>
-                  </label>
-                  <input type="text" id="input-interview-time" value="${escapeHtml(app.interview_time || '')}" 
-                         placeholder="e.g. Tomorrow at 10:00 AM or Next Sunday 02:30 PM"
-                         style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
-                  
-                  <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                            onclick="setInterviewPreset('Tomorrow at 10:00 AM (Hotel Lobby Lounge)')">
-                      Tomorrow 10 AM
-                    </button>
-                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                            onclick="setInterviewPreset('Next Sunday at 02:30 PM (HR Executive Office)')">
-                      Next Sun 2:30 PM
-                    </button>
-                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                            onclick="setInterviewPreset('Online Video Interview via Microsoft Teams')">
-                      Teams Video Call
-                    </button>
-                    <button type="button" class="btn-secondary" style="padding: 2px 7px; font-size: 0.7rem;" 
-                            onclick="setInterviewPreset('Phone Screening Interview')">
-                      Phone Call
-                    </button>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="font-weight: 700; font-size: 0.82rem; color: var(--white); margin: 0; display: flex; align-items: center; gap: 6px;">
+                      ${svgIcon('calendar', '', 14)} Interview Schedule <span style="color: var(--orange-primary);">*</span>
+                    </label>
+                    <span style="font-size: 0.7rem; color: var(--text-dim);">Pick date &amp; time</span>
                   </div>
 
-                  <label style="display: block; font-weight: 700; font-size: 0.78rem; margin-top: 8px; margin-bottom: 3px; color: #94a3b8;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                      <label for="input-interview-date" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Date</label>
+                      <input type="date" id="input-interview-date" min="${todayYMD}" value="${parsedSchedule.date}"
+                             onchange="syncInterviewDateTime()"
+                             style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+                    </div>
+                    <div>
+                      <label for="input-interview-time-clock" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Time</label>
+                      <input type="time" id="input-interview-time-clock" value="${parsedSchedule.time}"
+                             onchange="syncInterviewDateTime()"
+                             style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+                    </div>
+                  </div>
+
+                  <!-- Hidden synced input holding formatted interview_time -->
+                  <input type="hidden" id="input-interview-time" value="${escapeHtml(app.interview_time || '')}">
+
+                  <!-- Formatted schedule preview badge -->
+                  <div id="interview-time-preview" style="margin-top: 8px; font-size: 0.76rem; padding: 6px 10px; border-radius: 6px; border: 1px solid ${app.interview_time ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.08)'}; background: ${app.interview_time ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.02)'}; color: ${app.interview_time ? '#38bdf8' : 'var(--text-dim)'}; display: flex; align-items: center; gap: 6px;">
+                    <span>${svgIcon('clock', '', 13)}</span>
+                    <span id="interview-time-preview-text">${app.interview_time ? `Scheduled: <strong>${escapeHtml(app.interview_time)}</strong>` : 'Select a date and time above'}</span>
+                  </div>
+
+                  <label for="input-interview-notes" style="display: block; font-weight: 700; font-size: 0.78rem; margin-top: 10px; margin-bottom: 3px; color: #94a3b8;">
                     Location / Meeting Link / Notes (Optional)
                   </label>
                   <input type="text" id="input-interview-notes" value="${escapeHtml(app.interview_notes || '')}"
                          placeholder="e.g. 2nd Floor Executive Office, or meeting link"
-                         style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 6px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.78rem;">
+                         style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.8rem;">
                 </div>
 
                 <!-- 3. Private Recruiter Notes -->
@@ -18606,8 +18717,12 @@ async function saveCandidateStatus(appId) {
 
   if (status === 'interview_scheduled' && !interviewTime.trim()) {
     showToast('Please specify an interview schedule time before saving.', 'warning');
-    const timeInp = document.getElementById('input-interview-time');
-    timeInp?.focus();
+    const dateInp = document.getElementById('input-interview-date');
+    if (dateInp) {
+      dateInp.focus();
+    } else {
+      document.getElementById('input-interview-time')?.focus();
+    }
     return;
   }
 
@@ -18721,6 +18836,25 @@ function handleClearRescheduleDraft(appId, originalReason = '', originalSuggesti
 }
 window.handleClearRescheduleDraft = handleClearRescheduleDraft;
 
+function syncRescheduleSuggestion(appId) {
+  const dateInp = document.getElementById('reschedule-date-input');
+  const winSelect = document.getElementById('reschedule-time-window');
+  const suggInput = document.getElementById('reschedule-suggestion-input');
+  if (!dateInp || !suggInput) return;
+
+  const dateVal = dateInp.value;
+  if (!dateVal) return;
+
+  const [y, m, d] = dateVal.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const winVal = winSelect ? winSelect.value : '';
+
+  suggInput.value = winVal ? `${dateStr} (${winVal})` : dateStr;
+  saveInterviewRescheduleDraft(appId);
+}
+window.syncRescheduleSuggestion = syncRescheduleSuggestion;
+
 function setRescheduleSuggestion(appId, text) {
   const suggEl = document.getElementById('reschedule-suggestion-input');
   if (suggEl) {
@@ -18793,27 +18927,35 @@ function openInterviewRescheduleModal(appId, originalTime, existingReason = '', 
           </div>
 
           <div>
-            <label for="reschedule-suggestion-input" style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
-              Suggested Alternative Date &amp; Time (Optional)
+            <label style="display: block; font-weight: 700; font-size: 0.82rem; color: var(--white); margin-bottom: 6px;">
+              ${svgIcon('calendar', '', 14)} Propose Alternative Availability (Optional)
+            </label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <div>
+                <label for="reschedule-date-input" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Preferred Date</label>
+                <input type="date" id="reschedule-date-input" min="${new Date().toISOString().split('T')[0]}"
+                       onchange="syncRescheduleSuggestion('${appId}')"
+                       style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+              </div>
+              <div>
+                <label for="reschedule-time-window" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Preferred Window</label>
+                <select id="reschedule-time-window" onchange="syncRescheduleSuggestion('${appId}')"
+                        style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
+                  <option value="">Anytime during business hours</option>
+                  <option value="Morning: 09:00 AM – 12:00 PM">Morning (9 AM – 12 PM)</option>
+                  <option value="Afternoon: 12:00 PM – 04:00 PM">Afternoon (12 PM – 4 PM)</option>
+                  <option value="Late Afternoon: 04:00 PM – 06:30 PM">Late Afternoon (4 PM – 6:30 PM)</option>
+                </select>
+              </div>
+            </div>
+
+            <label for="reschedule-suggestion-input" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">
+              Alternative Availability Details
             </label>
             <input type="text" id="reschedule-suggestion-input" value="${escapeHtml(suggestionVal)}"
-                   placeholder="e.g. Next Tuesday after 3:00 PM, or Wednesday morning"
+                   placeholder="e.g. Fri, Nov 20 (Morning: 9 AM - 12 PM) or flexible any weekday"
                    oninput="saveInterviewRescheduleDraft('${appId}')"
-                   style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 10px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem; outline: none;">
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
-              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
-                      onclick="setRescheduleSuggestion('${appId}', 'Tomorrow same time')">
-                Tomorrow same time
-              </button>
-              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
-                      onclick="setRescheduleSuggestion('${appId}', 'Next Monday morning')">
-                Next Monday morning
-              </button>
-              <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;"
-                      onclick="setRescheduleSuggestion('${appId}', 'Any afternoon next week')">
-                Any afternoon next week
-              </button>
-            </div>
+                   style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.84rem; outline: none;">
           </div>
 
           <div style="font-size: 0.76rem; color: var(--text-dim); line-height: 1.45; background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-sm); padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
