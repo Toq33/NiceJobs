@@ -327,6 +327,16 @@ const state = {
   atsActiveTab: 'talent',
   talentCandidates: [],
 
+  // User Geo & Timezone State (Local GMT Timezone detection)
+  userTimezone: {
+    timeZone: 'Asia/Dhaka',
+    gmtLabel: 'GMT+6',
+    gmtOffset: '+06:00',
+    city: 'Dhaka',
+    country: 'Bangladesh',
+    source: 'default'
+  },
+
   // Cached Data
   jobs: [],
   businesses: [],
@@ -339,6 +349,123 @@ const state = {
   profile: null
 };
 window.state = state;
+
+// ==========================================================================
+// Timezone & Location Detection Engine (GMT Local Time)
+// ==========================================================================
+
+function getLocalDateYMD(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+window.getLocalDateYMD = getLocalDateYMD;
+
+function getClientTimezoneInfo() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dhaka';
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const hours = Math.floor(Math.abs(offsetMinutes) / 60);
+    const mins = Math.abs(offsetMinutes) % 60;
+    const gmtLabel = `GMT${sign}${hours}${mins ? ':' + String(mins).padStart(2, '0') : ''}`;
+    const gmtOffset = `${sign}${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    const city = tz.includes('/') ? tz.split('/')[1].replace(/_/g, ' ') : tz;
+    return {
+      timeZone: tz,
+      gmtLabel: gmtLabel,
+      gmtOffset: gmtOffset,
+      city: city,
+      country: '',
+      source: 'device'
+    };
+  } catch (_) {
+    return {
+      timeZone: 'Asia/Dhaka',
+      gmtLabel: 'GMT+6',
+      gmtOffset: '+06:00',
+      city: 'Dhaka',
+      country: 'Bangladesh',
+      source: 'fallback'
+    };
+  }
+}
+window.getClientTimezoneInfo = getClientTimezoneInfo;
+
+// Immediately prime state.userTimezone with device timezone
+try {
+  state.userTimezone = { ...state.userTimezone, ...getClientTimezoneInfo() };
+} catch (_) {}
+
+async function initUserTimezone() {
+  // 1. Prime from localStorage cache if available
+  try {
+    const cached = localStorage.getItem('nicejobs_geo_tz');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.timeZone) {
+        state.userTimezone = { ...state.userTimezone, ...parsed };
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fetch IP-based timezone & location from backend
+  try {
+    const res = await fetch('/api/geo/timezone', { cache: 'no-cache' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.timezone) {
+        state.userTimezone = {
+          timeZone: data.timezone || state.userTimezone.timeZone,
+          gmtLabel: data.gmt_label || state.userTimezone.gmtLabel,
+          gmtOffset: data.gmt_offset || state.userTimezone.gmtOffset,
+          city: data.city || state.userTimezone.city,
+          country: data.country || 'Bangladesh',
+          ip: data.ip,
+          source: 'ip_geo'
+        };
+        try {
+          localStorage.setItem('nicejobs_geo_tz', JSON.stringify(state.userTimezone));
+        } catch (_) {}
+      }
+    }
+  } catch (err) {
+    console.debug('[Geo Timezone] Server geo fetch skipped:', err.message);
+  }
+
+  // 3. Fallback IP Geo lookup if on localhost/private IP
+  if (!state.userTimezone.ip || state.userTimezone.ip === '127.0.0.1' || state.userTimezone.ip === 'testclient') {
+    try {
+      const ipRes = await fetch('https://ipwho.is/', { cache: 'no-cache' });
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        if (ipData && ipData.success && ipData.timezone) {
+          state.userTimezone = {
+            timeZone: ipData.timezone.id || state.userTimezone.timeZone,
+            gmtLabel: `GMT${ipData.timezone.utc || '+06:00'}`.replace(':00', ''),
+            gmtOffset: ipData.timezone.utc || '+06:00',
+            city: ipData.city || state.userTimezone.city,
+            country: ipData.country || state.userTimezone.country,
+            ip: ipData.ip,
+            source: 'ipwhois'
+          };
+          try {
+            localStorage.setItem('nicejobs_geo_tz', JSON.stringify(state.userTimezone));
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Update any existing UI badges that display timezone
+  document.querySelectorAll('.user-tz-badge').forEach(el => {
+    el.innerHTML = `📍 ${state.userTimezone.gmtLabel} (${state.userTimezone.city || 'Local Time'})`;
+  });
+}
+window.initUserTimezone = initUserTimezone;
+// Start async detection immediately
+initUserTimezone();
 
 // ==========================================================================
 // Hospitality Schemas & Constant Catalogs
@@ -5242,8 +5369,11 @@ async function renderApplicationsScreen(viewport) {
                     <div style="color: var(--orange-primary); font-weight: 800; font-size: 0.92rem; display: flex; align-items: center; gap: 8px;">
                       ${svgIcon('calendar', '', 16)} Interview Invitation
                     </div>
-                    <div style="color: var(--white); font-size: 1.05rem; font-weight: 800; margin-top: 4px;">
-                      ${escapeHtml(app.interview_time || 'Schedule shared by employer')}
+                    <div style="color: var(--white); font-size: 1.05rem; font-weight: 800; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span>${escapeHtml(app.interview_time || 'Schedule shared by employer')}</span>
+                      <span class="user-tz-badge" style="font-size: 0.72rem; color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); padding: 2px 7px; border-radius: 4px;">
+                        📍 ${state.userTimezone?.gmtLabel || 'GMT+6'} (${state.userTimezone?.city || 'Local Time'})
+                      </span>
                     </div>
                     ${app.interview_notes ? `
                       <div style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px;">
@@ -18206,14 +18336,16 @@ function formatInterviewDateTime(dateStr, timeStr) {
   const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
   const formattedDate = dateObj.toLocaleDateString('en-US', options);
   
-  if (!timeStr) return formattedDate;
+  const tzTag = state.userTimezone?.gmtLabel ? ` (${state.userTimezone.gmtLabel})` : ' (GMT+6)';
+  if (!timeStr) return `${formattedDate}${tzTag}`;
+
   const [h, min] = timeStr.split(':').map(Number);
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
   const minuteStr = String(min).padStart(2, '0');
   const formattedTime = `${hour12}:${minuteStr} ${period}`;
   
-  return `${formattedDate} at ${formattedTime}`;
+  return `${formattedDate} at ${formattedTime}${tzTag}`;
 }
 window.formatInterviewDateTime = formatInterviewDateTime;
 
@@ -18245,10 +18377,11 @@ function syncInterviewDateTime() {
   hiddenInp.value = formatted;
 
   if (preview && previewText) {
+    const tzDetail = state.userTimezone?.city ? `${state.userTimezone.gmtLabel} • ${state.userTimezone.city}` : (state.userTimezone?.gmtLabel || 'GMT+6');
     preview.style.background = 'rgba(56, 189, 248, 0.08)';
     preview.style.borderColor = 'rgba(56, 189, 248, 0.35)';
     preview.style.color = '#38bdf8';
-    previewText.innerHTML = `Scheduled: <strong>${escapeHtml(formatted)}</strong>`;
+    previewText.innerHTML = `Scheduled: <strong>${escapeHtml(formatted)}</strong> <span style="font-size: 0.7rem; color: #94a3b8; margin-left: 4px;">(${escapeHtml(tzDetail)})</span>`;
   }
 }
 window.syncInterviewDateTime = syncInterviewDateTime;
@@ -18385,7 +18518,7 @@ async function openCandidateReviewModal(appId) {
     ];
     const isInterview = currentStatus === 'interview_scheduled' || currentStatus === 'interview';
     const parsedSchedule = parseInterviewSchedule(app.interview_time || '');
-    const todayYMD = new Date().toISOString().split('T')[0];
+    const todayYMD = getLocalDateYMD();
 
     const container = document.getElementById('modal-container');
     if (!container) return;
@@ -18647,7 +18780,12 @@ async function openCandidateReviewModal(appId) {
                              style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
                     </div>
                     <div>
-                      <label for="input-interview-time-clock" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Time</label>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                        <label for="input-interview-time-clock" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">Time</label>
+                        <span class="user-tz-badge" style="font-size: 0.66rem; color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 1px 6px; border-radius: 4px;" title="Detected via your location">
+                          📍 ${state.userTimezone?.gmtLabel || 'GMT+6'} (${state.userTimezone?.city || 'Local Time'})
+                        </span>
+                      </div>
                       <input type="time" id="input-interview-time-clock" value="${parsedSchedule.time}"
                              onchange="syncInterviewDateTime()"
                              style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
@@ -18849,8 +18987,9 @@ function syncRescheduleSuggestion(appId) {
   const dateObj = new Date(y, m - 1, d);
   const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   const winVal = winSelect ? winSelect.value : '';
+  const tzTag = state.userTimezone?.gmtLabel ? ` (${state.userTimezone.gmtLabel})` : ' (GMT+6)';
 
-  suggInput.value = winVal ? `${dateStr} (${winVal})` : dateStr;
+  suggInput.value = winVal ? `${dateStr} (${winVal})` : `${dateStr}${tzTag}`;
   saveInterviewRescheduleDraft(appId);
 }
 window.syncRescheduleSuggestion = syncRescheduleSuggestion;
@@ -18933,18 +19072,21 @@ function openInterviewRescheduleModal(appId, originalTime, existingReason = '', 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
               <div>
                 <label for="reschedule-date-input" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Preferred Date</label>
-                <input type="date" id="reschedule-date-input" min="${new Date().toISOString().split('T')[0]}"
+                <input type="date" id="reschedule-date-input" min="${getLocalDateYMD()}"
                        onchange="syncRescheduleSuggestion('${appId}')"
                        style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
               </div>
               <div>
-                <label for="reschedule-time-window" style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 3px;">Preferred Window</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                  <label for="reschedule-time-window" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">Preferred Window</label>
+                  <span class="user-tz-badge" style="font-size: 0.65rem; color: #38bdf8; font-weight: 700;">${state.userTimezone?.gmtLabel || 'GMT+6'}</span>
+                </div>
                 <select id="reschedule-time-window" onchange="syncRescheduleSuggestion('${appId}')"
                         style="width: 100%; box-sizing: border-box; color-scheme: dark; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 7px 10px; border-radius: var(--radius-md); color: var(--white); font-size: 0.82rem;">
-                  <option value="">Anytime during business hours</option>
-                  <option value="Morning: 09:00 AM – 12:00 PM">Morning (9 AM – 12 PM)</option>
-                  <option value="Afternoon: 12:00 PM – 04:00 PM">Afternoon (12 PM – 4 PM)</option>
-                  <option value="Late Afternoon: 04:00 PM – 06:30 PM">Late Afternoon (4 PM – 6:30 PM)</option>
+                  <option value="">Anytime during business hours (${state.userTimezone?.gmtLabel || 'GMT+6'})</option>
+                  <option value="Morning: 09:00 AM – 12:00 PM ${state.userTimezone?.gmtLabel || 'GMT+6'}">Morning (9 AM – 12 PM)</option>
+                  <option value="Afternoon: 12:00 PM – 04:00 PM ${state.userTimezone?.gmtLabel || 'GMT+6'}">Afternoon (12 PM – 4 PM)</option>
+                  <option value="Late Afternoon: 04:00 PM – 06:30 PM ${state.userTimezone?.gmtLabel || 'GMT+6'}">Late Afternoon (4 PM – 6:30 PM)</option>
                 </select>
               </div>
             </div>

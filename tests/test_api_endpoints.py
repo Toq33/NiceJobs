@@ -1202,6 +1202,17 @@ class TestNiceJobsAPI(unittest.TestCase):
                 pass
             conn.close()
 
+    def test_geo_timezone_endpoint(self):
+        """Verifies /api/geo/timezone detects GMT timezone and location."""
+        res = self.client.get("/api/geo/timezone")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("timezone", data)
+        self.assertIn("gmt_label", data)
+        self.assertIn("gmt_offset", data)
+        self.assertTrue(data["gmt_label"].startswith("GMT"))
+        self.assertIn("server_time_bst", data)
+
 if __name__ == "__main__":
     unittest.main()
 

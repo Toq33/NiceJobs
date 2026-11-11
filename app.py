@@ -9,7 +9,8 @@ import time
 import secrets
 import re
 import base64
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+BST = timezone(timedelta(hours=6))  # Bangladesh Standard Time (UTC+6)
 from typing import Optional, List, Dict, Any, Set, Union
 from collections import defaultdict
 import asyncio
@@ -85,6 +86,55 @@ def readiness_check():
         return {"status": "ready", "database": "connected", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database service unavailable: {str(e)}")
+
+@app.get("/api/geo/timezone")
+async def get_geo_timezone(request: Request):
+    """
+    Detect client timezone and GMT offset based on client IP and network headers,
+    with fallback to Bangladesh Standard Time (Asia/Dhaka, GMT+6).
+    """
+    client_ip = request.headers.get("x-forwarded-for")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.headers.get("cf-connecting-ip") or request.headers.get("x-real-ip") or (request.client.host if request.client else "127.0.0.1")
+
+    # Cloudflare / CDN geo headers if present
+    cf_timezone = request.headers.get("cf-timezone")
+    cf_country = request.headers.get("cf-ipcountry")
+    cf_city = request.headers.get("cf-ipcity")
+
+    tz_name = cf_timezone or "Asia/Dhaka"
+    city = cf_city or "Dhaka"
+    country = cf_country or "Bangladesh"
+
+    gmt_label = "GMT+6"
+    gmt_offset = "+06:00"
+
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(tz_name)
+        now_in_tz = datetime.now(tz)
+        utcoffset = now_in_tz.utcoffset()
+        if utcoffset is not None:
+            total_seconds = int(utcoffset.total_seconds())
+            sign = "+" if total_seconds >= 0 else "-"
+            hours = abs(total_seconds) // 3600
+            minutes = (abs(total_seconds) % 3600) // 60
+            gmt_label = f"GMT{sign}{hours}" + (f":{minutes:02d}" if minutes else "")
+            gmt_offset = f"{sign}{hours:02d}:{minutes:02d}"
+    except Exception:
+        pass
+
+    return {
+        "ip": client_ip,
+        "timezone": tz_name,
+        "gmt_label": gmt_label,
+        "gmt_offset": gmt_offset,
+        "city": city,
+        "country": country,
+        "server_time_bst": datetime.now(BST).strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 @app.get("/api/auth/mail-status")
 def get_mail_status():
@@ -508,7 +558,7 @@ def check_conversation_authorization(conv_id: str, user_id: Optional[str] = None
 
 def dispatch_realtime_notification(user_id: str, title: str, message: str, notif_type: str = "general", link: str = "#applications", business_id: Optional[str] = None, cursor = None):
     notif_id = f"notif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     
     should_close = False
     conn = None
@@ -645,7 +695,7 @@ async def websocket_realtime_endpoint(websocket: WebSocket):
                     if conv_id:
                         conv_meta = check_conversation_authorization(conv_id, user_id=u_id, business_id=b_id, role=r_id)
                         if conv_meta:
-                            now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
                             conn = database.get_db()
                             cursor = conn.cursor()
                             is_biz = (r_id == "recruiter") or (b_id == conv_meta["business_id"])
@@ -1961,7 +2011,7 @@ def toggle_follow(business_id: str, user_id: str = "user_rahim"):
     cursor.execute("SELECT 1 FROM followed_businesses WHERE user_id = ? AND business_id = ?", (user_id, business_id))
     exists = cursor.fetchone()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     if exists:
         cursor.execute("DELETE FROM followed_businesses WHERE user_id = ? AND business_id = ?", (user_id, business_id))
         cursor.execute("UPDATE businesses SET follower_count = CASE WHEN follower_count > 0 THEN follower_count - 1 ELSE 0 END WHERE id = ?", (business_id,))
@@ -2378,7 +2428,7 @@ def register_candidate(payload: CandidateRegisterPayload):
             raise HTTPException(status_code=400, detail="A candidate account with this phone number already exists. Please log in.")
 
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     avatar = payload.avatar_url or DEFAULT_AVATAR_SVG
     dob_val = payload.dob or ""
@@ -2627,7 +2677,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     cursor.execute("SELECT user_id, cv_list, preferences FROM employee_profiles WHERE user_id = ?", (payload.user_id,))
     p_row = cursor.fetchone()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     bio_text = (payload.bio or "").strip()
     if bio_text:
         bio_words = len(re.findall(r'\S+', bio_text))
@@ -2920,7 +2970,7 @@ def register_business(payload: BusinessRegisterPayload):
         mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         verif_id = f"verif_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
         user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
         feature_list = payload.features if isinstance(payload.features, list) else []
         dept_list = ["Front Office", "Food & Beverage", "Culinary", "Housekeeping", "Sales & Banquets", "Engineering"]
@@ -3091,7 +3141,7 @@ def register_business_user(payload: RegisterBusinessUserPayload):
 
     user_id = f"user_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     mem_id = f"mem_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     secure_pwd_hash = hash_password(payload.password)
 
     # Insert user (Pending admin approval)
@@ -4621,7 +4671,7 @@ def submit_application(payload: ApplicationSubmitPayload):
         raise HTTPException(status_code=400, detail="You have already submitted an application for this vacancy.")
 
     app_id = f"app_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     # Resolve CV file data to save directly in the application record
     selected_cv_url = (payload.selected_cv_url or "").strip()
@@ -4780,7 +4830,7 @@ def update_application_status(app_id: str, payload: ApplicationStatusUpdatePaylo
     conn = database.get_db()
     cursor = conn.cursor()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     # Update app
     updates = ["status = ?", "updated_at = ?"]
@@ -4930,7 +4980,7 @@ class InterviewResponsePayload(BaseModel):
 def respond_to_interview(app_id: str, payload: InterviewResponsePayload):
     conn = database.get_db()
     cursor = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     cursor.execute("""
         SELECT a.*, 
@@ -5112,7 +5162,7 @@ def respond_to_interview(app_id: str, payload: InterviewResponsePayload):
 
 @app.post("/api/conversations/{conv_id}/mark-read")
 def mark_conversation_read(conv_id: str, role: Optional[str] = "jobseeker", user_id: Optional[str] = None, business_id: Optional[str] = None):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     conn = database.get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, business_id FROM conversations WHERE id = ?", (conv_id,))
@@ -5288,7 +5338,7 @@ def get_or_create_conversation(payload: ConversationInitPayload):
         )
     existing = cursor.fetchone()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     if existing:
         conv_id = existing["id"]
@@ -5492,7 +5542,7 @@ def send_message(payload: MessageSendPayload):
     initial_status = "delivered" if is_online else "sent"
 
     msg_id = f"msg_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     delivered_at = now if is_online else None
 
     # 4. Save to persistent database
@@ -5617,7 +5667,7 @@ def toggle_save_job(job_id: str, request: Request, user_id: Optional[str] = None
         cursor.execute("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?", (effective_user_id, job_id))
         is_saved = False
     else:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
         cursor.execute("INSERT INTO saved_jobs (user_id, job_id, saved_at) VALUES (?, ?, ?)", (effective_user_id, job_id, now))
         is_saved = True
 
@@ -5701,7 +5751,7 @@ def review_verification(verif_id: str, payload: VerificationReviewPayload):
     conn = database.get_db()
     cursor = conn.cursor()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     cursor.execute("""
         UPDATE business_verifications
@@ -5784,7 +5834,7 @@ def get_business_members(business_id: Optional[str] = None, user_id: Optional[st
 def approve_business_member(membership_id: str, reviewer_id: Optional[str] = None):
     conn = database.get_db()
     cursor = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     cursor.execute("SELECT * FROM business_memberships WHERE id = ?", (membership_id,))
     mem = cursor.fetchone()
@@ -5818,7 +5868,7 @@ def approve_business_member(membership_id: str, reviewer_id: Optional[str] = Non
 def reject_business_member(membership_id: str, reviewer_id: Optional[str] = None):
     conn = database.get_db()
     cursor = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
 
     cursor.execute("SELECT * FROM business_memberships WHERE id = ?", (membership_id,))
     mem = cursor.fetchone()
@@ -6163,7 +6213,7 @@ def create_admin_sponsor(payload: SponsorPayload):
     if not payload.link_url.strip():
         raise HTTPException(status_code=400, detail="Sponsor target link is required.")
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     sp_id = f"sp_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
     conn = database.get_db()
     cursor = conn.cursor()
@@ -6213,7 +6263,7 @@ def update_admin_sponsor(sponsor_id: str, payload: SponsorPayload):
         conn.close()
         raise HTTPException(status_code=404, detail="Sponsor not found.")
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     cursor.execute("""
         UPDATE sponsors SET
             name = ?,
@@ -6274,7 +6324,7 @@ def toggle_admin_sponsor_status(sponsor_id: str):
         raise HTTPException(status_code=404, detail="Sponsor not found.")
 
     new_status = 0 if existing["is_active"] else 1
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(BST).strftime("%Y-%m-%d %H:%M")
     cursor.execute("UPDATE sponsors SET is_active = ?, updated_at = ? WHERE id = ?", (new_status, now, sponsor_id))
     conn.commit()
     conn.close()
