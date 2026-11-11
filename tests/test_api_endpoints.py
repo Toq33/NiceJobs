@@ -998,14 +998,14 @@ class TestNiceJobsAPI(unittest.TestCase):
             """, (user_id, "Tanvir Ahmed", test_email, f"01711{suffix[:6]}"))
             conn.commit()
 
-            # 2. Complete candidate profile with current_job_title & current_job_designation
+            # 2. Complete candidate profile with current_job_title & current_department
             complete_resp = self.client.post("/api/auth/complete-profile", json={
                 "user_id": user_id,
                 "bio": "Experienced guest service supervisor specializing in 5-star hotel front office operations.",
                 "department": "Front Office & Guest Services",
                 "designation": "Assistant Guest Relations Manager",
                 "current_job_title": "Front Desk Associate",
-                "current_job_designation": "Senior Executive",
+                "current_department": "Front Office & Guest Services",
                 "location": "Dhaka, Bangladesh",
                 "job_preferences": {
                     "department": "Front Office & Guest Services",
@@ -1021,7 +1021,8 @@ class TestNiceJobsAPI(unittest.TestCase):
             self.assertEqual(prof_resp.status_code, 200)
             prof_data = prof_resp.json()
             self.assertEqual(prof_data.get("current_job_title"), "Front Desk Associate")
-            self.assertEqual(prof_data.get("current_job_designation"), "Senior Executive")
+            self.assertEqual(prof_data.get("current_department"), "Front Office & Guest Services")
+            self.assertEqual(prof_data.get("current_job_designation"), "Front Office & Guest Services")
             self.assertEqual(prof_data.get("preferences", {}).get("desired_role"), "Assistant Guest Relations Manager")
 
             # 4. Update profile with new current job details
@@ -1029,7 +1030,7 @@ class TestNiceJobsAPI(unittest.TestCase):
                 "user_id": user_id,
                 "name": "Tanvir Ahmed",
                 "current_job_title": "Guest Experience Team Lead",
-                "current_job_designation": "Assistant Manager"
+                "current_department": "Food & Beverage Service"
             })
             self.assertEqual(update_resp.status_code, 200)
 
@@ -1037,16 +1038,18 @@ class TestNiceJobsAPI(unittest.TestCase):
             self.assertEqual(prof_updated_resp.status_code, 200)
             prof_updated = prof_updated_resp.json()
             self.assertEqual(prof_updated.get("current_job_title"), "Guest Experience Team Lead")
-            self.assertEqual(prof_updated.get("current_job_designation"), "Assistant Manager")
+            self.assertEqual(prof_updated.get("current_department"), "Food & Beverage Service")
+            self.assertEqual(prof_updated.get("current_job_designation"), "Food & Beverage Service")
 
-            # 5. Check candidate talent search returns current_job_title & current_job_designation
+            # 5. Check candidate talent search returns current_job_title & current_department
             cands_resp = self.client.get(f"/api/candidates?id={user_id}")
             self.assertEqual(cands_resp.status_code, 200)
             cands = cands_resp.json()
             matching_cand = next((c for c in cands if c.get("id") == user_id), None)
             self.assertIsNotNone(matching_cand)
             self.assertEqual(matching_cand.get("current_job_title"), "Guest Experience Team Lead")
-            self.assertEqual(matching_cand.get("current_job_designation"), "Assistant Manager")
+            self.assertEqual(matching_cand.get("current_department"), "Food & Beverage Service")
+            self.assertEqual(matching_cand.get("current_job_designation"), "Food & Beverage Service")
 
             # 6. Create business and job to test application
             cursor.execute("""
@@ -1063,20 +1066,22 @@ class TestNiceJobsAPI(unittest.TestCase):
             """, (app_id, job_id, user_id))
             conn.commit()
 
-            # 7. Check ATS endpoint returns candidate_current_job_title & candidate_current_job_designation
+            # 7. Check ATS endpoint returns candidate_current_job_title & candidate_current_department
             apps_resp = self.client.get(f"/api/applications?business_id={biz_id}")
             self.assertEqual(apps_resp.status_code, 200)
             apps_list = apps_resp.json()
             matching_app = next((a for a in apps_list if a.get("id") == app_id), None)
             self.assertIsNotNone(matching_app)
             self.assertEqual(matching_app.get("candidate_current_job_title"), "Guest Experience Team Lead")
-            self.assertEqual(matching_app.get("candidate_current_job_designation"), "Assistant Manager")
+            self.assertEqual(matching_app.get("candidate_current_department"), "Food & Beverage Service")
+            self.assertEqual(matching_app.get("candidate_current_job_designation"), "Food & Beverage Service")
 
             app_single_resp = self.client.get(f"/api/applications/{app_id}")
             self.assertEqual(app_single_resp.status_code, 200)
             app_single = app_single_resp.json()
             self.assertEqual(app_single.get("candidate_current_job_title"), "Guest Experience Team Lead")
-            self.assertEqual(app_single.get("candidate_current_job_designation"), "Assistant Manager")
+            self.assertEqual(app_single.get("candidate_current_department"), "Food & Beverage Service")
+            self.assertEqual(app_single.get("candidate_current_job_designation"), "Food & Beverage Service")
 
         finally:
             try:

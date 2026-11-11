@@ -2596,6 +2596,7 @@ class CompleteProfilePayload(BaseModel):
     expected_salary: Optional[str] = None
     current_job_title: Optional[str] = None
     current_job_designation: Optional[str] = None
+    current_department: Optional[str] = None
 
 @app.post("/api/auth/complete-profile")
 def complete_candidate_profile(payload: CompleteProfilePayload):
@@ -2644,10 +2645,13 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             pass
     if isinstance(payload.job_preferences, dict):
         prefs_data.update(payload.job_preferences)
-    if payload.current_job_title:
-        prefs_data["current_job_title"] = payload.current_job_title.strip()
-    if payload.current_job_designation:
-        prefs_data["current_job_designation"] = payload.current_job_designation.strip()
+    cand_cur_title = (payload.current_job_title or "").strip()
+    cand_cur_dept = (payload.current_department or payload.current_job_designation or "").strip()
+    if cand_cur_title:
+        prefs_data["current_job_title"] = cand_cur_title
+    if cand_cur_dept:
+        prefs_data["current_department"] = cand_cur_dept
+        prefs_data["current_job_designation"] = cand_cur_dept
     if payload.expected_salary:
         prefs_data["expected_salary"] = payload.expected_salary
     if payload.location:
@@ -2693,7 +2697,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
         exp_years = 0
 
     cand_cur_title = (payload.current_job_title or "").strip()
-    cand_cur_desig = (payload.current_job_designation or "").strip()
+    cand_cur_dept = (payload.current_department or payload.current_job_designation or "").strip()
 
     if p_row:
         cursor.execute("""
@@ -2703,6 +2707,7 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
                 current_position = ?,
                 current_job_title = ?,
                 current_job_designation = ?,
+                current_department = ?,
                 experience_years = ?,
                 location = ?,
                 preferences = ?,
@@ -2721,7 +2726,8 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             bio_text,
             cand_role,
             cand_cur_title,
-            cand_cur_desig,
+            cand_cur_dept,
+            cand_cur_dept,
             exp_years,
             payload.location or "",
             json.dumps(prefs_data),
@@ -2739,10 +2745,10 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
     else:
         cursor.execute("""
             INSERT INTO employee_profiles (
-                user_id, headline, location, summary, current_position, current_job_title, current_job_designation, experience_years,
+                user_id, headline, location, summary, current_position, current_job_title, current_job_designation, current_department, experience_years,
                 open_to_work, visibility, skills, languages, certifications, experience,
                 education, preferences, cv_name, cv_updated_at, profile_completion, cv_list, cv_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'eligible_employers', ?, ?, ?, ?, ?, ?, ?, 'Just now', ?, ?, ?)
         """, (
             payload.user_id,
             headline_text,
@@ -2750,7 +2756,8 @@ def complete_candidate_profile(payload: CompleteProfilePayload):
             bio_text,
             cand_role,
             cand_cur_title,
-            cand_cur_desig,
+            cand_cur_dept,
+            cand_cur_dept,
             exp_years,
             json.dumps(skills_data),
             json.dumps(langs_data),
@@ -3520,7 +3527,9 @@ def get_profile(user_id: str = "user_rahim"):
     profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
     profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
     profile["current_job_title"] = (profile.get("current_job_title") or profile.get("preferences", {}).get("current_job_title") or "").strip()
-    profile["current_job_designation"] = (profile.get("current_job_designation") or profile.get("preferences", {}).get("current_job_designation") or "").strip()
+    cand_cur_dept_val = (profile.get("current_department") or profile.get("current_job_designation") or profile.get("preferences", {}).get("current_department") or profile.get("preferences", {}).get("current_job_designation") or "").strip()
+    profile["current_department"] = cand_cur_dept_val
+    profile["current_job_designation"] = cand_cur_dept_val
 
     # Synthetic CV entry only if cv_list is empty but actual cv_url and cv_name are present
     cv_url_val = (profile.get("cv_url") or "").strip()
@@ -3562,6 +3571,7 @@ class ProfileUpdatePayload(BaseModel):
     current_position: Optional[str] = None
     current_job_title: Optional[str] = None
     current_job_designation: Optional[str] = None
+    current_department: Optional[str] = None
     experience_years: Optional[Union[int, float]] = None
     open_to_work: Optional[bool] = None
     visibility: Optional[str] = None
@@ -3697,10 +3707,14 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
         params.append(payload.current_job_title)
         curr_prefs["current_job_title"] = payload.current_job_title
         has_pref_update = True
-    if payload.current_job_designation is not None:
+    if payload.current_department is not None or payload.current_job_designation is not None:
+        cur_dept_val = (payload.current_department if payload.current_department is not None else payload.current_job_designation)
+        updates.append("current_department = ?")
+        params.append(cur_dept_val)
         updates.append("current_job_designation = ?")
-        params.append(payload.current_job_designation)
-        curr_prefs["current_job_designation"] = payload.current_job_designation
+        params.append(cur_dept_val)
+        curr_prefs["current_department"] = cur_dept_val
+        curr_prefs["current_job_designation"] = cur_dept_val
         has_pref_update = True
     if payload.experience_years is not None:
         updates.append("experience_years = ?")
@@ -4095,6 +4109,7 @@ def get_application_by_id(app_id: str):
                ep.current_position as candidate_current_position,
                ep.current_job_title as candidate_current_job_title,
                ep.current_job_designation as candidate_current_job_designation,
+               ep.current_department as candidate_current_department,
                ep.preferences as candidate_preferences
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
@@ -4117,7 +4132,9 @@ def get_application_by_id(app_id: str):
                 pass
     cand_prefs = app_dict.get("candidate_preferences") if isinstance(app_dict.get("candidate_preferences"), dict) else {}
     app_dict["candidate_current_job_title"] = (app_dict.get("candidate_current_job_title") or cand_prefs.get("current_job_title") or "").strip()
-    app_dict["candidate_current_job_designation"] = (app_dict.get("candidate_current_job_designation") or cand_prefs.get("current_job_designation") or "").strip()
+    cand_cur_dept = (app_dict.get("candidate_current_department") or app_dict.get("candidate_current_job_designation") or cand_prefs.get("current_department") or cand_prefs.get("current_job_designation") or "").strip()
+    app_dict["candidate_current_department"] = cand_cur_dept
+    app_dict["candidate_current_job_designation"] = cand_cur_dept
     return app_dict
 
 @app.get("/api/applications")
@@ -4142,6 +4159,7 @@ def get_applications(
                ep.current_position as candidate_current_position,
                ep.current_job_title as candidate_current_job_title,
                ep.current_job_designation as candidate_current_job_designation,
+               ep.current_department as candidate_current_department,
                ep.preferences as candidate_preferences,
                ae.id as event_id, ae.status as event_status, ae.actor_name as event_actor_name, ae.note as event_note, ae.timestamp as event_timestamp
         FROM applications a
@@ -4199,7 +4217,9 @@ def get_applications(
             d["candidate_preferences"] = json.loads(d["candidate_preferences"]) if d.get("candidate_preferences") else {}
             cand_p = d["candidate_preferences"] if isinstance(d.get("candidate_preferences"), dict) else {}
             d["candidate_current_job_title"] = (d.get("candidate_current_job_title") or cand_p.get("current_job_title") or "").strip()
-            d["candidate_current_job_designation"] = (d.get("candidate_current_job_designation") or cand_p.get("current_job_designation") or "").strip()
+            cand_cur_dept = (d.get("candidate_current_department") or d.get("candidate_current_job_designation") or cand_p.get("current_department") or cand_p.get("current_job_designation") or "").strip()
+            d["candidate_current_department"] = cand_cur_dept
+            d["candidate_current_job_designation"] = cand_cur_dept
             d["timeline"] = []
             app_map[app_id] = d
             results.append(d)
@@ -4286,7 +4306,7 @@ def get_candidates(
     query = """
         SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.designation, u.created_at,
                p.headline, p.location, p.summary, p.current_position, p.experience_years,
-               p.current_job_title, p.current_job_designation,
+               p.current_job_title, p.current_job_designation, p.current_department,
                p.education, p.skills, p.languages, p.certifications,
                p.experience, p.preferences, p.cv_name, p.cv_url, p.open_to_work
         FROM users u
@@ -4312,9 +4332,9 @@ def get_candidates(
         params.extend([like_loc, like_loc])
 
     if department and department != "all":
-        query += " AND (p.headline LIKE ? OR p.current_position LIKE ? OR u.designation LIKE ? OR p.current_job_title LIKE ? OR p.current_job_designation LIKE ? OR p.preferences LIKE ?)"
+        query += " AND (p.headline LIKE ? OR p.current_position LIKE ? OR u.designation LIKE ? OR p.current_job_title LIKE ? OR p.current_department LIKE ? OR p.current_job_designation LIKE ? OR p.preferences LIKE ?)"
         like_dept = f"%{department}%"
-        params.extend([like_dept, like_dept, like_dept, like_dept, like_dept, like_dept])
+        params.extend([like_dept, like_dept, like_dept, like_dept, like_dept, like_dept, like_dept])
 
     # Rule: when hotels search for candidates, they CANNOT search by candidate name.
     # Search strictly by designation and job title.
@@ -4325,10 +4345,11 @@ def get_candidates(
             p.headline LIKE ? OR 
             p.current_position LIKE ? OR 
             p.current_job_title LIKE ? OR 
+            p.current_department LIKE ? OR 
             p.current_job_designation LIKE ? OR 
             p.preferences LIKE ?
         )"""
-        params.extend([like_q, like_q, like_q, like_q, like_q, like_q])
+        params.extend([like_q, like_q, like_q, like_q, like_q, like_q, like_q])
 
     query += " ORDER BY u.created_at DESC"
     cursor.execute(query, params)
@@ -4364,7 +4385,9 @@ def get_candidates(
         sal_pref = cand_prefs.get('expected_salary') or 'Negotiable'
         d['salary_preference'] = sal_pref
         d['current_job_title'] = (d.get('current_job_title') or cand_prefs.get('current_job_title') or '').strip()
-        d['current_job_designation'] = (d.get('current_job_designation') or cand_prefs.get('current_job_designation') or '').strip()
+        cand_cur_dept = (d.get('current_department') or d.get('current_job_designation') or cand_prefs.get('current_department') or cand_prefs.get('current_job_designation') or '').strip()
+        d['current_department'] = cand_cur_dept
+        d['current_job_designation'] = cand_cur_dept
 
         # Anonymize candidate info for hotel privacy:
         # Rule: hotels cannot view name or contact details.

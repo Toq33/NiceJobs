@@ -5423,8 +5423,8 @@ async function renderProfileScreen(viewport) {
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap;">
               ${(() => {
                 const curTitle = (profile.current_job_title || profile.preferences?.current_job_title || '').trim();
-                const curDesig = (profile.current_job_designation || profile.preferences?.current_job_designation || '').trim();
-                const curDisplay = (curTitle && curDesig) ? `${curTitle} • ${curDesig}` : (curTitle || curDesig || profile.current_position || profile.designation || '');
+                const curDept = (profile.current_department || profile.current_job_designation || profile.preferences?.current_department || profile.preferences?.current_job_designation || '').trim();
+                const curDisplay = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || profile.current_position || profile.designation || '');
                 return curDisplay ? `
                   <span class="profile-designation-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 800; padding: 4px 12px; border-radius: 6px; background: rgba(255, 107, 0, 0.14); border: 1.5px solid var(--orange-primary); color: var(--orange-primary); letter-spacing: 0.3px;" title="Current Job">
                     ${svgIcon('briefcase', '', 14)} ${escapeHtml(curDisplay)}
@@ -5953,8 +5953,8 @@ async function renderRecruiterDashboard(viewport) {
             const expYears = cand.experience_years ? `${cand.experience_years} Yrs Exp` : 'Hospitality Pro';
             const location = cand.location || 'Bangladesh';
             const curTitle = cand.current_job_title || cand.preferences?.current_job_title || '';
-            const curDesig = cand.current_job_designation || cand.preferences?.current_job_designation || '';
-            const currentPos = (curTitle && curDesig) ? `${curTitle} • ${curDesig}` : (curTitle || curDesig || cand.current_position || cand.headline || cand.designation || 'Hospitality Professional');
+            const curDept = cand.current_department || cand.current_job_designation || cand.preferences?.current_department || cand.preferences?.current_job_designation || '';
+            const currentPos = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || cand.current_position || cand.headline || cand.designation || 'Hospitality Professional');
             const prefJob = `${cand.preferences?.desired_role || cand.designation || 'Hospitality Role'} • ${cand.department || cand.preferences?.department || 'Department'}`;
             return `
               <div class="talent-card" id="dash-talent-card-${cand.id}">
@@ -6154,8 +6154,8 @@ function renderCandidatesTableHTML(apps) {
         <tbody>
           ${apps.map(app => {
             const candCurTitle = app.candidate_current_job_title || app.candidate_preferences?.current_job_title || '';
-            const candCurDesig = app.candidate_current_job_designation || app.candidate_preferences?.current_job_designation || '';
-            const candCurJob = (candCurTitle && candCurDesig) ? `${candCurTitle} • ${candCurDesig}` : (candCurTitle || candCurDesig || app.candidate_current_position || app.candidate_headline || 'Hospitality Associate');
+            const candCurDept = app.candidate_current_department || app.candidate_current_job_designation || app.candidate_preferences?.current_department || app.candidate_preferences?.current_job_designation || '';
+            const candCurJob = (candCurTitle && candCurDept) ? `${candCurTitle} • ${candCurDept}` : (candCurTitle || candCurDept || app.candidate_current_position || app.candidate_headline || 'Hospitality Associate');
             const candPrefJob = app.candidate_preferences?.desired_role || app.candidate_designation || app.job_title || 'Hospitality Role';
 
             return `
@@ -6327,8 +6327,8 @@ function renderTalentCandidatesGrid(candidates, businessId) {
     <div class="talent-pool-grid">
       ${candidates.map(cand => {
         const curTitle = cand.current_job_title || cand.preferences?.current_job_title || '';
-        const curDesig = cand.current_job_designation || cand.preferences?.current_job_designation || '';
-        const curJob = (curTitle && curDesig) ? `${curTitle} • ${curDesig}` : (curTitle || curDesig || cand.current_position || cand.headline || 'Hospitality Associate');
+        const curDept = cand.current_department || cand.current_job_designation || cand.preferences?.current_department || cand.preferences?.current_job_designation || '';
+        const curJob = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || cand.current_position || cand.headline || 'Hospitality Associate');
         const prefRole = cand.preferences?.desired_role || cand.designation || cand.current_position || 'Hospitality Professional';
         const department = cand.department || cand.preferences?.department || 'Hospitality Department';
         const prefJob = `${prefRole} • ${department}`;
@@ -6415,8 +6415,8 @@ async function openCandidateTalentDossierModal(candidateId) {
   const bId = state.currentUser?.business_id || state.activeHotelId || 'biz_radisson';
 
   const curTitle = cand.current_job_title || cand.preferences?.current_job_title || '';
-  const curDesig = cand.current_job_designation || cand.preferences?.current_job_designation || '';
-  const curJob = (curTitle && curDesig) ? `${curTitle} • ${curDesig}` : (curTitle || curDesig || cand.current_position || cand.headline || 'Hospitality Associate');
+  const curDept = cand.current_department || cand.current_job_designation || cand.preferences?.current_department || cand.preferences?.current_job_designation || '';
+  const curJob = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || cand.current_position || cand.headline || 'Hospitality Associate');
   const prefRole = cand.preferences?.desired_role || cand.designation || cand.current_position || 'Hospitality Professional';
   const department = cand.department || cand.preferences?.department || 'Hospitality Department';
   const prefJob = `${prefRole} • ${department}`;
@@ -12322,8 +12322,8 @@ function renderSignupPage(viewport) {
                     <input type="text" id="cand-current-job-title" class="auth-input" placeholder="e.g. Front Office Associate" maxlength="80" value="${escapeHtml(signupState.current_job_title || signupState.job_preferences?.current_job_title || '')}">
                   </div>
                   <div>
-                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Current Job Designation</label>
-                    <input type="text" id="cand-current-job-designation" class="auth-input" placeholder="e.g. Senior Executive" maxlength="80" value="${escapeHtml(signupState.current_job_designation || signupState.job_preferences?.current_job_designation || '')}">
+                    <label style="font-size: 0.76rem; color: var(--text-dim); display: block; margin-bottom: 4px;">Current Department</label>
+                    <input type="text" id="cand-current-department" class="auth-input" placeholder="e.g. Front Office &amp; Guest Services" maxlength="80" value="${escapeHtml(signupState.current_department || signupState.current_job_designation || signupState.job_preferences?.current_department || signupState.job_preferences?.current_job_designation || '')}">
                   </div>
                 </div>
 
@@ -15622,7 +15622,7 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
 
   const bioVal = document.getElementById('cand-bio')?.value || signupState.bio || '';
   const curJobTitle = (document.getElementById('cand-current-job-title')?.value || '').trim() || signupState.current_job_title || signupState.job_preferences?.current_job_title || '';
-  const curJobDesig = (document.getElementById('cand-current-job-designation')?.value || '').trim() || signupState.current_job_designation || signupState.job_preferences?.current_job_designation || '';
+  const curJobDept = (document.getElementById('cand-current-department')?.value || document.getElementById('cand-current-job-designation')?.value || '').trim() || signupState.current_department || signupState.current_job_designation || signupState.job_preferences?.current_department || signupState.job_preferences?.current_job_designation || '';
   const prefDept = document.getElementById('cand-pref-dept')?.value || signupState.job_preferences?.department || 'Front Office & Guest Services';
   const prefRole = (document.getElementById('cand-pref-role')?.value || '').trim() || signupState.job_preferences?.desired_role || 'Front Desk Agent';
   const prefShift = document.getElementById('cand-pref-shift')?.value || signupState.job_preferences?.shift || 'Rotational';
@@ -15632,10 +15632,12 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
 
   signupState.bio = bioVal;
   signupState.current_job_title = curJobTitle;
-  signupState.current_job_designation = curJobDesig;
+  signupState.current_department = curJobDept;
+  signupState.current_job_designation = curJobDept;
   signupState.job_preferences = {
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     department: prefDept,
     desired_role: prefRole,
     designation: prefRole,
@@ -15727,7 +15729,7 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
     return acc + (parseFloat(e.worked_years) || 0);
   }, 0);
 
-  const curJobComb = (curJobTitle && curJobDesig) ? `${curJobTitle} • ${curJobDesig}` : (curJobTitle || curJobDesig || prefRole);
+  const curJobComb = (curJobTitle && curJobDept) ? `${curJobTitle} • ${curJobDept}` : (curJobTitle || curJobDept || prefRole);
 
   const payload = {
     user_id: state.currentUser.id,
@@ -15736,7 +15738,8 @@ async function saveCandidateProfileProgress(isManualDraft = false) {
     headline: `${curJobComb} • ${prefDept}`,
     current_position: curJobComb,
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     experience_years: Math.round(totalExpYears),
     location: prefLoc,
     preferences: signupState.job_preferences,
@@ -15809,7 +15812,8 @@ async function handleCandidateCompleteProfile(event) {
     department: signupState.job_preferences?.department || 'Front Office & Guest Services',
     designation: signupState.job_preferences?.desired_role || signupState.designation || 'Front Desk Agent',
     current_job_title: signupState.current_job_title || signupState.job_preferences?.current_job_title || '',
-    current_job_designation: signupState.current_job_designation || signupState.job_preferences?.current_job_designation || '',
+    current_department: signupState.current_department || signupState.current_job_designation || signupState.job_preferences?.current_department || signupState.job_preferences?.current_job_designation || '',
+    current_job_designation: signupState.current_department || signupState.current_job_designation || signupState.job_preferences?.current_department || signupState.job_preferences?.current_job_designation || '',
     location: signupState.job_preferences?.preferred_location || (document.getElementById('cand-pref-location')?.value || '').trim() || '',
     expected_salary: signupState.job_preferences?.expected_salary || 'Negotiable',
     job_preferences: signupState.job_preferences,
@@ -18194,7 +18198,7 @@ async function openCandidateReviewModal(appId) {
 
                       ${(() => {
                         const curT = app.candidate_current_job_title || app.candidate_preferences?.current_job_title || '';
-                        const curD = app.candidate_current_job_designation || app.candidate_preferences?.current_job_designation || '';
+                        const curD = app.candidate_current_department || app.candidate_current_job_designation || app.candidate_preferences?.current_department || app.candidate_preferences?.current_job_designation || '';
                         const curJ = (curT && curD) ? `${curT} • ${curD}` : (curT || curD || app.candidate_current_position || app.candidate_headline || 'Hospitality Associate');
                         const prefJ = app.candidate_preferences?.desired_role || app.candidate_designation || app.job_title || 'Hospitality Role';
                         return `
@@ -20379,8 +20383,8 @@ function openEditJobPreferencesModal() {
                 <input type="text" id="edit-pref-current-job-title" value="${escapeHtml(state.profile?.current_job_title || prefs.current_job_title || '')}" placeholder="e.g. Front Office Associate" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
               <div>
-                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Current Job Designation</label>
-                <input type="text" id="edit-pref-current-job-designation" value="${escapeHtml(state.profile?.current_job_designation || prefs.current_job_designation || '')}" placeholder="e.g. Senior Executive" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--white);">Current Department</label>
+                <input type="text" id="edit-pref-current-department" value="${escapeHtml(state.profile?.current_department || state.profile?.current_job_designation || prefs.current_department || prefs.current_job_designation || '')}" placeholder="e.g. Front Office &amp; Guest Services" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
               </div>
             </div>
 
@@ -20503,8 +20507,8 @@ function openEditJobPreferencesModal() {
 async function handleSavePreferencesModal(e) {
   e.preventDefault();
   const curJobTitle = (document.getElementById('edit-pref-current-job-title')?.value || '').trim();
-  const curJobDesig = (document.getElementById('edit-pref-current-job-designation')?.value || '').trim();
-  const currentPosDisplay = (curJobTitle && curJobDesig) ? `${curJobTitle} • ${curJobDesig}` : (curJobTitle || curJobDesig || '');
+  const curJobDept = (document.getElementById('edit-pref-current-department')?.value || document.getElementById('edit-pref-current-job-designation')?.value || '').trim();
+  const currentPosDisplay = (curJobTitle && curJobDept) ? `${curJobTitle} • ${curJobDept}` : (curJobTitle || curJobDept || '');
 
   const dept = document.getElementById('edit-pref-dept')?.value || 'Front Office & Guest Services';
   const desiredRole = document.getElementById('edit-pref-role')?.value || 'Front Desk Agent';
@@ -20522,7 +20526,8 @@ async function handleSavePreferencesModal(e) {
   const updatedPrefs = {
     ...currentPrefs,
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     department: dept,
     desired_role: desiredRole,
     designation: desiredRole,
@@ -20537,7 +20542,8 @@ async function handleSavePreferencesModal(e) {
   closeModal('modal-edit-preferences');
   await saveProfileField({
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     current_position: currentPosDisplay || state.profile?.current_position || desiredRole,
     department: dept,
     designation: desiredRole,
@@ -20546,7 +20552,8 @@ async function handleSavePreferencesModal(e) {
   });
   if (state.profile) {
     state.profile.current_job_title = curJobTitle;
-    state.profile.current_job_designation = curJobDesig;
+    state.profile.current_department = curJobDept;
+    state.profile.current_job_designation = curJobDept;
     if (currentPosDisplay) state.profile.current_position = currentPosDisplay;
   }
 }
@@ -21529,15 +21536,15 @@ async function openComprehensiveEditProfileModal() {
                 Career &amp; Job Preferences
               </div>
 
-              <!-- Current Job Title & Current Job Designation -->
+              <!-- Current Job Title & Current Department -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
                   <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Current Job Title</label>
                   <input type="text" name="current_job_title" id="comp-edit-current-job-title" value="${escapeHtml(profile.current_job_title || prefs.current_job_title || '')}" placeholder="e.g. Front Office Associate" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
                 </div>
                 <div>
-                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Current Job Designation</label>
-                  <input type="text" name="current_job_designation" id="comp-edit-current-job-designation" value="${escapeHtml(profile.current_job_designation || prefs.current_job_designation || '')}" placeholder="e.g. Senior Executive" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
+                  <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; color: var(--white);">Current Department</label>
+                  <input type="text" name="current_department" id="comp-edit-current-department" value="${escapeHtml(profile.current_department || profile.current_job_designation || prefs.current_department || prefs.current_job_designation || '')}" placeholder="e.g. Front Office &amp; Guest Services" maxlength="80" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.85rem;">
                 </div>
               </div>
 
@@ -21833,8 +21840,8 @@ async function handleSaveComprehensiveProfile(event) {
   const phoneSec = (form.phone_secondary?.value || '').replace(/[^0-9]/g, '').slice(0, 11);
 
   const curJobTitle = (form.current_job_title?.value || '').trim();
-  const curJobDesig = (form.current_job_designation?.value || '').trim();
-  const currentPosDisplay = (curJobTitle && curJobDesig) ? `${curJobTitle} • ${curJobDesig}` : (curJobTitle || curJobDesig || '');
+  const curJobDept = (form.current_department?.value || form.current_job_designation?.value || '').trim();
+  const currentPosDisplay = (curJobTitle && curJobDept) ? `${curJobTitle} • ${curJobDept}` : (curJobTitle || curJobDept || '');
 
   const dept = form.department?.value || 'Front Office & Guest Services';
   const designation = (form.designation?.value || '').trim();
@@ -21865,7 +21872,8 @@ async function handleSaveComprehensiveProfile(event) {
   const updatedPrefs = {
     ...currentPrefs,
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     department: dept,
     desired_role: designation,
     designation: designation,
@@ -21885,7 +21893,8 @@ async function handleSaveComprehensiveProfile(event) {
     nid_passport: nidPassport,
     phone_secondary: phoneSec,
     current_job_title: curJobTitle,
-    current_job_designation: curJobDesig,
+    current_department: curJobDept,
+    current_job_designation: curJobDept,
     department: dept,
     designation: designation,
     current_position: currentPosDisplay || designation,
@@ -21925,7 +21934,8 @@ async function handleSaveComprehensiveProfile(event) {
       state.profile.nid_passport = nidPassport;
       state.profile.phone_secondary = phoneSec;
       state.profile.current_job_title = curJobTitle;
-      state.profile.current_job_designation = curJobDesig;
+      state.profile.current_department = curJobDept;
+      state.profile.current_job_designation = curJobDept;
       state.profile.department = dept;
       state.profile.designation = designation;
       state.profile.current_position = designation;

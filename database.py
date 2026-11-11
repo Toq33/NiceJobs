@@ -398,6 +398,7 @@ def init_db():
         cv_url TEXT DEFAULT '',
         current_job_title TEXT DEFAULT '',
         current_job_designation TEXT DEFAULT '',
+        current_department TEXT DEFAULT '',
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -779,7 +780,8 @@ def init_db():
         ("last_name", "TEXT DEFAULT ''"),
         ("name_bangla", "TEXT DEFAULT ''"),
         ("current_job_title", "TEXT DEFAULT ''"),
-        ("current_job_designation", "TEXT DEFAULT ''")
+        ("current_job_designation", "TEXT DEFAULT ''"),
+        ("current_department", "TEXT DEFAULT ''")
     ]:
         try:
             cursor.execute(f"ALTER TABLE employee_profiles ADD COLUMN {if_not_exists}{col} {typ}")
@@ -789,6 +791,16 @@ def init_db():
                 conn.rollback()
             except Exception:
                 pass
+
+    try:
+        cursor.execute("UPDATE employee_profiles SET current_department = current_job_designation WHERE (current_department IS NULL OR current_department = '') AND (current_job_designation IS NOT NULL AND current_job_designation != '')")
+        cursor.execute("UPDATE employee_profiles SET current_job_designation = current_department WHERE (current_job_designation IS NULL OR current_job_designation = '') AND (current_department IS NOT NULL AND current_department != '')")
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     for col, typ in [("issuing_authority", "TEXT DEFAULT ''")]:
         try:
