@@ -30,6 +30,7 @@ load_dotenv()
 import database
 import locations
 import bcrypt
+import cv_generator
 
 app = FastAPI(title="NiceJobs API", version="1.0.0")
 
@@ -3885,6 +3886,189 @@ def set_default_cv(cv_id: str, user_id: Optional[str] = None):
     conn.close()
     notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
     return {"success": True, "cv_list": cv_list}
+
+class GenerateCvPayload(BaseModel):
+    user_id: Optional[str] = None
+    candidate_data: Optional[Dict[str, Any]] = None
+    save_to_profile: Optional[bool] = False
+    title: Optional[str] = None
+
+@app.post("/api/profile/generate-cv")
+def generate_candidate_cv_endpoint(payload: GenerateCvPayload):
+    """
+    Generates a modern, industry-standard hospitality CV in PDF format.
+    Optionally saves the generated document directly into candidate's cv_list.
+    """
+    candidate_dict = {}
+    effective_user_id = payload.user_id
+
+    # 1. If user_id provided, fetch existing profile data as base
+    if effective_user_id:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.name, u.email, u.phone, u.designation,
+                   ep.dob, ep.nid_passport, ep.headline, ep.summary,
+                   ep.current_position, ep.current_job_title, ep.current_department, ep.current_job_designation,
+                   ep.location, ep.experience_years, ep.skills, ep.languages,
+                   ep.certifications, ep.experience, ep.education, ep.preferences, ep.cv_list
+            FROM users u
+            LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+            WHERE u.id = ?
+        """, (effective_user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            row_dict = dict(row)
+            for k in ["skills", "languages", "certifications", "experience", "education", "cv_list"]:
+                if row_dict.get(k) and isinstance(row_dict[k], str):
+                    try:
+                        row_dict[k] = json.loads(row_dict[k])
+                    except Exception:
+                        pass
+            if row_dict.get("preferences") and isinstance(row_dict["preferences"], str):
+                try:
+                    row_dict["preferences"] = json.loads(row_dict["preferences"])
+                except Exception:
+                    pass
+            candidate_dict.update(row_dict)
+
+    # 2. Overlay any directly provided candidate_data (e.g. from draft or Step 5 form)
+    if payload.candidate_data and isinstance(payload.candidate_data, dict):
+        for k, v in payload.candidate_data.items():
+            if v is not None and v != "":
+                candidate_dict[k] = v
+
+    # 3. Determine clean filenames and titles
+    raw_name = (
+        candidate_dict.get("name")
+        or " ".join(filter(None, [
+            candidate_dict.get("first_name", ""),
+            candidate_dict.get("middle_name", ""),
+            candidate_dict.get("last_name", "")
+        ]))
+        or "Hospitality_Candidate"
+    ).strip()
+
+    clean_slug = re.sub(r'[^a-zA-Z0-9_\s]', '', raw_name).strip().replace(' ', '_')
+    if not clean_slug:
+        clean_slug = "Hospitality_Candidate"
+    file_name = f"{clean_slug}_CV.pdf"
+    cv_title = payload.title or f"{raw_name} — Professional CV"
+
+    # 4. Generate Vector PDF with ReportLab
+    try:
+        pdf_bytes = cv_generator.generate_candidate_cv_pdf(candidate_dict)
+    except Exception as e:
+        logger.error(f"Error generating candidate CV PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate CV PDF: {str(e)}")
+
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    data_url = f"data:application/pdf;base64,{pdf_b64}"
+    file_size_str = f"{max(1, round(len(pdf_bytes) / 1024))} KB"
+
+    new_cv = {
+        "id": f"cv_gen_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}",
+        "name": file_name,
+        "title": cv_title,
+        "size": file_size_str,
+        "uploaded_at": datetime.now().strftime("%Y-%m-%d"),
+        "is_default": True,
+        "file_data": data_url
+    }
+
+    # 5. Optionally save to candidate profile CV Vault
+    if payload.save_to_profile and effective_user_id:
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT cv_list FROM employee_profiles WHERE user_id = ?", (effective_user_id,))
+        p_row = cursor.fetchone()
+        existing_cvs = []
+        if p_row and p_row["cv_list"]:
+            try:
+                existing_cvs = json.loads(p_row["cv_list"])
+            except Exception:
+                existing_cvs = []
+
+        for c in existing_cvs:
+            c["is_default"] = False
+
+        updated_cvs = [new_cv] + existing_cvs
+
+        if p_row:
+            cursor.execute("""
+                UPDATE employee_profiles
+                SET cv_list = ?, cv_name = ?, cv_url = ?, cv_updated_at = ?
+                WHERE user_id = ?
+            """, (json.dumps(updated_cvs), file_name, data_url, datetime.now().strftime("%Y-%m-%d %H:%M"), effective_user_id))
+        else:
+            cursor.execute("""
+                INSERT INTO employee_profiles (user_id, cv_list, cv_name, cv_url, cv_updated_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (effective_user_id, json.dumps(updated_cvs), file_name, data_url, datetime.now().strftime("%Y-%m-%d %H:%M")))
+
+        conn.commit()
+        conn.close()
+        notify_realtime("cv_updated", {"user_id": effective_user_id}, target_user=effective_user_id)
+
+    return {
+        "success": True,
+        "cv_name": file_name,
+        "cv_title": cv_title,
+        "size": file_size_str,
+        "cv_data": data_url,
+        "cv_item": new_cv
+    }
+
+@app.get("/api/profile/download-generated-cv")
+def download_generated_cv_endpoint(user_id: Optional[str] = None):
+    """
+    Direct binary download of candidate's generated PDF CV.
+    """
+    candidate_dict = {}
+    effective_user_id = user_id or "user_rahim"
+
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT u.name, u.email, u.phone, u.designation,
+               ep.dob, ep.nid_passport, ep.headline, ep.summary,
+               ep.current_position, ep.current_job_title, ep.current_department, ep.current_job_designation,
+               ep.location, ep.experience_years, ep.skills, ep.languages,
+               ep.certifications, ep.experience, ep.education, ep.preferences
+        FROM users u
+        LEFT JOIN employee_profiles ep ON u.id = ep.user_id
+        WHERE u.id = ?
+    """, (effective_user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Candidate record not found")
+
+    row_dict = dict(row)
+    for k in ["skills", "languages", "certifications", "experience", "education"]:
+        if row_dict.get(k) and isinstance(row_dict[k], str):
+            try:
+                row_dict[k] = json.loads(row_dict[k])
+            except Exception:
+                pass
+    if row_dict.get("preferences") and isinstance(row_dict["preferences"], str):
+        try:
+            row_dict["preferences"] = json.loads(row_dict["preferences"])
+        except Exception:
+            pass
+    candidate_dict.update(row_dict)
+
+    raw_name = (candidate_dict.get("name") or "Candidate").strip()
+    clean_slug = re.sub(r'[^a-zA-Z0-9_\s]', '', raw_name).strip().replace(' ', '_') or "Candidate"
+    file_name = f"{clean_slug}_Hospitality_CV.pdf"
+
+    pdf_bytes = cv_generator.generate_candidate_cv_pdf(candidate_dict)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'}
+    )
 
 @app.get("/api/applications/{app_id}/cv")
 def get_application_cv(app_id: str, viewer_role: Optional[str] = "guest", viewer_id: Optional[str] = None, business_id: Optional[str] = None):

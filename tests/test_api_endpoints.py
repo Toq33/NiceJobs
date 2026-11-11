@@ -1,4 +1,5 @@
 import unittest
+import time
 from fastapi.testclient import TestClient
 from app import app
 import database
@@ -1096,6 +1097,105 @@ class TestNiceJobsAPI(unittest.TestCase):
                 clean_cur.execute("DELETE FROM businesses WHERE id = ?", (biz_id,))
                 clean_cur.execute("DELETE FROM employee_profiles WHERE user_id = ?", (user_id,))
                 clean_cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                clean_conn.commit()
+                clean_conn.close()
+            except Exception:
+                pass
+            conn.close()
+
+    def test_generate_candidate_cv_endpoint_and_pdf_validation(self):
+        """Verify modern luxury hospitality CV generation in PDF format with direct profile saving."""
+        import base64
+        test_uid = f"test_cvgen_{int(time.time())}"
+        conn = database.get_db()
+        cursor = conn.cursor()
+        try:
+            # 1. Test CV generation from direct payload without user_id (e.g. signup wizard Step 5)
+            gen_resp = self.client.post("/api/profile/generate-cv", json={
+                "candidate_data": {
+                    "name": "Nafis Fuad",
+                    "email": "nafis@hospitality.com",
+                    "phone": "01811223344",
+                    "location": "Cox's Bazar, Bangladesh",
+                    "current_job_title": "Guest Relations Officer",
+                    "current_department": "Front Office & Guest Services",
+                    "summary": "Five-star hospitality guest service specialist with extensive resort operations experience.",
+                    "skills": ["Opera Cloud PMS", "VIP Protocol", "Guest Relations"],
+                    "languages": [{"name": "English", "proficiency": "Fluent"}, {"name": "Bengali", "proficiency": "Native"}],
+                    "experience": [
+                        {
+                            "role": "Guest Relations Associate",
+                            "company": "Sayeman Beach Resort",
+                            "department": "Front Office",
+                            "date_from": "2023",
+                            "date_to": "Present",
+                            "is_hospitality": True,
+                            "worked_years": "2"
+                        }
+                    ],
+                    "education": [
+                        {
+                            "degree": "BBA in Tourism & Hospitality",
+                            "institution": "University of Dhaka",
+                            "year": "2022"
+                        }
+                    ]
+                },
+                "save_to_profile": False,
+                "title": "Nafis Fuad — Luxury Resort CV"
+            })
+            self.assertEqual(gen_resp.status_code, 200)
+            data = gen_resp.json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(data.get("cv_data", "").startswith("data:application/pdf;base64,"))
+            self.assertTrue(data.get("cv_name", "").endswith(".pdf"))
+
+            # Verify binary PDF header
+            pdf_b64 = data["cv_data"].split(",", 1)[1]
+            raw_pdf = base64.b64decode(pdf_b64)
+            self.assertTrue(raw_pdf.startswith(b"%PDF-"))
+            self.assertGreater(len(raw_pdf), 1000)
+
+            # 2. Test CV generation with save_to_profile=True for an existing candidate
+            cursor.execute("""
+                INSERT INTO users (id, name, email, phone, role, password, is_demo)
+                VALUES (?, 'Nafis Fuad', 'nafis@hospitality.com', '01811223344', 'jobseeker', 'hash', 0)
+            """, (test_uid,))
+            cursor.execute("""
+                INSERT INTO employee_profiles (user_id, headline, current_position, current_job_title, current_department, location)
+                VALUES (?, 'Guest Relations • Front Office', 'Guest Relations Officer', 'Guest Relations Officer', 'Front Office & Guest Services', 'Cox Bazar')
+            """, (test_uid,))
+            conn.commit()
+
+            save_resp = self.client.post("/api/profile/generate-cv", json={
+                "user_id": test_uid,
+                "save_to_profile": True,
+                "title": "Nafis Fuad Executive Resume"
+            })
+            self.assertEqual(save_resp.status_code, 200)
+            save_data = save_resp.json()
+            self.assertTrue(save_data.get("success"))
+            self.assertIsNotNone(save_data.get("cv_item"))
+            self.assertTrue(save_data["cv_item"].get("is_default"))
+
+            # Verify cv_list endpoint returns the newly generated CV
+            cvs_resp = self.client.get(f"/api/profile/cvs?user_id={test_uid}")
+            self.assertEqual(cvs_resp.status_code, 200)
+            cvs_list = cvs_resp.json().get("cvs", [])
+            self.assertGreaterEqual(len(cvs_list), 1)
+            self.assertEqual(cvs_list[0].get("name"), save_data["cv_name"])
+            self.assertTrue(cvs_list[0].get("is_default"))
+
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                clean_conn = database.get_db()
+                clean_cur = clean_conn.cursor()
+                clean_cur.execute("DELETE FROM employee_profiles WHERE user_id = ?", (test_uid,))
+                clean_cur.execute("DELETE FROM users WHERE id = ?", (test_uid,))
                 clean_conn.commit()
                 clean_conn.close()
             except Exception:

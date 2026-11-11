@@ -5492,7 +5492,12 @@ async function renderProfileScreen(viewport) {
           <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--white);">My CVs (${(profile.cv_list || []).length})</h2>
           <p style="font-size: 0.82rem; color: var(--text-muted);">Choose which tailored CV to attach when applying. CVs are private.</p>
         </div>
-        <button class="btn-orange" style="font-size: 0.82rem; padding: 6px 14px;" onclick="openAddCvModal()">+ Upload CV</button>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button class="btn-secondary" id="btn-profile-create-cv" style="font-size: 0.82rem; padding: 6px 14px; font-weight: 700; color: var(--white); border: 1.5px solid rgba(255, 107, 0, 0.45); background: rgba(255, 107, 0, 0.12); display: inline-flex; align-items: center; gap: 6px;" onclick="handleGenerateProfileCv(this)">
+            ${svgIcon('fileText', 'var(--orange-primary)', 15)} Create CV
+          </button>
+          <button class="btn-orange" style="font-size: 0.82rem; padding: 6px 14px;" onclick="openAddCvModal()">+ Upload CV</button>
+        </div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -5509,6 +5514,12 @@ async function renderProfileScreen(viewport) {
               Drag &amp; drop your hospitality resume here, or <span style="color: var(--orange-primary); font-weight: 700; text-decoration: underline;">browse device</span>
             </p>
             <div style="font-size: 0.74rem; color: var(--text-dim); margin-top: 2px;">PDF, DOCX, DOC (up to 10MB)</div>
+            <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center;">
+              <button type="button" class="btn-orange" style="font-size: 0.82rem; padding: 6px 14px;" onclick="event.stopPropagation(); openAddCvModal();">+ Upload CV</button>
+              <button type="button" class="btn-secondary" style="font-size: 0.82rem; padding: 6px 14px; font-weight: 700; border: 1.5px solid rgba(255, 107, 0, 0.45); background: rgba(255, 107, 0, 0.12); color: var(--white); display: inline-flex; align-items: center; gap: 6px;" onclick="event.stopPropagation(); handleGenerateProfileCv(this)">
+                ${svgIcon('fileText', 'var(--orange-primary)', 14)} Create CV from Profile
+              </button>
+            </div>
             <input type="file" id="direct-profile-cv-file-input" style="display: none;" accept=".pdf,.docx,.doc" onchange="handleDirectProfileCvSelected(event)">
           </div>
         ` : (profile.cv_list || []).map(cv => `
@@ -12292,22 +12303,30 @@ function renderSignupPage(viewport) {
 
               <!-- Main CV Upload (Drag and Drop + Device Browse) -->
               <div class="auth-field">
-                <label class="auth-label">Main CV Upload</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="auth-label" style="margin-bottom: 0;">Main CV Document</label>
+                  <button type="button" id="btn-signup-create-cv" class="btn-orange" onclick="handleGenerateSignupCv(this)" style="font-size: 0.8rem; padding: 5px 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                    ${svgIcon('fileText', '', 14)} Create CV
+                  </button>
+                </div>
                 <div class="cv-dropzone" id="cand-cv-dropzone" onclick="document.getElementById('cand-cv-file').click()">
                   <div class="cv-dropzone-inner">
                     <div style="color: var(--orange-primary);">${svgIcon('upload', '', 28)}</div>
                     <strong style="color: var(--white); font-size: 0.92rem; margin-top: 6px;">${signupState.cv_name || 'Upload your primary Hospitality CV'}</strong>
                     <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
-                      Drag &amp; drop your CV here, or <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>
+                      Drag &amp; drop your CV here, <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>, or click <strong>Create CV</strong> above
                     </div>
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">PDF, DOCX, DOC up to 10MB</div>
                   </div>
                   <input type="file" id="cand-cv-file" style="display: none;" accept=".pdf,.docx,.doc" onchange="handleCvFileSelected(event)">
                 </div>
                 ${signupState.cv_name ? `
-                  <div class="cv-uploaded-badge" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between;">
+                  <div class="cv-uploaded-badge" id="cand-cv-badge" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
                     <span>✓ CV Attached: <strong>${signupState.cv_name}</strong></span>
-                    <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
+                    <div style="display: flex; gap: 6px;">
+                      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
+                      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="downloadCandidateSignupCv()">Download PDF</button>
+                    </div>
                   </div>
                 ` : ''}
               </div>
@@ -13480,7 +13499,7 @@ function updateCvDropzoneDOM() {
       <div style="color: var(--orange-primary);">${svgIcon('upload', '', 28)}</div>
       <strong style="color: var(--white); font-size: 0.92rem; margin-top: 6px;">${escapeHtml(signupState.cv_name || 'Upload your primary Hospitality CV')}</strong>
       <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
-        Drag &amp; drop your CV here, or <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>
+        Drag &amp; drop your CV here, <span style="color: var(--orange-primary); text-decoration: underline;">browse device</span>, or click <strong>Create CV</strong> above
       </div>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">PDF, DOCX, DOC up to 10MB</div>
     `;
@@ -13494,17 +13513,153 @@ function updateCvDropzoneDOM() {
       badge.style.display = 'flex';
       badge.style.alignItems = 'center';
       badge.style.justifyContent = 'space-between';
+      badge.style.flexWrap = 'wrap';
+      badge.style.gap = '6px';
       dropzone.parentElement.appendChild(badge);
     }
     badge.innerHTML = `
       <span>✓ CV Attached: <strong>${escapeHtml(signupState.cv_name)}</strong></span>
-      <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
+      <div style="display: flex; gap: 6px;">
+        <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="previewCandidateSignupCv()">Preview CV</button>
+        <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 0.75rem;" onclick="downloadCandidateSignupCv()">Download PDF</button>
+      </div>
     `;
   } else if (badge) {
     badge.remove();
   }
 }
 window.updateCvDropzoneDOM = updateCvDropzoneDOM;
+
+function downloadCandidateSignupCv() {
+  captureCurrentSignupInputs();
+  const name = signupState.cv_name || 'Hospitality_CV.pdf';
+  const data = signupState.cv_data || signupState.cv_url;
+  if (!data) {
+    showToast('Please upload or create a CV document first.', 'warning');
+    return;
+  }
+  downloadOriginalCvFile(data, name);
+}
+window.downloadCandidateSignupCv = downloadCandidateSignupCv;
+
+async function handleGenerateSignupCv(btn) {
+  captureCurrentSignupInputs();
+
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating CV...`;
+  }
+
+  try {
+    const nameVal = (signupState.name || 'Hospitality Candidate').trim();
+    const currentTitle = (document.getElementById('cand-current-job-title')?.value || signupState.current_job_title || '').trim();
+    const currentDept = (document.getElementById('cand-current-department')?.value || signupState.current_department || '').trim();
+    const bioVal = (document.getElementById('cand-bio')?.value || signupState.bio || '').trim();
+    const prefLoc = (document.getElementById('cand-pref-location')?.value || signupState.job_preferences?.preferred_location || '').trim();
+
+    const candidateData = {
+      name: nameVal,
+      email: signupState.email || '',
+      phone: signupState.phone || '',
+      phone_secondary: signupState.phone_secondary || '',
+      dob: signupState.dob || '',
+      location: prefLoc,
+      current_job_title: currentTitle,
+      current_department: currentDept,
+      summary: bioVal,
+      job_preferences: signupState.job_preferences || {},
+      experience: signupState.experience || [],
+      education: signupState.education || [],
+      certifications: signupState.certifications || [],
+      skills: signupState.skills || [],
+      languages: signupState.languages || []
+    };
+
+    const res = await fetch('/api/profile/generate-cv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: state.currentUser?.id || null,
+        candidate_data: candidateData,
+        save_to_profile: !!state.currentUser?.id,
+        title: `${nameVal} — Generated Professional CV`
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to create CV');
+
+    signupState.cv_name = data.cv_name;
+    signupState.cv_data = data.cv_data;
+    signupState.cv_url = data.cv_data;
+    saveSignupProgress();
+
+    updateCvDropzoneDOM();
+
+    showToast('Modern hospitality CV generated and attached in PDF format!', 'success');
+    previewCandidateCvModal(data.cv_title, data.cv_name, data.cv_data);
+  } catch (err) {
+    showToast(err.message, 'danger');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+window.handleGenerateSignupCv = handleGenerateSignupCv;
+
+async function handleGenerateProfileCv(btn) {
+  const uId = state.currentUser?.id;
+  if (!uId) {
+    showToast('Please log in to generate and save your CV.', 'danger');
+    return;
+  }
+
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating CV...`;
+  }
+
+  try {
+    const candName = state.profile?.name || state.currentUser?.name || 'Candidate';
+    const res = await fetch('/api/profile/generate-cv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: uId,
+        candidate_data: state.profile || {},
+        save_to_profile: true,
+        title: `${candName} — Professional CV`
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to create CV');
+
+    showToast('Modern CV generated and saved to your CV Vault!', 'success');
+
+    // Reload profile data and refresh view
+    const profRes = await fetch(`/api/profile?user_id=${uId}`);
+    if (profRes.ok) {
+      state.profile = await profRes.json();
+    }
+    renderProfileScreen(document.getElementById('app-viewport'));
+
+    // Open preview modal for immediate viewing and downloading
+    previewCandidateCvModal(data.cv_title, data.cv_name, data.cv_data);
+  } catch (err) {
+    showToast(err.message, 'danger');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+window.handleGenerateProfileCv = handleGenerateProfileCv;
 
 function countWords(str) {
   if (!str) return 0;
@@ -19077,6 +19232,17 @@ function openAddCvModal() {
                 </div>
                 <button type="button" class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; color: #f87171;" onclick="clearProfileCvFile()">Remove</button>
               </div>
+            </div>
+
+            <!-- Or Generate from Profile Box -->
+            <div style="background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.25); border-radius: var(--radius-md); padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+              <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.4;">
+                <strong style="color: var(--white); display: block;">Don't have a PDF resume file?</strong>
+                Instantly create a modern, luxury hospitality CV from your profile details.
+              </div>
+              <button type="button" class="btn-secondary" style="padding: 7px 14px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; border: 1.5px solid var(--orange-primary); background: rgba(255, 107, 0, 0.15); color: var(--orange-primary); display: inline-flex; align-items: center; gap: 6px;" onclick="closeModal('modal-add-cv'); handleGenerateProfileCv(this);">
+                ${svgIcon('fileText', '', 14)} Create CV
+              </button>
             </div>
 
             <!-- Resume Title -->
