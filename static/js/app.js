@@ -3866,7 +3866,25 @@ async function handleRealtimeEvent(payload) {
     }
 
     case 'profile_updated': {
-      if (state.currentUser && state.currentUser.id === data.user_id) {
+      const uId = data.user_id;
+      if (state.currentUser && state.currentUser.id === uId) {
+        if (data.designation) state.currentUser.designation = data.designation;
+        if (state.profile) {
+          if (data.current_job_title !== undefined) state.profile.current_job_title = data.current_job_title;
+          if (data.current_department !== undefined) {
+            state.profile.current_department = data.current_department;
+            state.profile.current_job_designation = data.current_department;
+          }
+          if (data.department !== undefined) state.profile.department = data.department;
+          if (data.designation !== undefined) state.profile.designation = data.designation;
+          if (data.desired_role !== undefined) {
+            if (!state.profile.preferences) state.profile.preferences = {};
+            state.profile.preferences.desired_role = data.desired_role;
+          }
+          if (data.preferences) {
+            state.profile.preferences = Object.assign({}, state.profile.preferences || {}, data.preferences);
+          }
+        }
         try {
           const profRes = await fetch(`/api/profile?user_id=${state.currentUser.id}`);
           if (profRes.ok) state.profile = await profRes.json();
@@ -3874,6 +3892,68 @@ async function handleRealtimeEvent(payload) {
         if (state.currentScreen === 'profile') {
           const viewport = document.getElementById('app-viewport');
           if (viewport) await renderProfileScreen(viewport);
+        }
+      }
+
+      // Synchronize in-memory applications cache
+      const updateAppCandFields = (app) => {
+        if (!app || app.user_id !== uId) return;
+        if (data.current_job_title !== undefined) app.candidate_current_job_title = data.current_job_title;
+        if (data.current_department !== undefined) {
+          app.candidate_current_department = data.current_department;
+          app.candidate_current_job_designation = data.current_department;
+        }
+        if (data.designation !== undefined) app.candidate_designation = data.designation;
+        if (!app.candidate_preferences) app.candidate_preferences = {};
+        if (data.desired_role !== undefined) app.candidate_preferences.desired_role = data.desired_role;
+        if (data.department !== undefined) app.candidate_preferences.department = data.department;
+        if (data.current_job_title !== undefined) app.candidate_preferences.current_job_title = data.current_job_title;
+        if (data.current_department !== undefined) {
+          app.candidate_preferences.current_department = data.current_department;
+          app.candidate_preferences.current_job_designation = data.current_department;
+        }
+        if (data.preferences) Object.assign(app.candidate_preferences, data.preferences);
+        const prefR = app.candidate_preferences.desired_role || app.candidate_designation || '';
+        const prefD = app.candidate_preferences.department || '';
+        app.candidate_preferred_role = prefR;
+        app.candidate_preferred_department = prefD;
+        app.candidate_preferred_job = (prefR && prefD) ? `${prefR} • ${prefD}` : (prefR || prefD);
+      };
+
+      if (state.applications && Array.isArray(state.applications)) {
+        state.applications.forEach(updateAppCandFields);
+      }
+      if (window._cachedAtsApps && Array.isArray(window._cachedAtsApps)) {
+        window._cachedAtsApps.forEach(updateAppCandFields);
+      }
+
+      // Synchronize in-memory talent pool candidates cache
+      if (state.talentCandidates && Array.isArray(state.talentCandidates)) {
+        state.talentCandidates.forEach(cand => {
+          if (!cand || cand.id !== uId) return;
+          if (data.current_job_title !== undefined) cand.current_job_title = data.current_job_title;
+          if (data.current_department !== undefined) {
+            cand.current_department = data.current_department;
+            cand.current_job_designation = data.current_department;
+          }
+          if (data.department !== undefined) cand.department = data.department;
+          if (data.designation !== undefined) cand.designation = data.designation;
+          if (!cand.preferences) cand.preferences = {};
+          if (data.desired_role !== undefined) cand.preferences.desired_role = data.desired_role;
+          if (data.department !== undefined) cand.preferences.department = data.department;
+          if (data.preferences) Object.assign(cand.preferences, data.preferences);
+        });
+      }
+
+      // Re-render active screen if applicable
+      const vp = document.getElementById('app-viewport');
+      if (vp) {
+        if (state.currentScreen === 'applications') {
+          renderApplicationsScreen(vp);
+        } else if (state.currentScreen === 'ats') {
+          renderAtsScreen(vp);
+        } else if (state.currentScreen === 'talent') {
+          renderTalentPoolScreen(vp);
         }
       }
       break;
@@ -5554,21 +5634,13 @@ async function renderProfileScreen(viewport) {
               ${(() => {
                 const curTitle = (profile.current_job_title || profile.preferences?.current_job_title || '').trim();
                 const curDept = (profile.current_department || profile.current_job_designation || profile.preferences?.current_department || profile.preferences?.current_job_designation || '').trim();
-                const curDisplay = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || profile.current_position || profile.designation || '');
+                const curDisplay = (curTitle && curDept) ? `${curTitle} • ${curDept}` : (curTitle || curDept || '');
                 return curDisplay ? `
                   <span class="profile-designation-badge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 800; padding: 4px 12px; border-radius: 6px; background: rgba(255, 107, 0, 0.14); border: 1.5px solid var(--orange-primary); color: var(--orange-primary); letter-spacing: 0.3px;" title="Current Job">
                     ${svgIcon('briefcase', '', 14)} ${escapeHtml(curDisplay)}
                   </span>
                 ` : '';
               })()}
-              ${(profile.department || profile.preferences?.department) ? `
-                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #f1f5f9;">
-                  ${svgIcon('hotel', '', 14)} ${escapeHtml(profile.department || profile.preferences?.department)}
-                </span>
-              ` : ''}
-              ${(profile.headline || profile.designation || profile.current_position) ? `
-                <span style="font-size: 1.02rem; color: #cbd5e1; font-weight: 600;">${escapeHtml(profile.headline || profile.designation || profile.current_position)}</span>
-              ` : ''}
             </div>
             <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
               ${(profile.location || profile.preferences?.preferred_location) ? `
@@ -6297,7 +6369,9 @@ function renderCandidatesTableHTML(apps) {
             const candCurTitle = app.candidate_current_job_title || app.candidate_preferences?.current_job_title || '';
             const candCurDept = app.candidate_current_department || app.candidate_current_job_designation || app.candidate_preferences?.current_department || app.candidate_preferences?.current_job_designation || '';
             const candCurJob = (candCurTitle && candCurDept) ? `${candCurTitle} • ${candCurDept}` : (candCurTitle || candCurDept || app.candidate_current_position || app.candidate_headline || 'Hospitality Associate');
-            const candPrefJob = app.candidate_preferences?.desired_role || app.candidate_designation || app.job_title || 'Hospitality Role';
+            const candPrefRole = app.candidate_preferred_role || app.candidate_preferences?.desired_role || app.candidate_designation || '';
+            const candPrefDept = app.candidate_preferred_department || app.candidate_preferences?.department || '';
+            const candPrefJob = app.candidate_preferred_job || ((candPrefRole && candPrefDept) ? `${candPrefRole} • ${candPrefDept}` : (candPrefRole || candPrefDept || app.job_title || 'Hospitality Role'));
 
             return `
             <tr>
@@ -18427,12 +18501,18 @@ async function openCandidateReviewModal(appId) {
       app = state.applications.find(a => a && a.id === appId);
     }
 
-    // D. Fetch single application directly by ID
-    if (!app && appId) {
+    // Fetch single application directly by ID or refresh for latest candidate updates
+    const targetAppId = (typeof appId === 'string') ? appId : (app ? app.id : null);
+    if (targetAppId) {
       try {
-        const res = await fetch(`/api/applications/${appId}`);
+        const res = await fetch(`/api/applications/${targetAppId}`);
         if (res.ok) {
-          app = await res.json();
+          const freshApp = await res.json();
+          if (app) {
+            Object.assign(app, freshApp);
+          } else {
+            app = freshApp;
+          }
         }
       } catch(e) {}
     }
@@ -18594,7 +18674,9 @@ async function openCandidateReviewModal(appId) {
                         const curT = app.candidate_current_job_title || app.candidate_preferences?.current_job_title || '';
                         const curD = app.candidate_current_department || app.candidate_current_job_designation || app.candidate_preferences?.current_department || app.candidate_preferences?.current_job_designation || '';
                         const curJ = (curT && curD) ? `${curT} • ${curD}` : (curT || curD || app.candidate_current_position || app.candidate_headline || 'Hospitality Associate');
-                        const prefJ = app.candidate_preferences?.desired_role || app.candidate_designation || app.job_title || 'Hospitality Role';
+                        const prefRole = app.candidate_preferred_role || app.candidate_preferences?.desired_role || app.candidate_designation || 'Hospitality Professional';
+                        const prefDept = app.candidate_preferred_department || app.candidate_preferences?.department || '';
+                        const prefJ = (prefRole && prefDept) ? `${prefRole} • ${prefDept}` : (prefRole || prefDept || app.job_title || 'Hospitality Role');
                         return `
                           <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.78rem;">
                             <div>
@@ -21004,8 +21086,30 @@ async function handleSavePreferencesModal(e) {
     state.profile.current_job_title = curJobTitle;
     state.profile.current_department = curJobDept;
     state.profile.current_job_designation = curJobDept;
+    state.profile.department = dept;
+    state.profile.designation = desiredRole;
+    state.profile.preferences = updatedPrefs;
     if (currentPosDisplay) state.profile.current_position = currentPosDisplay;
   }
+  if (state.currentUser) {
+    state.currentUser.designation = desiredRole;
+  }
+  const syncUserId = state.currentUser ? state.currentUser.id : 'user_rahim';
+  const syncAppObj = (a) => {
+    if (a && (a.user_id === syncUserId || a.candidate_email === state.currentUser?.email)) {
+      a.candidate_current_job_title = curJobTitle;
+      a.candidate_current_department = curJobDept;
+      a.candidate_current_job_designation = curJobDept;
+      a.candidate_designation = desiredRole;
+      a.candidate_preferred_role = desiredRole;
+      a.candidate_preferred_department = dept;
+      a.candidate_preferred_job = (desiredRole && dept) ? `${desiredRole} • ${dept}` : (desiredRole || dept);
+      if (!a.candidate_preferences) a.candidate_preferences = {};
+      Object.assign(a.candidate_preferences, updatedPrefs);
+    }
+  };
+  if (state.applications && Array.isArray(state.applications)) state.applications.forEach(syncAppObj);
+  if (window._cachedAtsApps && Array.isArray(window._cachedAtsApps)) window._cachedAtsApps.forEach(syncAppObj);
 }
 
 // Comprehensive Edit Profile Modal - Skills Schema State & Helpers
@@ -22388,7 +22492,7 @@ async function handleSaveComprehensiveProfile(event) {
       state.profile.current_job_designation = curJobDept;
       state.profile.department = dept;
       state.profile.designation = designation;
-      state.profile.current_position = designation;
+      state.profile.current_position = currentPosDisplay || curJobTitle || designation;
       state.profile.headline = headline;
       state.profile.summary = summaryVal;
       state.profile.location = locVal;
@@ -22402,6 +22506,23 @@ async function handleSaveComprehensiveProfile(event) {
       state.profile.experience_years = totalExpYears;
       state.profile.preferences = updatedPrefs;
     }
+
+    const syncUserId = userId || (state.currentUser ? state.currentUser.id : 'user_rahim');
+    const syncAppObj = (a) => {
+      if (a && (a.user_id === syncUserId || a.candidate_email === state.currentUser?.email)) {
+        a.candidate_current_job_title = curJobTitle;
+        a.candidate_current_department = curJobDept;
+        a.candidate_current_job_designation = curJobDept;
+        a.candidate_designation = designation;
+        a.candidate_preferred_role = designation;
+        a.candidate_preferred_department = dept;
+        a.candidate_preferred_job = (designation && dept) ? `${designation} • ${dept}` : (designation || dept);
+        if (!a.candidate_preferences) a.candidate_preferences = {};
+        Object.assign(a.candidate_preferences, updatedPrefs);
+      }
+    };
+    if (state.applications && Array.isArray(state.applications)) state.applications.forEach(syncAppObj);
+    if (window._cachedAtsApps && Array.isArray(window._cachedAtsApps)) window._cachedAtsApps.forEach(syncAppObj);
 
     updateNavigation();
     closeModal('modal-edit-profile-comp');

@@ -3574,7 +3574,7 @@ def get_profile(user_id: str = "user_rahim"):
         profile[field] = json.loads(profile[field]) if profile.get(field) else []
     profile["preferences"] = json.loads(profile["preferences"]) if profile.get("preferences") else {}
     profile["can_post_blog"] = bool(row["can_post_blog"] or row.get("user_role") == "admin")
-    profile["designation"] = (profile.get("designation") or profile.get("current_position") or "").strip()
+    profile["designation"] = (profile.get("preferences", {}).get("desired_role") or profile.get("designation") or profile.get("current_position") or "").strip()
     profile["department"] = profile.get("department") or profile.get("preferences", {}).get("department") or ""
     profile["phone_secondary"] = profile.get("phone_secondary") or profile.get("preferences", {}).get("phone_secondary") or ""
     profile["current_job_title"] = (profile.get("current_job_title") or profile.get("preferences", {}).get("current_job_title") or "").strip()
@@ -3696,9 +3696,44 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
         cursor.execute("UPDATE users SET name_bangla = ? WHERE id = ?", (payload.name_bangla, effective_user_id))
         cursor.execute("UPDATE employee_profiles SET name_bangla = ? WHERE user_id = ?", (payload.name_bangla, effective_user_id))
 
-    if payload.designation is not None:
-        cursor.execute("UPDATE users SET designation = ? WHERE id = ?", (payload.designation, effective_user_id))
-        cursor.execute("UPDATE business_memberships SET org_role = ? WHERE user_id = ?", (payload.designation, effective_user_id))
+    # Resolve preferred job / designation
+    resolved_pref_job = None
+    if payload.designation is not None and str(payload.designation).strip():
+        resolved_pref_job = str(payload.designation).strip()
+    elif isinstance(payload.preferences, dict):
+        cand_pref_j = payload.preferences.get("desired_role") or payload.preferences.get("designation")
+        if cand_pref_j and str(cand_pref_j).strip():
+            resolved_pref_job = str(cand_pref_j).strip()
+
+    if resolved_pref_job is not None:
+        cursor.execute("UPDATE users SET designation = ? WHERE id = ?", (resolved_pref_job, effective_user_id))
+        cursor.execute("UPDATE business_memberships SET org_role = ? WHERE user_id = ?", (resolved_pref_job, effective_user_id))
+
+    # Resolve preferred department
+    resolved_pref_dept = None
+    if payload.department is not None and str(payload.department).strip():
+        resolved_pref_dept = str(payload.department).strip()
+    elif isinstance(payload.preferences, dict) and payload.preferences.get("department"):
+        resolved_pref_dept = str(payload.preferences.get("department")).strip()
+
+    # Resolve current job title
+    resolved_cur_title = None
+    if payload.current_job_title is not None:
+        resolved_cur_title = str(payload.current_job_title).strip()
+    elif isinstance(payload.preferences, dict) and "current_job_title" in payload.preferences:
+        resolved_cur_title = str(payload.preferences.get("current_job_title") or "").strip()
+
+    # Resolve current department
+    resolved_cur_dept = None
+    if payload.current_department is not None:
+        resolved_cur_dept = str(payload.current_department).strip()
+    elif payload.current_job_designation is not None:
+        resolved_cur_dept = str(payload.current_job_designation).strip()
+    elif isinstance(payload.preferences, dict):
+        if "current_department" in payload.preferences:
+            resolved_cur_dept = str(payload.preferences.get("current_department") or "").strip()
+        elif "current_job_designation" in payload.preferences:
+            resolved_cur_dept = str(payload.preferences.get("current_job_designation") or "").strip()
 
     if payload.dob is not None:
         cursor.execute("UPDATE users SET dob = ? WHERE id = ?", (payload.dob, effective_user_id))
@@ -3726,15 +3761,23 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.phone_secondary is not None:
         curr_prefs["phone_secondary"] = payload.phone_secondary
         has_pref_update = True
-    if payload.department is not None:
-        curr_prefs["department"] = payload.department
+    if resolved_pref_dept is not None:
+        curr_prefs["department"] = resolved_pref_dept
+        has_pref_update = True
+    if resolved_pref_job is not None:
+        curr_prefs["desired_role"] = resolved_pref_job
+        curr_prefs["designation"] = resolved_pref_job
+        has_pref_update = True
+    if resolved_cur_title is not None:
+        curr_prefs["current_job_title"] = resolved_cur_title
+        has_pref_update = True
+    if resolved_cur_dept is not None:
+        curr_prefs["current_department"] = resolved_cur_dept
+        curr_prefs["current_job_designation"] = resolved_cur_dept
         has_pref_update = True
 
     updates = []
     params = []
-    if has_pref_update:
-        updates.append("preferences = ?")
-        params.append(json.dumps(curr_prefs))
     if payload.headline is not None:
         updates.append("headline = ?")
         params.append(payload.headline)
@@ -3753,20 +3796,21 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.current_position is not None:
         updates.append("current_position = ?")
         params.append(payload.current_position)
-    if payload.current_job_title is not None:
+    elif resolved_cur_title is not None or resolved_cur_dept is not None:
+        c_title = resolved_cur_title if resolved_cur_title is not None else curr_prefs.get("current_job_title", "")
+        c_dept = resolved_cur_dept if resolved_cur_dept is not None else curr_prefs.get("current_department", "")
+        pos_display = f"{c_title} • {c_dept}".strip(" •")
+        if pos_display:
+            updates.append("current_position = ?")
+            params.append(pos_display)
+    if resolved_cur_title is not None:
         updates.append("current_job_title = ?")
-        params.append(payload.current_job_title)
-        curr_prefs["current_job_title"] = payload.current_job_title
-        has_pref_update = True
-    if payload.current_department is not None or payload.current_job_designation is not None:
-        cur_dept_val = (payload.current_department if payload.current_department is not None else payload.current_job_designation)
+        params.append(resolved_cur_title)
+    if resolved_cur_dept is not None:
         updates.append("current_department = ?")
-        params.append(cur_dept_val)
+        params.append(resolved_cur_dept)
         updates.append("current_job_designation = ?")
-        params.append(cur_dept_val)
-        curr_prefs["current_department"] = cur_dept_val
-        curr_prefs["current_job_designation"] = cur_dept_val
-        has_pref_update = True
+        params.append(resolved_cur_dept)
     if payload.experience_years is not None:
         updates.append("experience_years = ?")
         params.append(payload.experience_years)
@@ -3800,6 +3844,9 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     if payload.cv_url is not None:
         updates.append("cv_url = ?")
         params.append(payload.cv_url)
+    if has_pref_update:
+        updates.append("preferences = ?")
+        params.append(json.dumps(curr_prefs))
 
     if updates:
         params.append(effective_user_id)
@@ -3808,10 +3855,25 @@ def update_profile(payload: ProfileUpdatePayload, user_id: Optional[str] = None)
     conn.commit()
     conn.close()
 
+    # Final resolved values for broadcast
+    final_cur_title = curr_prefs.get("current_job_title") or (resolved_cur_title or "")
+    final_cur_dept = curr_prefs.get("current_department") or (resolved_cur_dept or "")
+    final_pref_role = curr_prefs.get("desired_role") or (resolved_pref_job or "")
+    final_pref_dept = curr_prefs.get("department") or (resolved_pref_dept or "")
+
     notify_realtime(
         "profile_updated",
-        {"user_id": effective_user_id},
-        target_user=effective_user_id
+        {
+            "user_id": effective_user_id,
+            "current_job_title": final_cur_title,
+            "current_department": final_cur_dept,
+            "current_job_designation": final_cur_dept,
+            "current_position": f"{final_cur_title} • {final_cur_dept}".strip(" •") or final_pref_role,
+            "department": final_pref_dept,
+            "designation": final_pref_role,
+            "desired_role": final_pref_role,
+            "preferences": curr_prefs
+        }
     )
 
     return {"success": True, "message": "Career profile updated successfully."}
@@ -4369,6 +4431,11 @@ def get_application_by_id(app_id: str):
     cand_cur_dept = (app_dict.get("candidate_current_department") or app_dict.get("candidate_current_job_designation") or cand_prefs.get("current_department") or cand_prefs.get("current_job_designation") or "").strip()
     app_dict["candidate_current_department"] = cand_cur_dept
     app_dict["candidate_current_job_designation"] = cand_cur_dept
+    cand_pref_role = (cand_prefs.get("desired_role") or cand_prefs.get("designation") or app_dict.get("candidate_designation") or "").strip()
+    cand_pref_dept = (cand_prefs.get("department") or "").strip()
+    app_dict["candidate_preferred_role"] = cand_pref_role
+    app_dict["candidate_preferred_department"] = cand_pref_dept
+    app_dict["candidate_preferred_job"] = f"{cand_pref_role} • {cand_pref_dept}" if (cand_pref_role and cand_pref_dept) else (cand_pref_role or cand_pref_dept)
     return app_dict
 
 @app.get("/api/applications")
@@ -4454,6 +4521,11 @@ def get_applications(
             cand_cur_dept = (d.get("candidate_current_department") or d.get("candidate_current_job_designation") or cand_p.get("current_department") or cand_p.get("current_job_designation") or "").strip()
             d["candidate_current_department"] = cand_cur_dept
             d["candidate_current_job_designation"] = cand_cur_dept
+            cand_pref_role = (cand_p.get("desired_role") or cand_p.get("designation") or d.get("candidate_designation") or "").strip()
+            cand_pref_dept = (cand_p.get("department") or "").strip()
+            d["candidate_preferred_role"] = cand_pref_role
+            d["candidate_preferred_department"] = cand_pref_dept
+            d["candidate_preferred_job"] = f"{cand_pref_role} • {cand_pref_dept}" if (cand_pref_role and cand_pref_dept) else (cand_pref_role or cand_pref_dept)
             d["timeline"] = []
             app_map[app_id] = d
             results.append(d)
@@ -4622,6 +4694,9 @@ def get_candidates(
         cand_cur_dept = (d.get('current_department') or d.get('current_job_designation') or cand_prefs.get('current_department') or cand_prefs.get('current_job_designation') or '').strip()
         d['current_department'] = cand_cur_dept
         d['current_job_designation'] = cand_cur_dept
+        d['designation'] = (cand_prefs.get('desired_role') or cand_prefs.get('designation') or d.get('designation') or '').strip()
+        d['preferred_role'] = d['designation']
+        d['preferred_department'] = cand_dept or 'Hospitality'
 
         # Anonymize candidate info for hotel privacy:
         # Rule: hotels cannot view name or contact details.
