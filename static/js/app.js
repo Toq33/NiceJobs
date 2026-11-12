@@ -3086,10 +3086,15 @@ function initRealtimeSync() {
   connectRealtimeWebSocket();
 }
 
+let lastSyncTimestamp = 0;
 function scheduleSyncMissedUpdates(delayMs = 200) {
   if (realtimeSyncDebounce) clearTimeout(realtimeSyncDebounce);
   realtimeSyncDebounce = setTimeout(() => {
     realtimeSyncDebounce = null;
+    const now = Date.now();
+    // Do not re-sync all database endpoints more than once every 20 seconds to prevent egress thrashing
+    if (now - lastSyncTimestamp < 20000) return;
+    lastSyncTimestamp = now;
     syncMissedUpdates();
   }, delayMs);
 }
@@ -3338,6 +3343,7 @@ function connectRealtimeWebSocket() {
     realtimeSocket.onopen = () => {
       console.log('[NiceJobs Realtime] Connected to live event stream');
       realtimeReconnectAttempts = 0;
+      consecutiveWsFailures = 0;
       updateRealtimeHandshake();
 
       if (realtimeReconnectTimeout) {
@@ -3383,18 +3389,30 @@ function connectRealtimeWebSocket() {
   }
 }
 
+let consecutiveWsFailures = 0;
 function scheduleRealtimeReconnect() {
   if (realtimeReconnectTimeout) return;
   realtimeReconnectAttempts++;
-  const baseDelay = Math.min(1000 * Math.pow(1.5, Math.min(realtimeReconnectAttempts, 8)), MAX_RECONNECT_DELAY);
-  const jitter = Math.random() * 600;
+  consecutiveWsFailures++;
+
+  // In environments where WebSockets are unsupported (e.g. Vercel serverless), back off to prevent tight reconnect loops
+  const maxDelay = consecutiveWsFailures >= 3 ? 60000 : MAX_RECONNECT_DELAY;
+  const baseDelay = consecutiveWsFailures >= 3 
+    ? 45000 
+    : Math.min(1000 * Math.pow(1.5, Math.min(realtimeReconnectAttempts, 8)), maxDelay);
+  const jitter = Math.random() * 800;
   const delay = Math.round(baseDelay + jitter);
 
-  console.log(`[NiceJobs Realtime] Reconnecting in ${delay}ms (attempt #${realtimeReconnectAttempts})...`);
+  console.log(`[NiceJobs Realtime] Reconnecting in ${delay}ms (attempt #${realtimeReconnectAttempts}, consecutive failures #${consecutiveWsFailures})...`);
   realtimeReconnectTimeout = setTimeout(() => {
     realtimeReconnectTimeout = null;
     connectRealtimeWebSocket();
   }, delay);
+
+  // If WebSocket fails twice, gracefully enable SSE fallback
+  if (consecutiveWsFailures >= 2) {
+    connectRealtimeSSEFallback();
+  }
 }
 
 function connectRealtimeSSEFallback() {

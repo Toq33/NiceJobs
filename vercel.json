@@ -2,14 +2,26 @@
   "version": 2,
   "functions": {
     "api/index.py": {
-      "includeFiles": "static/**,nicejobs.db",
+      "includeFiles": "nicejobs.db",
       "maxDuration": 15
     }
   },
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/ws(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/static/(.*)",
+      "destination": "/static/$1"
+    },
+    {
       "source": "/(.*)",
-      "destination": "/api/index"
+      "destination": "/index.html"
     }
   ]
 }

@@ -753,19 +753,27 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
         main_event_loop = asyncio.get_running_loop()
     except Exception:
         pass
+
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
     queue = asyncio.Queue()
     realtime_manager.sse_subscribers[queue] = {"user_id": user_id, "business_id": business_id}
 
     async def event_generator():
         try:
             yield f"data: {json.dumps({'type': 'connection_established', 'status': 'ok', 'user_id': user_id, 'business_id': business_id})}\n\n"
-            while True:
+            max_wait = 8.0 if is_serverless else 25.0
+            loops = 0
+            max_loops = 1 if is_serverless else 1000000
+            while loops < max_loops:
+                loops += 1
                 if await request.is_disconnected():
                     break
                 try:
-                    data = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    data = await asyncio.wait_for(queue.get(), timeout=max_wait)
                     yield data
                 except asyncio.TimeoutError:
+                    if is_serverless:
+                        break
                     yield ": keep-alive\n\n"
         finally:
             realtime_manager.sse_subscribers.pop(queue, None)
@@ -775,7 +783,7 @@ async def sse_realtime_endpoint(request: Request, user_id: Optional[str] = None,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
+            "Connection": "keep-alive" if not is_serverless else "close",
             "X-Accel-Buffering": "no"
         }
     )
@@ -3593,9 +3601,25 @@ def get_profile(user_id: str = "user_rahim"):
             "size": "Original Upload",
             "uploaded_at": profile.get("cv_updated_at") or "Verified",
             "is_default": True,
-            "url": cv_url_val,
-            "file_data": cv_url_val
+            "url": f"/api/profile/cv-file?user_id={user_id}&cv_id=cv_primary",
+            "file_data": f"/api/profile/cv-file?user_id={user_id}&cv_id=cv_primary"
         }]
+
+    # Bandwidth optimization: lightweight cv_list by replacing large raw inline base64 with streaming URL
+    safe_cv_list = []
+    for c in profile.get("cv_list", []):
+        c_copy = dict(c)
+        c_id = c_copy.get("id") or "cv_primary"
+        file_url = f"/api/profile/cv-file?user_id={user_id}&cv_id={c_id}"
+        c_copy["url"] = file_url
+        if c_copy.get("file_data") and len(str(c_copy["file_data"])) > 500:
+            c_copy["has_file"] = True
+            c_copy["file_data"] = file_url
+        safe_cv_list.append(c_copy)
+    profile["cv_list"] = safe_cv_list
+    if profile.get("cv_url") and len(str(profile["cv_url"])) > 500:
+        profile["has_cv"] = True
+        profile["cv_url"] = f"/api/profile/cv-file?user_id={user_id}"
 
     conn.close()
     return profile
@@ -4394,7 +4418,11 @@ def get_application_by_id(app_id: str):
     conn = database.get_db()
     cursor = conn.cursor()
     query = """
-        SELECT a.*, 
+        SELECT a.id, a.job_id, a.user_id, a.status, a.applied_at, a.updated_at,
+               a.cover_letter, a.selected_cv, a.screening_answers, a.recruiter_notes,
+               a.interview_time, a.interview_notes, a.interview_status,
+               a.interview_reschedule_reason, a.interview_reschedule_suggestion, a.interview_response_at, a.is_demo,
+               (a.selected_cv_url IS NOT NULL AND a.selected_cv_url != '') as has_selected_cv,
                j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
                b.id as business_id, b.brand_name, b.logo_url, b.property_type,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
@@ -4420,6 +4448,7 @@ def get_application_by_id(app_id: str):
         raise HTTPException(status_code=404, detail="Application not found")
     
     app_dict = dict(row)
+    app_dict["selected_cv_url"] = f"/api/applications/{app_id}/cv-file" if app_dict.get("has_selected_cv") else ""
     for col in ["candidate_skills", "candidate_education", "candidate_experience", "screening_answers", "candidate_preferences"]:
         if app_dict.get(col) and isinstance(app_dict[col], str):
             try:
@@ -4449,7 +4478,11 @@ def get_applications(
     cursor = conn.cursor()
 
     query = """
-        SELECT a.*, 
+        SELECT a.id, a.job_id, a.user_id, a.status, a.applied_at, a.updated_at,
+               a.cover_letter, a.selected_cv, a.screening_answers, a.recruiter_notes,
+               a.interview_time, a.interview_notes, a.interview_status,
+               a.interview_reschedule_reason, a.interview_reschedule_suggestion, a.interview_response_at, a.is_demo,
+               (a.selected_cv_url IS NOT NULL AND a.selected_cv_url != '') as has_selected_cv,
                j.title as job_title, j.department, j.property_location, j.salary_min, j.salary_max, j.currency,
                b.id as business_id, b.brand_name, b.logo_url, b.property_type,
                u.name as candidate_name, u.email as candidate_email, u.phone as candidate_phone, u.avatar_url as candidate_avatar,
@@ -4507,6 +4540,7 @@ def get_applications(
         app_id = r["id"]
         if app_id not in app_map:
             d = dict(r)
+            d["selected_cv_url"] = f"/api/applications/{app_id}/cv-file" if d.get("has_selected_cv") else ""
             # Remove joined event fields from the top-level application dict
             for ev_k in ["event_id", "event_status", "event_actor_name", "event_note", "event_timestamp"]:
                 d.pop(ev_k, None)
@@ -4614,7 +4648,7 @@ def get_candidates(
                p.headline, p.location, p.summary, p.current_position, p.experience_years,
                p.current_job_title, p.current_job_designation, p.current_department,
                p.education, p.skills, p.languages, p.certifications,
-               p.experience, p.preferences, p.cv_name, p.cv_url, p.open_to_work
+               p.experience, p.preferences, p.cv_name, p.open_to_work
         FROM users u
         JOIN employee_profiles p ON u.id = p.user_id
         WHERE u.role = 'jobseeker' AND (u.status = 'active' OR u.status IS NULL)
