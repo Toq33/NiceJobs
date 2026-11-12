@@ -3088,9 +3088,11 @@ function initRealtimeSync() {
 
 let lastSyncTimestamp = 0;
 function scheduleSyncMissedUpdates(delayMs = 200) {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
   if (realtimeSyncDebounce) clearTimeout(realtimeSyncDebounce);
   realtimeSyncDebounce = setTimeout(() => {
     realtimeSyncDebounce = null;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const now = Date.now();
     // Do not re-sync all database endpoints more than once every 20 seconds to prevent egress thrashing
     if (now - lastSyncTimestamp < 20000) return;
@@ -3391,6 +3393,7 @@ function connectRealtimeWebSocket() {
 
 let consecutiveWsFailures = 0;
 function scheduleRealtimeReconnect() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
   if (realtimeReconnectTimeout) return;
   realtimeReconnectAttempts++;
   consecutiveWsFailures++;
@@ -3406,6 +3409,7 @@ function scheduleRealtimeReconnect() {
   console.log(`[NiceJobs Realtime] Reconnecting in ${delay}ms (attempt #${realtimeReconnectAttempts}, consecutive failures #${consecutiveWsFailures})...`);
   realtimeReconnectTimeout = setTimeout(() => {
     realtimeReconnectTimeout = null;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     connectRealtimeWebSocket();
   }, delay);
 

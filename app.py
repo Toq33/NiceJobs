@@ -65,6 +65,14 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if database.is_production():
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if request.method == "GET" and not response.headers.get("Cache-Control"):
+        path = request.url.path
+        if path in ("/api/jobs", "/api/businesses", "/api/blogs", "/api/sponsors") or path.startswith("/api/jobs/"):
+            response.headers["Cache-Control"] = "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
+        elif path.startswith("/static/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
 # Liveness & Readiness Probes for Production Scalability
@@ -3927,11 +3935,24 @@ def get_profile_cvs(user_id: str = "user_rahim"):
             "size": "Original Upload",
             "uploaded_at": row["cv_updated_at"] or "Verified",
             "is_default": True,
-            "url": cv_url_val,
-            "file_data": cv_url_val
+            "url": f"/api/profile/cv-file?user_id={user_id}&cv_id=cv_primary",
+            "file_data": f"/api/profile/cv-file?user_id={user_id}&cv_id=cv_primary"
         }]
+
+    # Bandwidth optimization: lightweight cv_list by replacing large raw inline base64 with streaming URL
+    safe_cv_list = []
+    for c in cv_list:
+        c_copy = dict(c)
+        c_id = c_copy.get("id") or "cv_primary"
+        file_url = f"/api/profile/cv-file?user_id={user_id}&cv_id={c_id}"
+        c_copy["url"] = file_url
+        if c_copy.get("file_data") and len(str(c_copy["file_data"])) > 500:
+            c_copy["has_file"] = True
+            c_copy["file_data"] = file_url
+        safe_cv_list.append(c_copy)
+
     conn.close()
-    return {"success": True, "cvs": cv_list, "cv_list": cv_list}
+    return {"success": True, "cvs": safe_cv_list, "cv_list": safe_cv_list}
 
 @app.post("/api/profile/cvs")
 def add_profile_cv(payload: CvCreatePayload, user_id: Optional[str] = None):
