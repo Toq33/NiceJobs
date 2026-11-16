@@ -67,9 +67,7 @@ async def security_headers_middleware(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     if request.method == "GET" and not response.headers.get("Cache-Control"):
         path = request.url.path
-        if path in ("/api/jobs", "/api/businesses", "/api/blogs", "/api/sponsors") or path.startswith("/api/jobs/"):
-            response.headers["Cache-Control"] = "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
-        elif path.startswith("/static/"):
+        if path.startswith("/static/"):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -1582,7 +1580,7 @@ def create_job(payload: JobCreatePayload):
 @app.patch("/api/jobs/{job_id}/status")
 def update_job_status(job_id: str, payload: Dict[str, str]):
     status = payload.get("status")
-    if status not in ["draft", "active", "paused", "closed"]:
+    if status not in ["draft", "active", "paused", "closed", "hidden"]:
         raise HTTPException(status_code=400, detail="Invalid status")
 
     conn = database.get_db()
@@ -2017,6 +2015,8 @@ def delete_blog(blog_id: str, user_id: Optional[str] = None):
     conn.commit()
     conn.close()
     invalidate_api_cache("blogs")
+    invalidate_api_cache("admin")
+    notify_realtime("blog_deleted", {"blog_id": b["id"]})
     return {"success": True, "message": "Article removed successfully"}
 
 @app.post("/api/businesses/{business_id}/follow")
@@ -6621,6 +6621,7 @@ def update_job_status(job_id: str, payload: JobStatusPayload):
     conn.commit()
     conn.close()
     invalidate_api_cache("jobs")
+    invalidate_api_cache("admin")
     notify_realtime("job_status_changed", {"job_id": job_id, "status": payload.status})
     return {"success": True, "job_id": job_id, "status": payload.status}
 
@@ -6652,6 +6653,7 @@ def delete_job(job_id: str):
     conn.commit()
     conn.close()
     invalidate_api_cache("jobs")
+    invalidate_api_cache("admin")
     notify_realtime("job_deleted", {"job_id": job_id})
     return {"success": True, "message": "Job post deleted successfully."}
 

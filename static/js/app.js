@@ -3493,11 +3493,14 @@ async function handleRealtimeEvent(payload) {
 
     case 'job_updated':
     case 'job_status_changed': {
+      if (data && data.job_id && (data.status === 'hidden' || data.status === 'closed')) {
+        state.jobs = (state.jobs || []).filter(j => String(j.id) !== String(data.job_id));
+      }
       try {
         const res = await fetch('/api/jobs?status=active');
         if (res.ok) {
           const fresh = await res.json();
-          if (Array.isArray(fresh) && fresh.length > 0) state.jobs = fresh;
+          if (Array.isArray(fresh)) state.jobs = fresh;
         }
       } catch(e) {}
       if (state.currentScreen === 'home') {
@@ -3506,9 +3509,38 @@ async function handleRealtimeEvent(payload) {
         if (jobsList && Array.isArray(state.jobs) && state.jobs.length > 0) {
           jobsList.innerHTML = state.jobs.map(job => renderJobCardHTML(job)).join('');
         }
-      } else if (['recruiter-dashboard', 'admin-dashboard'].includes(state.currentScreen)) {
+      } else if (['recruiter-dashboard', 'admin-dashboard', 'jobs', 'admin'].includes(state.currentScreen)) {
         const viewport = document.getElementById('app-viewport');
         if (viewport) renderApp();
+      }
+      break;
+    }
+
+    case 'job_deleted': {
+      if (data && data.job_id) {
+        state.jobs = (state.jobs || []).filter(j => String(j.id) !== String(data.job_id));
+      }
+      try {
+        const res = await fetch('/api/jobs?status=active');
+        if (res.ok) {
+          const fresh = await res.json();
+          if (Array.isArray(fresh)) state.jobs = fresh;
+        }
+      } catch(e) {}
+      const viewport = document.getElementById('app-viewport');
+      if (viewport && ['home', 'jobs', 'recruiter-dashboard', 'admin', 'hotels'].includes(state.currentScreen)) {
+        renderApp();
+      }
+      break;
+    }
+
+    case 'blog_deleted': {
+      if (data && data.blog_id) {
+        state.blogs = (state.blogs || []).filter(b => String(b.id) !== String(data.blog_id));
+      }
+      const viewport = document.getElementById('app-viewport');
+      if (viewport && ['blog', 'admin'].includes(state.currentScreen)) {
+        renderApp();
       }
       break;
     }
@@ -4048,10 +4080,8 @@ async function loadInitialData() {
     ]);
     if (jobsRes.ok) {
       const fresh = await jobsRes.json();
-      if (Array.isArray(fresh) && fresh.length > 0) {
+      if (Array.isArray(fresh)) {
         state.jobs = fresh;
-      } else if (!state.jobs || state.jobs.length === 0) {
-        state.jobs = Array.isArray(fresh) ? fresh : [];
       }
     }
     state.businesses = bizRes.ok ? await bizRes.json() : (state.businesses || []);
@@ -4423,33 +4453,29 @@ async function renderHomeScreen(viewport) {
   );
 
   let jobs = [];
-  if (!hasFilter && Array.isArray(state.jobs) && state.jobs.length > 0) {
-    jobs = [...state.jobs];
-  } else {
-    const params = new URLSearchParams();
-    if (state.search.query) params.append('q', state.search.query);
-    if (state.search.location) params.append('location', state.search.location);
-    if (state.search.department) params.append('department', state.search.department);
-    if (state.search.designation) params.append('designation', state.search.designation);
-    if (state.search.accommodation) params.append('accommodation', 'true');
-    if (state.search.duty_meals) params.append('duty_meals', 'true');
+  const params = new URLSearchParams();
+  if (state.search.query) params.append('q', state.search.query);
+  if (state.search.location) params.append('location', state.search.location);
+  if (state.search.department) params.append('department', state.search.department);
+  if (state.search.designation) params.append('designation', state.search.designation);
+  if (state.search.accommodation) params.append('accommodation', 'true');
+  if (state.search.duty_meals) params.append('duty_meals', 'true');
 
-    try {
-      const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
-      if (jobsRes.ok) {
-        const fetched = await jobsRes.json();
-        if (Array.isArray(fetched)) {
-          jobs = fetched;
-          if (!hasFilter && fetched.length > 0) state.jobs = fetched;
-        }
+  try {
+    const jobsRes = await fetch(`/api/jobs?${params.toString()}`);
+    if (jobsRes.ok) {
+      const fetched = await jobsRes.json();
+      if (Array.isArray(fetched)) {
+        jobs = fetched;
+        if (!hasFilter) state.jobs = fetched;
       }
-    } catch(err) {
-      console.warn('[NiceJobs] Error fetching jobs:', err);
     }
+  } catch(err) {
+    console.warn('[NiceJobs] Error fetching jobs:', err);
+  }
 
-    if (!hasFilter && jobs.length === 0 && Array.isArray(state.jobs) && state.jobs.length > 0) {
-      jobs = [...state.jobs];
-    }
+  if (jobs.length === 0 && !hasFilter && Array.isArray(state.jobs) && state.jobs.length > 0) {
+    jobs = [...state.jobs];
   }
 
   // Candidate sorting logic
@@ -6143,11 +6169,18 @@ async function renderRecruiterDashboard(viewport) {
                 <td><span class="badge-featured">${j.applicant_count || 0}</span></td>
                 <td>
                   <span class="status-pill status-${j.status === 'active' ? 'interview_scheduled' : 'rejected'}">
-                    ${formatStatusLabel(j.status)}
+                    ${j.status === 'hidden' ? 'Hidden' : formatStatusLabel(j.status)}
                   </span>
                 </td>
                 <td>
-                  <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="navigateTo('ats', { job_id: '${j.id}' })">Applicants</button>
+                  <div style="display: flex; gap: 6px; align-items: center; justify-content: flex-end;">
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="navigateTo('ats', { job_id: '${j.id}' })">Applicants</button>
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; ${j.status === 'hidden' ? 'color: #34d399; border-color: rgba(52, 211, 153, 0.4);' : 'color: #fb923c; border-color: rgba(251, 146, 60, 0.4);'}" 
+                      onclick="handleBusinessToggleHideJob('${j.id}', ${j.status === 'hidden' ? false : true})"
+                      title="${j.status === 'hidden' ? 'Unhide this job post so candidates can apply' : 'Hide this job post from public view'}">
+                      ${j.status === 'hidden' ? `${svgIcon('eye', '', 12)} Unhide` : `${svgIcon('eyeOff', '', 12)} Hide`}
+                    </button>
+                  </div>
                 </td>
               </tr>
             `).join('')}
@@ -8435,6 +8468,7 @@ async function renderAdminScreen(viewport) {
                         </div>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                           ${j.is_featured ? '<span class="badge-featured" style="font-size: 0.65rem; padding: 2px 5px;">Featured</span>' : ''}
+                          ${j.status === 'hidden' ? '<span class="status-pill status-rejected" style="font-size: 0.65rem; padding: 2px 6px;">Hidden</span>' : ''}
                         </div>
                       </div>
                     </td>
@@ -8445,9 +8479,16 @@ async function renderAdminScreen(viewport) {
                           <option value="active" ${j.status === 'active' ? 'selected' : ''}>Active</option>
                           <option value="paused" ${j.status === 'paused' ? 'selected' : ''}>Pause</option>
                           <option value="closed" ${j.status === 'closed' ? 'selected' : ''}>Close</option>
+                          <option value="hidden" ${j.status === 'hidden' ? 'selected' : ''}>Hidden</option>
                         </select>
                         <button class="admin-btn-action btn-feature" onclick="handleAdminJobFeature('${j.id}', ${!j.is_featured})">
                           ${j.is_featured ? `${svgIcon('starFilled', '', 12)} Unfeature` : `${svgIcon('star', '', 12)} Feature`}
+                        </button>
+                        <button class="admin-btn-action" 
+                          style="${j.status === 'hidden' ? 'color: #34d399; border-color: rgba(52, 211, 153, 0.4);' : 'color: #fb923c; border-color: rgba(251, 146, 60, 0.4);'}"
+                          onclick="handleAdminToggleHideJob('${j.id}', ${j.status === 'hidden' ? false : true})"
+                          title="${j.status === 'hidden' ? 'Unhide this job post so candidates can see it' : 'Hide this job post from public view'}">
+                          ${j.status === 'hidden' ? `${svgIcon('eye', '', 12)} Unhide` : `${svgIcon('eyeOff', '', 12)} Hide`}
                         </button>
                         <button class="admin-btn-action btn-delete" onclick="handleAdminDeleteJob('${j.id}', '${(j.title || 'Job Post').replace(/['"\\]/g, ' ')}')">
                           ${svgIcon('trash', '', 13)}
@@ -9390,6 +9431,9 @@ async function executeAdminDeleteUser(userId, userName) {
       throw new Error(data.detail || data.message || 'Failed to delete user');
     }
     closeModal('modal-admin-delete-user');
+    if (Array.isArray(state.talentCandidates)) {
+      state.talentCandidates = state.talentCandidates.filter(c => String(c.id) !== String(userId));
+    }
     showToast(`User ${userName} deleted successfully.`, 'info');
     const viewport = document.getElementById('app-viewport');
     if (viewport) {
@@ -9856,12 +9900,76 @@ async function handleAdminJobFeature(jobId, isFeatured) {
   }
 }
 
+async function handleAdminToggleHideJob(jobId, shouldHide) {
+  try {
+    const newStatus = shouldHide ? 'hidden' : 'active';
+    const res = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Failed to update job visibility');
+    }
+    if (Array.isArray(state.jobs)) {
+      if (shouldHide) {
+        state.jobs = state.jobs.filter(j => String(j.id) !== String(jobId));
+      } else {
+        fetch('/api/jobs?status=active').then(r => r.ok ? r.json() : null).then(fresh => {
+          if (Array.isArray(fresh)) state.jobs = fresh;
+        }).catch(() => {});
+      }
+    }
+    showToast(shouldHide ? 'Job post is now hidden from public view.' : 'Job post is now active and visible to candidates.', 'success');
+    renderAdminScreen(document.getElementById('app-viewport'));
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminToggleHideJob = handleAdminToggleHideJob;
+
+async function handleBusinessToggleHideJob(jobId, shouldHide) {
+  try {
+    const newStatus = shouldHide ? 'hidden' : 'active';
+    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Failed to update job visibility');
+    }
+    if (Array.isArray(state.jobs)) {
+      if (shouldHide) {
+        state.jobs = state.jobs.filter(j => String(j.id) !== String(jobId));
+      } else {
+        fetch('/api/jobs?status=active').then(r => r.ok ? r.json() : null).then(fresh => {
+          if (Array.isArray(fresh)) state.jobs = fresh;
+        }).catch(() => {});
+      }
+    }
+    showToast(shouldHide ? 'Job post is now hidden from public job seekers.' : 'Job post is now active and visible to candidates.', 'success');
+    const vp = document.getElementById('app-viewport');
+    if (vp && state.currentScreen === 'recruiter-dashboard') {
+      renderRecruiterDashboard(vp);
+    } else if (vp && state.currentScreen === 'ats') {
+      renderATSBoard(vp);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleBusinessToggleHideJob = handleBusinessToggleHideJob;
+
 async function handleAdminDeleteJob(jobId, jobTitle) {
   if (!confirm(`Are you sure you want to delete job post "${jobTitle}"?`)) return;
   try {
     const res = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || data.message || 'Failed to delete job post');
+    state.jobs = (state.jobs || []).filter(j => String(j.id) !== String(jobId));
     showToast(`Job post deleted.`, 'info');
     renderAdminScreen(document.getElementById('app-viewport'));
   } catch (err) {
@@ -9894,6 +10002,8 @@ async function handleAdminDeleteBusiness(bizId, bizName) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || data.message || 'Failed to delete business establishment');
+    state.businesses = (state.businesses || []).filter(b => String(b.id) !== String(bizId));
+    state.jobs = (state.jobs || []).filter(j => String(j.business_id) !== String(bizId));
     showToast(data.message || `Business "${bizName}" and all associated data have been permanently deleted.`, 'success');
     renderAdminScreen(document.getElementById('app-viewport'));
   } catch (err) {
