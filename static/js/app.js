@@ -7845,6 +7845,7 @@ const adminState = {
   jobSearch: '',
   blogSearch: '',
   blogCategory: 'all',
+  blogFilterStatus: 'all', // 'all' | 'public' | 'hidden'
   blogSubTab: 'articles', // 'articles' | 'authors'
   sponsorSearch: '',
   sponsorFilterStatus: 'all', // 'all' | 'active' | 'paused'
@@ -8061,6 +8062,8 @@ async function renderAdminScreen(viewport) {
     // Filter Blogs for Admin
     const filteredAdminBlogs = (blogs || []).filter(b => {
       if (adminState.blogCategory !== 'all' && b.category !== adminState.blogCategory) return false;
+      if (adminState.blogFilterStatus === 'public' && b.is_hidden) return false;
+      if (adminState.blogFilterStatus === 'hidden' && !b.is_hidden) return false;
       if (adminState.blogSearch) {
         const q = adminState.blogSearch.toLowerCase();
         const title = (b.title || '').toLowerCase();
@@ -8070,6 +8073,13 @@ async function renderAdminScreen(viewport) {
         if (!title.includes(q) && !author.includes(q) && !excerpt.includes(q) && !cat.includes(q)) return false;
       }
       return true;
+    });
+
+    filteredAdminBlogs.sort((a, b) => {
+      const sa = (a.serial_no && a.serial_no > 0) ? a.serial_no : 999999;
+      const sb = (b.serial_no && b.serial_no > 0) ? b.serial_no : 999999;
+      if (sa !== sb) return sa - sb;
+      return (b.published_at || '').localeCompare(a.published_at || '');
     });
 
     // Filter Users
@@ -8949,6 +8959,12 @@ async function renderAdminScreen(viewport) {
                     <option value="Career Advice" ${adminState.blogCategory === 'Career Advice' ? 'selected' : ''}>Career Advice</option>
                     <option value="Culinary & F&B" ${adminState.blogCategory === 'Culinary & F&B' ? 'selected' : ''}>Culinary & F&B</option>
                   </select>
+
+                  <select class="admin-select-filter" onchange="adminState.blogFilterStatus = this.value; renderAdminScreen(document.getElementById('app-viewport'))">
+                    <option value="all" ${adminState.blogFilterStatus === 'all' ? 'selected' : ''}>All Visibility</option>
+                    <option value="public" ${adminState.blogFilterStatus === 'public' ? 'selected' : ''}>Public Only</option>
+                    <option value="hidden" ${adminState.blogFilterStatus === 'hidden' ? 'selected' : ''}>Hidden Only</option>
+                  </select>
                 </div>
 
                 <div class="admin-bulk-actions-group">
@@ -8980,9 +8996,11 @@ async function renderAdminScreen(viewport) {
                         <input type="checkbox" class="admin-checkbox" ${allBlogsSelected ? 'checked' : ''} 
                           onchange="handleAdminSelectAll('blogs', this.checked)" title="Select all articles">
                       </th>
-                      <th style="width: 320px;">Article Blueprint</th>
+                      <th style="width: 90px; text-align: center;">Serial #</th>
+                      <th style="width: 300px;">Article Blueprint</th>
                       <th>Category &amp; Read Time</th>
                       <th>Author Attribution</th>
+                      <th style="text-align: center;">Visibility</th>
                       <th>Published Date</th>
                       <th style="text-align: right;">Actions</th>
                     </tr>
@@ -8990,7 +9008,7 @@ async function renderAdminScreen(viewport) {
                   <tbody>
                     ${filteredAdminBlogs.length === 0 ? `
                       <tr>
-                        <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                        <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">
                           No articles match your current search or category filter.
                         </td>
                       </tr>
@@ -9000,6 +9018,17 @@ async function renderAdminScreen(viewport) {
                           <input type="checkbox" class="admin-checkbox admin-row-cb" value="${b.id}" 
                             ${selectedBlogs.has(b.id) ? 'checked' : ''} 
                             onchange="handleAdminToggleSelect('blogs', '${b.id}', this.checked)" title="Select article">
+                        </td>
+                        <td style="text-align: center;">
+                          <div style="display: inline-flex; align-items: center; gap: 4px;">
+                            <input type="number" min="0" max="9999" value="${b.serial_no || ''}" placeholder="-" 
+                              style="width: 44px; height: 26px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.16); color: var(--orange-primary); text-align: center; border-radius: 4px; padding: 2px; font-weight: 800; font-size: 0.82rem;"
+                              onchange="handleAdminUpdateBlogSerial('${b.id}', this.value)" title="Change serial sequence number">
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                              <button type="button" class="admin-btn-action" style="padding: 1px 4px; font-size: 0.65rem; height: 13px; line-height: 1;" onclick="handleAdminMoveBlogSerial('${b.id}', -1)" title="Move up in order">▲</button>
+                              <button type="button" class="admin-btn-action" style="padding: 1px 4px; font-size: 0.65rem; height: 13px; line-height: 1;" onclick="handleAdminMoveBlogSerial('${b.id}', 1)" title="Move down in order">▼</button>
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <div style="display: flex; align-items: center; gap: 12px;">
@@ -9036,11 +9065,28 @@ async function renderAdminScreen(viewport) {
                             </div>
                           </div>
                         </td>
+                        <td style="text-align: center;">
+                          ${b.is_hidden ? `
+                            <span class="status-pill status-rejected" style="font-size: 0.72rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                              ${svgIcon('eyeOff', '', 12)} Hidden
+                            </span>
+                          ` : `
+                            <span class="status-pill status-interview_scheduled" style="font-size: 0.72rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                              ${svgIcon('eye', '', 12)} Public
+                            </span>
+                          `}
+                        </td>
                         <td style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">
                           ${b.published_at || 'Recent'}
                         </td>
                         <td style="text-align: right;">
                           <div class="admin-actions-cell">
+                            <button class="admin-btn-action" 
+                              style="${b.is_hidden ? 'color: #34d399; border-color: rgba(52, 211, 153, 0.4);' : 'color: #fb923c; border-color: rgba(251, 146, 60, 0.4);'}"
+                              onclick="handleAdminToggleHideBlog('${b.id}', ${b.is_hidden ? false : true})" 
+                              title="${b.is_hidden ? 'Unhide article (make public)' : 'Hide article from public view'}">
+                              ${b.is_hidden ? `${svgIcon('eye', '', 12)} Unhide` : `${svgIcon('eyeOff', '', 12)} Hide`}
+                            </button>
                             <button class="admin-btn-action" onclick="navigateTo('blog', { id: '${b.id}' })" title="Read Article">
                               ${svgIcon('eye', '', 12)} Read
                             </button>
@@ -9540,6 +9586,20 @@ async function openAdminEditBlogModal(blogId) {
             </div>
           </div>
 
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Serial Sequence # (Order in Knowledge Hub)</label>
+              <input type="number" name="serial_no" min="0" max="9999" value="${blog.serial_no || 0}" placeholder="e.g. 1" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--orange-primary); font-size: 0.92rem; font-weight: 800;">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Publication Visibility</label>
+              <select name="is_hidden" style="width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 9px 12px; border-radius: var(--radius-md); color: var(--white); font-size: 0.88rem;">
+                <option value="0" ${!blog.is_hidden ? 'selected' : ''}>Public / Published in Knowledge Hub</option>
+                <option value="1" ${blog.is_hidden ? 'selected' : ''}>Hidden / Draft (Restricted from public)</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--white); margin-bottom: 6px;">Cover Image URL</label>
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -9622,7 +9682,9 @@ async function handleAdminUpdateBlogSubmit(event, blogId) {
     author_name: form.author_name.value.trim(),
     author_title: form.author_title.value.trim(),
     content: form.content.value.trim(),
-    tags: tags
+    tags: tags,
+    serial_no: parseInt(form.serial_no?.value || 0),
+    is_hidden: form.is_hidden?.value === '1'
   };
 
   try {
@@ -9646,6 +9708,12 @@ async function handleAdminUpdateBlogSubmit(event, blogId) {
         state.blogs[idx] = data.blog;
       }
     }
+    if (adminState.blogs) {
+      const idx = adminState.blogs.findIndex(b => b.id === blogId || b.slug === blogId);
+      if (idx !== -1 && data.blog) {
+        adminState.blogs[idx] = data.blog;
+      }
+    }
 
     const viewport = document.getElementById('app-viewport');
     if (viewport && state.currentScreen === 'admin') {
@@ -9657,6 +9725,77 @@ async function handleAdminUpdateBlogSubmit(event, blogId) {
     showToast(err.message, 'danger');
   }
 }
+
+async function handleAdminToggleHideBlog(blogId, shouldHide) {
+  try {
+    const res = await fetch(`/api/admin/blogs/${encodeURIComponent(blogId)}/visibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_hidden: shouldHide })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update article visibility');
+    }
+    const updateInList = (list) => {
+      if (Array.isArray(list)) {
+        const item = list.find(b => b.id === blogId || b.slug === blogId);
+        if (item) item.is_hidden = shouldHide ? 1 : 0;
+      }
+    };
+    updateInList(adminState.blogs);
+    updateInList(state.blogs);
+
+    showToast(shouldHide ? 'Article is now hidden from public view.' : 'Article is now visible in the Knowledge Hub.', 'success');
+    const vp = document.getElementById('app-viewport');
+    if (vp && state.currentScreen === 'admin') {
+      renderAdminScreen(vp);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminToggleHideBlog = handleAdminToggleHideBlog;
+
+async function handleAdminUpdateBlogSerial(blogId, newSerial) {
+  try {
+    const serialVal = Math.max(0, parseInt(newSerial) || 0);
+    const res = await fetch(`/api/admin/blogs/${encodeURIComponent(blogId)}/serial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serial_no: serialVal })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update article serial number');
+    }
+    const updateInList = (list) => {
+      if (Array.isArray(list)) {
+        const item = list.find(b => b.id === blogId || b.slug === blogId);
+        if (item) item.serial_no = serialVal;
+      }
+    };
+    updateInList(adminState.blogs);
+    updateInList(state.blogs);
+
+    showToast(`Article serial sequence set to #${serialVal}.`, 'success');
+    const vp = document.getElementById('app-viewport');
+    if (vp && state.currentScreen === 'admin') {
+      renderAdminScreen(vp);
+    }
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+window.handleAdminUpdateBlogSerial = handleAdminUpdateBlogSerial;
+
+async function handleAdminMoveBlogSerial(blogId, delta) {
+  const blog = (adminState.blogs || state.blogs || []).find(b => b.id === blogId || b.slug === blogId);
+  const currentSerial = blog ? (blog.serial_no || 0) : 0;
+  const nextSerial = Math.max(0, currentSerial + delta);
+  await handleAdminUpdateBlogSerial(blogId, nextSerial);
+}
+window.handleAdminMoveBlogSerial = handleAdminMoveBlogSerial;
 
 async function handleAdminDeleteBlog(blogId, blogTitle) {
   if (!confirm(`Are you sure you want to permanently delete the article "${blogTitle}"?\n\nThis will remove the publication from the Knowledge Hub.`)) {
@@ -11054,12 +11193,12 @@ async function renderBlogArticleView(viewport, blogId) {
     }
   }
 
-  if (!blog) {
+  if (!blog || (blog.is_hidden && (!state.currentUser || state.currentUser.role !== 'admin'))) {
     viewport.innerHTML = `
       <div style="max-width: 700px; margin: 80px auto; text-align: center; padding: 40px 20px;">
-        <div style="color: var(--orange-primary); margin-bottom: 16px;">${svgIcon('search', '', 48)}</div>
-        <h2 style="font-size: 1.5rem; color: var(--white); margin-bottom: 8px;">Article Not Found</h2>
-        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">The article blueprint you are looking for may have been updated or moved.</p>
+        <div style="color: var(--orange-primary); margin-bottom: 16px;">${svgIcon('eyeOff', '', 48)}</div>
+        <h2 style="font-size: 1.5rem; color: var(--white); margin-bottom: 8px;">Article Unpublished or Hidden</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">This article is currently set to private/draft status and is not available for public reading.</p>
         <button class="btn-orange" onclick="navigateTo('blog')">← Return to Knowledge Hub</button>
       </div>
     `;

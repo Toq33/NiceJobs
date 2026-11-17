@@ -1779,15 +1779,19 @@ def get_blogs(category: Optional[str] = None):
 
     conn = database.get_db()
     cursor = conn.cursor()
+    base_query = "SELECT * FROM blogs WHERE (is_hidden = 0 OR is_hidden IS NULL)"
+    order_clause = "ORDER BY COALESCE(NULLIF(serial_no, 0), 999999) ASC, published_at DESC, id DESC"
     if category and category.lower() != 'all':
-        cursor.execute("SELECT * FROM blogs WHERE category = ? ORDER BY published_at DESC", (category,))
+        cursor.execute(f"{base_query} AND category = ? {order_clause}", (category,))
     else:
-        cursor.execute("SELECT * FROM blogs ORDER BY published_at DESC")
+        cursor.execute(f"{base_query} {order_clause}")
     rows = cursor.fetchall()
     blogs = []
     for r in rows:
         b = dict(r)
-        b["tags"] = json.loads(b["tags"]) if b["tags"] else []
+        b["tags"] = json.loads(b["tags"]) if b.get("tags") else []
+        b["is_hidden"] = int(b.get("is_hidden") or 0)
+        b["serial_no"] = int(b.get("serial_no") or 0)
         blogs.append(b)
     conn.close()
     set_cached_api(cache_key, blogs)
@@ -1924,6 +1928,8 @@ class BlogUpdatePayload(BaseModel):
     author_name: Optional[str] = None
     author_title: Optional[str] = None
     read_time: Optional[str] = None
+    is_hidden: Optional[bool] = None
+    serial_no: Optional[int] = None
 
 @app.put("/api/blogs/{blog_id}")
 @app.put("/api/admin/blogs/{blog_id}")
@@ -1982,16 +1988,71 @@ def update_blog(blog_id: str, payload: BlogUpdatePayload, user_id: Optional[str]
         title, category, excerpt, content, cover_image,
         read_time, tags_json, author_name, author_title, author_id, b["id"]
     ))
+
+    if payload.is_hidden is not None:
+        cursor.execute("UPDATE blogs SET is_hidden = ? WHERE id = ?", (1 if payload.is_hidden else 0, b["id"]))
+    if payload.serial_no is not None:
+        cursor.execute("UPDATE blogs SET serial_no = ? WHERE id = ?", (int(payload.serial_no), b["id"]))
+
     conn.commit()
 
     cursor.execute("SELECT * FROM blogs WHERE id = ?", (b["id"],))
     updated_row = dict(cursor.fetchone())
     updated_row["tags"] = json.loads(updated_row["tags"]) if updated_row["tags"] else []
+    updated_row["is_hidden"] = int(updated_row.get("is_hidden") or 0)
+    updated_row["serial_no"] = int(updated_row.get("serial_no") or 0)
     conn.close()
 
     invalidate_api_cache("blogs")
     invalidate_api_cache("admin")
+    notify_realtime("blog_updated", {"blog_id": b["id"], "is_hidden": updated_row["is_hidden"], "serial_no": updated_row["serial_no"]})
     return {"success": True, "blog": updated_row}
+
+class BlogVisibilityPayload(BaseModel):
+    is_hidden: bool
+
+@app.post("/api/admin/blogs/{blog_id}/visibility")
+def toggle_admin_blog_visibility(blog_id: str, payload: BlogVisibilityPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM blogs WHERE id = ? OR slug = ?", (blog_id, blog_id))
+    b = cursor.fetchone()
+    if not b:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Blog article not found")
+
+    new_hidden = 1 if payload.is_hidden else 0
+    cursor.execute("UPDATE blogs SET is_hidden = ? WHERE id = ?", (new_hidden, b["id"]))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("blogs")
+    invalidate_api_cache("admin")
+    notify_realtime("blog_updated", {"blog_id": b["id"], "is_hidden": new_hidden})
+    return {"success": True, "blog_id": b["id"], "is_hidden": bool(new_hidden)}
+
+class BlogSerialPayload(BaseModel):
+    serial_no: int
+
+@app.post("/api/admin/blogs/{blog_id}/serial")
+def update_admin_blog_serial(blog_id: str, payload: BlogSerialPayload):
+    conn = database.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM blogs WHERE id = ? OR slug = ?", (blog_id, blog_id))
+    b = cursor.fetchone()
+    if not b:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Blog article not found")
+
+    serial_val = max(0, int(payload.serial_no))
+    cursor.execute("UPDATE blogs SET serial_no = ? WHERE id = ?", (serial_val, b["id"]))
+    conn.commit()
+    conn.close()
+
+    invalidate_api_cache("blogs")
+    invalidate_api_cache("admin")
+    notify_realtime("blog_updated", {"blog_id": b["id"], "serial_no": serial_val})
+    return {"success": True, "blog_id": b["id"], "serial_no": serial_val}
 
 @app.delete("/api/blogs/{blog_id}")
 @app.delete("/api/admin/blogs/{blog_id}")
@@ -6265,13 +6326,15 @@ def get_admin_blogs():
         SELECT b.*, u.email as author_email, u.role as author_role, u.phone as author_phone
         FROM blogs b
         LEFT JOIN users u ON b.author_id = u.id
-        ORDER BY b.published_at DESC
+        ORDER BY COALESCE(NULLIF(b.serial_no, 0), 999999) ASC, b.published_at DESC, b.id DESC
     """)
     rows = cursor.fetchall()
     blogs = []
     for r in rows:
         b = dict(r)
         b["tags"] = json.loads(b["tags"]) if b["tags"] else []
+        b["is_hidden"] = int(b.get("is_hidden") or 0)
+        b["serial_no"] = int(b.get("serial_no") or 0)
         blogs.append(b)
     conn.close()
     return blogs

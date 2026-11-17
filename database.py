@@ -293,11 +293,25 @@ def get_db():
 def ensure_db_ready():
     """
     Lightweight health check for serverless environments.
-    Verifies database connectivity without executing heavy DDL or migrations.
+    Verifies database connectivity and ensures essential schema columns exist.
     """
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT 1")
+    if_not_exists = "IF NOT EXISTS " if is_postgres() else ""
+    for table, col, typ in [
+        ("blogs", "is_hidden", "INTEGER DEFAULT 0"),
+        ("blogs", "serial_no", "INTEGER DEFAULT 0"),
+        ("blogs", "author_id", "TEXT DEFAULT ''"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {if_not_exists}{col} {typ}")
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     conn.close()
 
 def reset_demo_data():
@@ -636,7 +650,9 @@ def init_db():
         read_time TEXT DEFAULT '5 min read',
         published_at TEXT,
         tags TEXT, -- JSON array
-        author_id TEXT DEFAULT ''
+        author_id TEXT DEFAULT '',
+        is_hidden INTEGER DEFAULT 0,
+        serial_no INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sponsors (
@@ -829,7 +845,11 @@ def init_db():
                 pass
             pass
 
-    for col, typ in [("author_id", "TEXT DEFAULT ''")]:
+    for col, typ in [
+        ("author_id", "TEXT DEFAULT ''"),
+        ("is_hidden", "INTEGER DEFAULT 0"),
+        ("serial_no", "INTEGER DEFAULT 0")
+    ]:
         try:
             cursor.execute(f"ALTER TABLE blogs ADD COLUMN {if_not_exists}{col} {typ}")
             conn.commit()
